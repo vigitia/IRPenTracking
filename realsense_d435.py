@@ -14,21 +14,35 @@ import pyrealsense2 as rs
 import numpy as np
 import threading
 import time
+import random
 
 import datetime
 
 from laser_pen_detector_service import LaserPenDetectorService
+
+from surface_selector import SurfaceSelector
+from table_extraction_service import TableExtractionService
+
+import tensorflow as tf
+from tensorflow import keras
+
+from tflite import LiteModel
+
+from pen_state_detector import predict, IMG_SIZE
+
+keras.backend.clear_session()
 
 
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
             start_time = datetime.datetime.now()
-            print("I " +prefix + "> " + str(start_time))
+            #print("I " +prefix + "> " + str(start_time))
             retval = func(*args, **kwargs)
             end_time =  datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
-            print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) +" ms)")
+            #print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) +" ms)")
+            #print(str(run_time), flush=True)
             return retval
         return wrapper
     return timeit_decorator
@@ -57,8 +71,13 @@ SET_ROI = False
 ROI_MIN = (305, 235)
 ROI_MAX = (338, 254)
 
-IR_SENSOR_EXPOSURE = 1800  # 1500  #  1800#900 # 1800
+IR_SENSOR_EXPOSURE = 2000  # 1500  #  1800#900 # 1800
 IR_SENSOR_GAIN = 200   # 200 #100  # 200
+
+IR_SENSOR_EXPOSURE_MAX = 3500
+IR_SENSOR_EXPOSURE_MIN = 500
+IR_SENSOR_GAIN_MAX = 350
+IR_SENSOR_GAIN_MIN = 50
 
 RGB_SENSOR_EXPOSURE = 400
 RGB_SENSOR_GAIN = 20
@@ -78,7 +97,37 @@ DEBUG_MODE = False
 # dist = np.array([[2.03046975e-01, -6.68070627e-01, 4.20827516e-03, 5.45944400e-04, 6.58760428e-01]])
 
 CALIBRATION_DATA_PATH = ''
+CALIBRATION_MODE = False
+EXPOSURE_CALIBRATION_MODE = False
+EXPOSURE_CALIBRATION_MODE_2 = True
+CAMERA_PATH = '/vigitia/realsense_ir_full'
+depth_ir_sensor = None
+img_id = 0
+write_counter = 0
+RECORD_MODE = False
+TRAINING_CONDITION = 'draw'
+TRAINING_PATH = 'draw_new'
+PREDICTION_MODE = True
+#IMG_SIZE = 48
 
+model = keras.models.load_model('evaluation/hover_predictor_binary_4')
+litemodel = LiteModel.from_keras_model(model)
+
+img_drawing = None
+
+def crop_image(img, size = IMG_SIZE):
+    margin = int(size / 2)
+    _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
+    img_cropped = img[max_y - margin : max_y + margin, max_x - margin : max_x + margin]
+    return img_cropped, brightest, (max_x, max_y)
+
+#def predict(img):
+#    img = img.astype('float32') / 255
+#    img = img.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
+#    #prediction = model.predict(img)
+#    #prediction = model(img)
+#    prediction = litemodel.predict(img)
+#    return prediction
 
 class RealsenseD435Camera:
 
@@ -106,6 +155,9 @@ class RealsenseD435Camera:
         self.load_camera_calibration_data()
 
         self.laser_pen_detector = LaserPenDetectorService()
+        self.surface_selector = SurfaceSelector(CAMERA_PATH)
+        self.table_extractor = TableExtractionService()
+
 
         # print(self.camera_matrix_rgb, self.camera_matrix_ir)
 
@@ -128,6 +180,7 @@ class RealsenseD435Camera:
             print('Cant load calibration data for ir sensor')
 
     def init_video_capture(self):
+        global depth_ir_sensor
         try:
             # Create a pipeline
             self.pipeline = rs.pipeline()
@@ -237,7 +290,8 @@ class RealsenseD435Camera:
     def process_frame(self):
         self.num_frame += 1
         if DEBUG_MODE:
-            print('[RealsenseD435Camera]: Frame ', self.num_frame)
+            #print('[RealsenseD435Camera]: Frame ', self.num_frame)
+            pass
 
         frames = self.pipeline.wait_for_frames()
 
@@ -307,9 +361,96 @@ class RealsenseD435Camera:
             self.color_image = None
             self.change_color = False
 
+            if CALIBRATION_MODE:
+                #print(self.left_ir_image)
+                #print(self.left_ir_image.shape)
+                #cv2.imshow('test', self.left_ir_image)
+                calibration_finished = self.surface_selector.select_surface(self.left_ir_image)
+                calibration_finished = False
+                if calibration_finished:
+                    print("[Surface Selector Node]: Calibration Finished")
+                    exit()
+            else:
+                global EXPOSURE_CALIBRATION_MODE, EXPOSURE_CALIBRATION_MODE_2
+                global IR_SENSOR_EXPOSURE, IR_SENSOR_GAIN, depth_ir_sensor
+                ir_image_table = self.table_extractor.extract_table_area(self.left_ir_image, CAMERA_PATH)
+                if EXPOSURE_CALIBRATION_MODE:
+                    max_brightness = np.max(ir_image_table)
+                    #print(IR_SENSOR_EXPOSURE, max_brightness)
+                    if max_brightness > 240:
+                        if IR_SENSOR_EXPOSURE > 50:
+                            IR_SENSOR_EXPOSURE -= 50
+                            depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
+                        if IR_SENSOR_GAIN > 50:
+                            IR_SENSOR_GAIN -= 50
+                            depth_ir_sensor.set_option(rs.option.gain, IR_SENSOR_GAIN)
+                        print(f'gain: {IR_SENSOR_GAIN}, exposure: {IR_SENSOR_EXPOSURE}')
+                    elif max_brightness < 100:
+                        IR_SENSOR_EXPOSURE += 50
+                        depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
+                    else:
+                        print(f'exposure: {IR_SENSOR_EXPOSURE}, gain: {IR_SENSOR_GAIN}, max: {np.max(ir_image_table)}')
+                        EXPOSURE_CALIBRATION_MODE = False
+                elif EXPOSURE_CALIBRATION_MODE_2:
+                    mean_brightness = np.mean(ir_image_table)
+                    #print(IR_SENSOR_EXPOSURE, max_brightness)
+                    if mean_brightness > 20:
+                        if IR_SENSOR_EXPOSURE > 50:
+                            IR_SENSOR_EXPOSURE -= 50
+                            depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
+                        if IR_SENSOR_GAIN > 50:
+                            IR_SENSOR_GAIN -= 50
+                            depth_ir_sensor.set_option(rs.option.gain, IR_SENSOR_GAIN)
+                        print(f'gain: {IR_SENSOR_GAIN}, exposure: {IR_SENSOR_EXPOSURE}')
+                    elif mean_brightness < 10:
+                        IR_SENSOR_EXPOSURE += 50
+                        depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
+                    else:
+                        print(f'exposure: {IR_SENSOR_EXPOSURE}, gain: {IR_SENSOR_GAIN}, max: {np.max(ir_image_table)}')
+                        EXPOSURE_CALIBRATION_MODE_2 = False
 
-            pen_spots, stored_lines, new_lines, points_to_remove, selected_color = self.laser_pen_detector.get_pen_spots(
-                self.color_image, self.left_ir_image, self.change_color)
+                img_preview = cv2.cvtColor(ir_image_table, cv2.COLOR_GRAY2BGR)
+                if RECORD_MODE:
+                    global img_id, write_counter
+                    #write_coutner = 0
+                    cv2.imwrite(f'out/{TRAINING_PATH}/{img_id:04d}_{TRAINING_CONDITION}_{IR_SENSOR_EXPOSURE}_{IR_SENSOR_GAIN}.png', ir_image_table)
+                    IR_SENSOR_EXPOSURE = random.randint(IR_SENSOR_EXPOSURE_MIN, IR_SENSOR_EXPOSURE_MAX)
+                    IR_SENSOR_GAIN = random.randint(IR_SENSOR_GAIN_MIN, IR_SENSOR_GAIN_MAX)
+                    depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
+                    depth_ir_sensor.set_option(rs.option.gain, IR_SENSOR_GAIN)
+                    time.sleep(0.05)
+
+                    img_id += 1
+                    #time.sleep(1)
+                if PREDICTION_MODE:
+                    print(round(np.mean(ir_image_table), 2), np.min(ir_image_table), np.max(ir_image_table))
+                    global model
+                    img_cropped, brightest, coords = crop_image(ir_image_table)
+                    if brightest > 100 and img_cropped.shape == (IMG_SIZE, IMG_SIZE):
+                        prediction, confidence = predict(img_cropped)
+                        #print(np.argmax(prediction), coords)
+                        if prediction != 'undefined':
+                            cv2.imshow('crop', img_cropped)
+                            global img_drawing
+                            if img_drawing is None:
+                                img_drawing = np.zeros(img_preview.shape)
+
+                            if prediction == 'draw':
+                                color = (0, 255, 0)
+                                img_drawing = cv2.circle(img_drawing, coords, 1, (255, 255, 255), 1)
+                            #elif np.argmax(prediction) == 1:
+                            #    color = (0, 255, 255)
+                            else:
+                                color = (0, 0, 255)
+                            #img_preview = cv2.circle(img_preview, coords, 10, color, 5)
+                            img_preview = cv2.rectangle(img_preview, (coords[0] - int(IMG_SIZE / 2), coords[1] - int(IMG_SIZE / 2)), (coords[0] + int(IMG_SIZE / 2), coords[1] + int(IMG_SIZE / 2)), color, 1)
+                            cv2.imshow('drawing', img_drawing)
+
+                cv2.imshow('test', img_preview)
+            cv2.waitKey(1)
+
+                #pen_spots, stored_lines, new_lines, points_to_remove, selected_color = self.laser_pen_detector.get_pen_spots(
+                #    self.color_image, self.left_ir_image, self.change_color)
 
             if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
                 print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
@@ -366,3 +507,6 @@ if __name__ == '__main__':
     realsense_d435_camera = RealsenseD435Camera()
     realsense_d435_camera.init_video_capture()
     realsense_d435_camera.start()
+
+
+
