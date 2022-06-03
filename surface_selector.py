@@ -16,13 +16,11 @@ HINT = 'Click on each of the four corners of the table/projection'
 
 CONFIG_FILE_NAME = 'config.ini'
 
-AUTO_CALIBRATION = False
-
 
 class SurfaceSelector:
     """ SurfaceSelector
 
-        This class allows you to select the corners of the table using a simple GUI.
+        This class allows you to select the corners of the projection surface using a simple GUI.
         This will be needed to rectify the camera images, extract the table area and calibrate the system.
 
     """
@@ -83,13 +81,10 @@ class SurfaceSelector:
                 config.write(configfile)
 
     def select_surface(self, frame):
+        calibration_finished = False
+
         if frame is not None:
-            if AUTO_CALIBRATION:
-                calibration_finished = self.auto_calibrate(frame)
-            else:
-                print('select surface')
-                calibration_finished = self.display_mode_calibration(frame)
-                print('select surface end')
+            calibration_finished = self.display_mode_calibration(frame)
         else:
             print("[Calibration Mode]: Please wait until camera is ready...")
         
@@ -100,97 +95,6 @@ class SurfaceSelector:
         # if key & 0xFF == ord('q') or key == 27:
         #     cv2.destroyAllWindows()
 
-    def __find_corners_by_aruco_markers(self, color_image):
-        aruco_markers = self.fiducials_detection_service.detect_fiducials(color_image)
-        # aruco.drawDetectedMarkers(preview, corners, ids)
-
-        corners = []
-
-        for marker in aruco_markers:
-
-            marker_id = marker['id']
-
-            if marker_id == 0:
-                vector_x = (marker['corners'][0][0] - marker['corners'][1][0],
-                            marker['corners'][0][1] - marker['corners'][1][1])
-                vector_y = (marker['corners'][0][0] - marker['corners'][3][0],
-                            marker['corners'][0][1] - marker['corners'][3][1])
-                vector_x_length = self.vector_norm(vector_x)
-                vector_y_length = self.vector_norm(vector_y)
-                vector_normalized_x = self.normalize_vector(vector_x)
-                vector_normalized_y = self.normalize_vector(vector_y)
-                x_new = marker['corners'][0][0] + vector_x_length * vector_normalized_x[0] + vector_y_length * \
-                        vector_normalized_y[0]
-                y_new = marker['corners'][0][1] + vector_x_length * vector_normalized_x[1] + vector_y_length * \
-                        vector_normalized_y[1]
-
-                corner_one = (int(x_new), int(y_new))
-                color_image = cv2.circle(color_image, corner_one, 2, (255, 255, 0), -1)
-                corners.append(corner_one)
-            elif marker_id == 1:
-                vector_x = (marker['corners'][3][0] - marker['corners'][2][0],
-                            marker['corners'][3][1] - marker['corners'][2][1])
-                vector_y = (marker['corners'][3][0] - marker['corners'][0][0],
-                            marker['corners'][3][1] - marker['corners'][0][1])
-                vector_x_length = self.vector_norm(vector_x)
-                vector_y_length = self.vector_norm(vector_y)
-                vector_normalized_x = self.normalize_vector(vector_x)
-                vector_normalized_y = self.normalize_vector(vector_y)
-                x_new = marker['corners'][3][0] + vector_x_length * vector_normalized_x[0] + vector_y_length * \
-                        vector_normalized_y[0]
-                y_new = marker['corners'][3][1] + vector_x_length * vector_normalized_x[1] + vector_y_length * \
-                        vector_normalized_y[1]
-
-                corner_two = (int(x_new), int(y_new))
-                color_image = cv2.circle(color_image, corner_two, 2, (255, 255, 0), -1)
-                corners.append(corner_two)
-            elif marker_id == 2:
-                vector_x = (marker['corners'][2][0] - marker['corners'][3][0],
-                            marker['corners'][2][1] - marker['corners'][3][1])
-                vector_y = (marker['corners'][2][0] - marker['corners'][1][0],
-                            marker['corners'][2][1] - marker['corners'][1][1])
-                vector_x_length = self.vector_norm(vector_x)
-                vector_y_length = self.vector_norm(vector_y)
-                vector_normalized_x = self.normalize_vector(vector_x)
-                vector_normalized_y = self.normalize_vector(vector_y)
-                x_new = marker['corners'][2][0] + vector_x_length * vector_normalized_x[0] + vector_y_length * \
-                        vector_normalized_y[0]
-                y_new = marker['corners'][2][1] + vector_x_length * vector_normalized_x[1] + vector_y_length * \
-                        vector_normalized_y[1]
-
-                corner_three = (int(x_new), int(y_new))
-                color_image = cv2.circle(color_image, corner_three, 2, (255, 255, 0), -1)
-                corners.append(corner_three)
-            elif marker_id == 3:
-                vector_x = (marker['corners'][1][0] - marker['corners'][0][0],
-                            marker['corners'][1][1] - marker['corners'][0][1])
-                vector_y = (marker['corners'][1][0] - marker['corners'][2][0],
-                            marker['corners'][1][1] - marker['corners'][2][1])
-                vector_x_length = self.vector_norm(vector_x)
-                vector_y_length = self.vector_norm(vector_y)
-                vector_normalized_x = self.normalize_vector(vector_x)
-                vector_normalized_y = self.normalize_vector(vector_y)
-                x_new = marker['corners'][1][0] + vector_x_length * vector_normalized_x[0] + vector_y_length * \
-                        vector_normalized_y[0]
-                y_new = marker['corners'][1][1] + vector_x_length * vector_normalized_x[1] + vector_y_length * \
-                        vector_normalized_y[1]
-
-                corner_four = (int(x_new), int(y_new))
-                color_image = cv2.circle(color_image, corner_four, 2, (255, 255, 0), -1)
-                corners.append(corner_four)
-
-        return color_image, corners
-
-    def auto_calibrate(self, frame):
-        cv2.imshow('Surface Selector', frame)
-
-        frame, corners = self.__find_corners_by_aruco_markers(frame)
-
-        if len(corners) == 4:
-            print('[Calibration Mode]: Calibrated')
-            self.update_table_corner_calibration(corners)
-            return True
-        return False
 
     def display_mode_calibration(self, frame):
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
@@ -216,7 +120,6 @@ class SurfaceSelector:
             cv2.destroyAllWindows()
             return True
 
-        print('dmc imshow')
         cv2.imshow('Surface Selector', frame)
         cv2.setMouseCallback('Surface Selector', self.on_mouse_click)
         #cv2.imshow('test', frame)
@@ -257,10 +160,6 @@ class SurfaceSelector:
 
         with open(CONFIG_FILE_NAME, 'w') as configfile:
             config.write(configfile)
-
-    def project_targets_on_table(self):
-        # TODO: Project Targets on table and let a user click them.
-        pass
 
     def dot(self, u, v):
         return sum((a * b) for a, b in zip(u, v))
