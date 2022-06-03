@@ -14,7 +14,7 @@ class ShapeCreator:
         self.resolution = 0.3
 
     def draw_shape(self, path, coords, width, thickness, style=LINE, resolution=0):
-        img = np.zeros((self.display_width, self.display_height, 1))
+        img = np.zeros((self.display_height, self.display_width, 1))
         if resolution == 0:
             resolution = self.resolution
         paths = self._shape_from_svg(path, coords, width, resolution)
