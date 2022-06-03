@@ -3,14 +3,14 @@ from enum import Enum
 import time
 import numpy as np
 from tensorflow import keras
-from .tflite import LiteModel
+from tflite import LiteModel
 import datetime
 from scipy.spatial import distance
 
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = '/home/vigitia/Desktop/VIGITIA-Framework/VIGITIA-Framework/src/laser_pen_detector_node/laser_pen_detector_node/hover_predictor_binary_4'
+MODEL_PATH = '/home/vigitia/Desktop/GitHub/IRPenTracking/evaluation/hover_predictor_binary_7'
 
 CROP_IMAGE_SIZE = 48
 
@@ -53,7 +53,7 @@ class PenEvent:
 
         self.first_appearance = round(time.time() * 1000)
         self.state = State.NEW
-        self.history = [(x, y)]
+        self.history = []
 
         self.alive = True
 
@@ -125,68 +125,65 @@ class IRPen:
         return state, confidence
 
     def merge_pen_events(self, new_pen_events):
-
-        final_pen_events = []
+        # Get current timestamp
         now = round(time.time() * 1000)
 
         if DEBUG_MODE:
-            for point in self.active_pen_events:
-                print(point)
+            for final_pen_event in self.active_pen_events:
+                print(final_pen_event)
 
         # Iterate over copy of list
-        # If a point has been declared a "Click Event" in the last frame, this event is now over, and we can delete it.
+        # If a final_pen_event has been declared a "Click Event" in the last frame, this event is now over, and we can delete it.
         for active_pen_event in self.active_pen_events[:]:
             if active_pen_event.state == State.CLICK:
-                active_pen_event = self.process_click_events(active_pen_event)
+                self.process_click_events(active_pen_event)
 
-                self.pen_events_to_remove.append(active_pen_event)
-                self.active_pen_events.remove(active_pen_event)
+        # Compare all new_pen_events and active_pen_events and pair them by shortest distance to each other
+        shortest_distance_point_pairs = self.calculate_distances_between_all_points(new_pen_events)
 
-        distances = self.calculate_distances_between_all_points(new_pen_events)
-
-        for entry in distances:
-            active_touch_point = self.active_pen_events[entry[0]]
+        for entry in shortest_distance_point_pairs:
+            active_pen_event = self.active_pen_events[entry[0]]
             new_pen_event = new_pen_events[entry[1]]
 
-            # id = -1 means that it is a new point
-            if active_touch_point.id == -1 or new_pen_event.id != -1:
-                continue
-
-            # Move ID and other important information from the active touch point into the new touch point
-            new_pen_event.id = active_touch_point.id
-            new_pen_event.first_appearance = active_touch_point.first_appearance
-
-            if active_touch_point.state == State.HOVER and new_pen_event.state != State.HOVER:
+            if active_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
                 print('HOVER EVENT turned into TOUCH EVENT')
 
-            new_pen_event.state = active_touch_point.state
-            new_pen_event.history = active_touch_point.history
+            # Move ID and other important information from the active touch final_pen_event into the new
+            # touch final_pen_event
+            new_pen_event.id = active_pen_event.id
+            new_pen_event.first_appearance = active_pen_event.first_appearance
+            new_pen_event.state = active_pen_event.state
+            new_pen_event.history = active_pen_event.history
+            new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - active_pen_event.x) + active_pen_event.x)
+            new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - active_pen_event.y) + active_pen_event.y)
 
-            # TODO: Check if this ID reset is needed
-            active_touch_point.id = -1
-
-            new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - active_touch_point.x) + active_touch_point.x)
-            new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - active_touch_point.y) + active_touch_point.y)
+            # Set the ID of the active_pen_event back to -1 so that it is ignored in all future checks
+            # We later want to only look at the remaining active_pen_events that did not have a corresponding new_pen_event
+            active_pen_event.id = -1
 
         for new_pen_event in new_pen_events:
             new_pen_event.missing = False
             new_pen_event.last_seen_timestamp = now
 
+        # Check all active_pen_events that do not have a match found after comparison with the new_pen_events
         for active_pen_event in self.active_pen_events:
+            # Skip all active_pen_events with ID -1. For those we already have found a matc.h
+            if active_pen_event.id == -1:
+                continue
 
             time_since_last_seen = now - active_pen_event.last_seen_timestamp
 
-            # If it is not a new point (ID != -1) and the point is not yet declared as missing:
-            if active_pen_event.id != -1 and (
-                    not active_pen_event.missing or time_since_last_seen < TIME_POINT_MISSING_THRESHOLD_MS):
+            if not active_pen_event.missing or time_since_last_seen < TIME_POINT_MISSING_THRESHOLD_MS:
                 if not active_pen_event.missing:
                     active_pen_event.last_seen_timestamp = now
 
                 active_pen_event.missing = True
                 new_pen_events.append(active_pen_event)
 
-            elif active_pen_event.id != -1:
+            else:
                 if active_pen_event.state == State.NEW:
+                    # We detected a click event but we do not remove it yet because it also could be a double click.
+                    # We will check this the next time this function is called.
                     active_pen_event.state = State.CLICK
                     new_pen_events.append(active_pen_event)
                 elif active_pen_event.state == State.DRAG:
@@ -200,24 +197,31 @@ class IRPen:
                     print('HOVER EVENT END')
                     self.pen_events_to_remove.append(active_pen_event)
 
+        final_pen_events = self.assign_new_ids(new_pen_events)
+
+        for final_pen_event in final_pen_events:
+            # Add current position to the history list
+            final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
+
+            time_since_first_appearance = now - final_pen_event.first_appearance
+            if final_pen_event.state != State.CLICK and final_pen_event.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
+                if final_pen_event.state == State.NEW:
+                    # Start of a drag event
+                    print('DRAG START')
+                    final_pen_event.state = State.DRAG
+                elif final_pen_event.state == State.HOVER:
+                    print('DETECTED Hover EVENT!')
+
+        return final_pen_events
+
+    def assign_new_ids(self, new_pen_events):
+        final_pen_events = []
+
         for new_pen_event in new_pen_events:
             if new_pen_event.id == -1:
                 new_pen_event.id = self.highest_id
                 self.highest_id += 1
-
             final_pen_events.append(new_pen_event)
-
-        for point in final_pen_events:
-            point.history.append((point.x, point.y))
-            time_since_first_appearance = now - point.first_appearance
-            if point.state != State.CLICK and point.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
-                if point.state == State.NEW:
-                    # Start of a drag event
-                    print('DRAG START')
-                    point.state = State.DRAG
-                elif point.state == State.HOVER:
-                    print('DETECTED Hover EVENT!')
-
         return final_pen_events
 
     def process_click_events(self, active_pen_event):
@@ -253,8 +257,6 @@ class IRPen:
 
         self.pen_events_to_remove.append(active_pen_event)
         self.active_pen_events.remove(active_pen_event)
-
-        return active_pen_event
 
     def calculate_distances_between_all_points(self, new_pen_events):
         distances = []
