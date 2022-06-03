@@ -4,11 +4,12 @@ from tensorflow import keras
 from tflite import LiteModel
 
 IMG_SIZE = 48
-STATES = ['draw', 'hover', 'undefined']
+STATES = ['draw', 'hover', 'direct', 'undefined']
 
 keras.backend.clear_session()
 
-model = keras.models.load_model('evaluation/hover_predictor_binary_4')
+model = keras.models.load_model('evaluation/hover_predictor_binary_7')
+#model = keras.models.load_model('evaluation/hover_predictor_three_1')
 litemodel = LiteModel.from_keras_model(model)
 
 def predict(img):

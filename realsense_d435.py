@@ -71,13 +71,13 @@ SET_ROI = False
 ROI_MIN = (305, 235)
 ROI_MAX = (338, 254)
 
-IR_SENSOR_EXPOSURE = 2000  # 1500  #  1800#900 # 1800
-IR_SENSOR_GAIN = 200   # 200 #100  # 200
+IR_SENSOR_EXPOSURE = 3000  # 1500  #  1800#900 # 1800
+IR_SENSOR_GAIN = 300   # 200 #100  # 200
 
-IR_SENSOR_EXPOSURE_MAX = 3500
-IR_SENSOR_EXPOSURE_MIN = 500
-IR_SENSOR_GAIN_MAX = 350
-IR_SENSOR_GAIN_MIN = 50
+IR_SENSOR_EXPOSURE_MAX = 4000
+IR_SENSOR_EXPOSURE_MIN = 250
+IR_SENSOR_GAIN_MAX = 400
+IR_SENSOR_GAIN_MIN = 25
 
 RGB_SENSOR_EXPOSURE = 400
 RGB_SENSOR_GAIN = 20
@@ -99,18 +99,18 @@ DEBUG_MODE = False
 CALIBRATION_DATA_PATH = ''
 CALIBRATION_MODE = False
 EXPOSURE_CALIBRATION_MODE = False
-EXPOSURE_CALIBRATION_MODE_2 = True
+EXPOSURE_CALIBRATION_MODE_2 = False
 CAMERA_PATH = '/vigitia/realsense_ir_full'
 depth_ir_sensor = None
 img_id = 0
 write_counter = 0
 RECORD_MODE = False
-TRAINING_CONDITION = 'draw'
-TRAINING_PATH = 'draw_new'
+TRAINING_CONDITION = 'hover_sunlight'
+TRAINING_PATH = 'hover_sunlight'
 PREDICTION_MODE = True
 #IMG_SIZE = 48
 
-model = keras.models.load_model('evaluation/hover_predictor_binary_4')
+model = keras.models.load_model('evaluation/hover_predictor_binary_5')
 litemodel = LiteModel.from_keras_model(model)
 
 img_drawing = None
@@ -394,15 +394,15 @@ class RealsenseD435Camera:
                 elif EXPOSURE_CALIBRATION_MODE_2:
                     mean_brightness = np.mean(ir_image_table)
                     #print(IR_SENSOR_EXPOSURE, max_brightness)
-                    if mean_brightness > 20:
+                    if mean_brightness > 45:
                         if IR_SENSOR_EXPOSURE > 50:
                             IR_SENSOR_EXPOSURE -= 50
                             depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
-                        if IR_SENSOR_GAIN > 50:
+                        if IR_SENSOR_GAIN > 35:
                             IR_SENSOR_GAIN -= 50
                             depth_ir_sensor.set_option(rs.option.gain, IR_SENSOR_GAIN)
                         print(f'gain: {IR_SENSOR_GAIN}, exposure: {IR_SENSOR_EXPOSURE}')
-                    elif mean_brightness < 10:
+                    elif mean_brightness < 25:
                         IR_SENSOR_EXPOSURE += 50
                         depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
                     else:
@@ -423,9 +423,10 @@ class RealsenseD435Camera:
                     img_id += 1
                     #time.sleep(1)
                 if PREDICTION_MODE:
-                    print(round(np.mean(ir_image_table), 2), np.min(ir_image_table), np.max(ir_image_table))
+                    #print(round(np.mean(ir_image_table), 2), np.min(ir_image_table), np.max(ir_image_table))
                     global model
                     img_cropped, brightest, coords = crop_image(ir_image_table)
+                    #print(np.std(img_cropped), flush=True)
                     if brightest > 100 and img_cropped.shape == (IMG_SIZE, IMG_SIZE):
                         prediction, confidence = predict(img_cropped)
                         #print(np.argmax(prediction), coords)
@@ -438,15 +439,19 @@ class RealsenseD435Camera:
                             if prediction == 'draw':
                                 color = (0, 255, 0)
                                 img_drawing = cv2.circle(img_drawing, coords, 1, (255, 255, 255), 1)
-                            #elif np.argmax(prediction) == 1:
-                            #    color = (0, 255, 255)
+                            elif prediction == 'direct':
+                                color = (0, 255, 255)
                             else:
                                 color = (0, 0, 255)
                             #img_preview = cv2.circle(img_preview, coords, 10, color, 5)
                             img_preview = cv2.rectangle(img_preview, (coords[0] - int(IMG_SIZE / 2), coords[1] - int(IMG_SIZE / 2)), (coords[0] + int(IMG_SIZE / 2), coords[1] + int(IMG_SIZE / 2)), color, 1)
-                            cv2.imshow('drawing', img_drawing)
+                            #cv2.imshow('drawing', img_drawing)
 
                 cv2.imshow('test', img_preview)
+                #global ax
+                #ax.clear()
+                #ax.hist(ir_image_table.ravel(),256,[0,256])
+                #plt.show()
             cv2.waitKey(1)
 
                 #pen_spots, stored_lines, new_lines, points_to_remove, selected_color = self.laser_pen_detector.get_pen_spots(
