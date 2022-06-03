@@ -51,7 +51,8 @@ class TableExtractionService:
                            self.config[camera_parameter_name]['cornerbottomleft'],
                            self.config[camera_parameter_name]['cornerbottomright']])
 
-        pts2 = np.float32([[x, y], [0, y], [x, 0], [0, 0]])
+        # pts2 = np.float32([[x, y], [0, y], [x, 0], [0, 0]])
+        pts2 = np.float32([[0, 0], [x, 0], [0, y], [x, y]])
         matrix = cv2.getPerspectiveTransform(pts1, pts2)
 
         frame = cv2.warpPerspective(frame, matrix, (x, y))

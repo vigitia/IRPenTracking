@@ -88,6 +88,10 @@ class IRPen:
         # TODO: Get here all spots and not just one
         img_cropped, brightest, (x, y) = self.crop_image(ir_frame)
 
+        WINDOW_WIDTH = 3840
+        WINDOW_HEIGHT = 2160
+        (x, y) = self.convert_coordinate_to_target_resolution(x, y, ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
+
         # TODO: for loop here to iterate over all detected bright spots in the image
         if brightest > 100 and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
             prediction, confidence = self.predict(img_cropped)
@@ -107,6 +111,12 @@ class IRPen:
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
         return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove
+
+    def convert_coordinate_to_target_resolution(self, x, y, current_res_x, current_res_y, target_x, target_y):
+        x_new = int((x / current_res_x) * target_x)
+        y_new = int((y / current_res_y) * target_y)
+
+        return x_new, y_new
 
     def crop_image(self, img, size=CROP_IMAGE_SIZE):
         margin = int(size / 2)

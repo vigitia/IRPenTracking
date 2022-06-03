@@ -186,6 +186,9 @@ class RealsenseD435Camera:
             #print(self.left_ir_image.shape)
             calibration_finished = self.surface_selector.select_surface(left_ir_image)
             calibration_finished = False
+
+            cv2.waitKey(1)
+
             if calibration_finished:
                 print("[Surface Selector Node]: Calibration Finished")
                 exit()
@@ -245,8 +248,8 @@ class RealsenseD435Camera:
                 #time.sleep(1)
 
             img_preview = cv2.cvtColor(ir_image_table, cv2.COLOR_GRAY2BGR)
-            cv2.imshow('test', img_preview)
-            cv2.waitKey(1)
+            # cv2.imshow('test', img_preview)
+            # cv2.waitKey(1)
 
     # Returns the requested camera frames
     def get_ir_image(self):
