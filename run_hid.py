@@ -57,7 +57,7 @@ class Run:
             for active_pen_event in active_pen_events:
                 x = active_pen_event.x
                 y = active_pen_event.y
-                if active_pen_event.state == State.CLICK:
+                if active_pen_event.state == State.DRAG:
                     state = 'draw'
 
             self.input_device.input_event(x, y, state)

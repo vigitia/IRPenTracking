@@ -95,6 +95,7 @@ class IRPen:
         # TODO: for loop here to iterate over all detected bright spots in the image
         if brightest > 100 and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
             prediction, confidence = self.predict(img_cropped)
+            print(confidence, flush=True)
 
             if prediction == 'draw':
                 print('Status: Touch')
@@ -105,6 +106,9 @@ class IRPen:
                     cv2.imshow('spots', ir_frame)
             elif prediction == 'hover':
                 print('Status: Hover')
+                new_ir_pen_event = PenEvent(x, y)
+                new_ir_pen_event.state = State.HOVER
+                new_pen_events.append(new_ir_pen_event)
             else:
                 print('Unknown state')
 
@@ -155,14 +159,21 @@ class IRPen:
             active_pen_event = self.active_pen_events[entry[0]]
             new_pen_event = new_pen_events[entry[1]]
 
-            if active_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
-                print('HOVER EVENT turned into TOUCH EVENT')
 
             # Move ID and other important information from the active touch final_pen_event into the new
             # touch final_pen_event
+
+            if active_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
+                print('HOVER EVENT turned into TOUCH EVENT')
+            elif new_pen_event.state == State.HOVER and active_pen_event.state != State.HOVER:
+                print('TOUCH EVENT turned into HOVER EVENT')
+                # We now want to assign a new ID
+                continue
+            else:
+                new_pen_event.state = active_pen_event.state
+
             new_pen_event.id = active_pen_event.id
             new_pen_event.first_appearance = active_pen_event.first_appearance
-            new_pen_event.state = active_pen_event.state
             new_pen_event.history = active_pen_event.history
             new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - active_pen_event.x) + active_pen_event.x)
             new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - active_pen_event.y) + active_pen_event.y)
@@ -210,8 +221,9 @@ class IRPen:
         final_pen_events = self.assign_new_ids(new_pen_events)
 
         for final_pen_event in final_pen_events:
-            # Add current position to the history list
-            final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
+            # Add current position to the history list, but ignore hover events
+            if final_pen_event.state != State.HOVER:
+                final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
 
             time_since_first_appearance = now - final_pen_event.first_appearance
             if final_pen_event.state != State.CLICK and final_pen_event.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
@@ -219,8 +231,8 @@ class IRPen:
                     # Start of a drag event
                     print('DRAG START')
                     final_pen_event.state = State.DRAG
-                elif final_pen_event.state == State.HOVER:
-                    print('DETECTED Hover EVENT!')
+                # elif final_pen_event.state == State.HOVER:
+                #     print('DETECTED Hover EVENT!')
 
         return final_pen_events
 

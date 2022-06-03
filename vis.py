@@ -12,6 +12,7 @@ buf = []
 fig = plt.figure()
 ax = plt.gca()
 
+
 def read_stdin():
     global buf
     for line in sys.stdin:
@@ -32,7 +33,9 @@ stdin_thread.start()
 def animate(i):
     global buf
     ax.clear()
+    ax.set_ylim([0, 1])
     ax.plot(buf)
     
-ani = animation.FuncAnimation(fig, animate, interval=1) 
+ani = animation.FuncAnimation(fig, animate, interval=1)
+
 plt.show()

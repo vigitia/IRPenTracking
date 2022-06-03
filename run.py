@@ -14,8 +14,8 @@ WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
 
 LINE_THICKNESS = 2
-PEN_COLOR = (0, 0, 255)
-LINE_COLOR = (255, 255, 255)
+PEN_COLOR = (255, 255, 255)
+LINE_COLOR = (80, 80, 80)
 
 
 def timeit(prefix):
@@ -56,6 +56,7 @@ class Run:
         while True:
             self.process_frame()
 
+    @timeit("Process Frame")
     def process_frame(self):
         ir_image_table = self.realsense_d435_camera.get_ir_image()
 
@@ -67,8 +68,12 @@ class Run:
             new_frame = self.base_image.copy()
 
             for active_pen_event in active_pen_events:
-                line = np.array(active_pen_event.history, np.int32)
-                cv2.polylines(new_frame, [line], isClosed=False, color=PEN_COLOR, thickness=LINE_THICKNESS)
+                print(active_pen_event)
+                if active_pen_event.state.value == 3:  # HOVER
+                    cv2.circle(new_frame, active_pen_event.get_coordinates(), 5, (0, 255, 0))
+                else:
+                    line = np.array(active_pen_event.history, np.int32)
+                    cv2.polylines(new_frame, [line], isClosed=False, color=PEN_COLOR, thickness=LINE_THICKNESS)
 
             for line in stored_lines:
                 line = np.array(line, np.int32)
@@ -77,6 +82,8 @@ class Run:
             # print(ir_image_table.shape)
 
             cv2.imshow('window', new_frame)
+        else:
+            cv2.imshow('window', self.base_image)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             cv2.destroyAllWindows()
