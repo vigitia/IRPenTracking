@@ -25,7 +25,7 @@ TIME_POINT_MISSING_THRESHOLD_MS = 22
 CLICK_THRESH_MS = 10
 
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 # TODO: Change these states
 STATES = ['draw', 'hover', 'undefined']
@@ -54,6 +54,7 @@ class PenEvent:
         self.first_appearance = round(time.time() * 1000)
         self.state = State.NEW
         self.history = []
+        self.state_history = []
 
         self.alive = True
 
@@ -106,14 +107,17 @@ class IRPen:
 
             (x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
 
+
+
             if prediction == 'draw':
-                print('Status: Touch')
+                # print('Status: Touch')
                 new_ir_pen_event = PenEvent(x, y)
+                new_ir_pen_event.state = State.DRAG
                 new_pen_events.append(new_ir_pen_event)
 
                 color = (0, 255, 0)
             elif prediction == 'hover':
-                print('Status: Hover')
+                # print('Status: Hover')
                 new_ir_pen_event = PenEvent(x, y)
                 new_ir_pen_event.state = State.HOVER
                 new_pen_events.append(new_ir_pen_event)
@@ -126,9 +130,9 @@ class IRPen:
             #preview = cv2.circle(preview, coords, 10, color, -1)
             preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
 
-        if DEBUG_MODE:
-            cv2.imshow('preview', preview)
-            cv2.waitKey(1)
+        # if DEBUG_MODE:
+        #     cv2.imshow('preview', preview)
+        #     cv2.waitKey(1)
 
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
@@ -210,9 +214,17 @@ class IRPen:
         # Get current timestamp
         now = round(time.time() * 1000)
 
-        if DEBUG_MODE:
-            for final_pen_event in self.active_pen_events:
-                print(final_pen_event)
+        for new_pen_event in new_pen_events:
+            new_pen_event.state_history = [new_pen_event.state]
+
+        # if DEBUG_MODE:
+        #     for final_pen_event in self.active_pen_events:
+        #         # print(final_pen_event)
+        #         try:
+        #             print(final_pen_event.id, max(final_pen_event.state_history[-5:], key=final_pen_event.state_history[-5:].count))
+        #             print(final_pen_event.state_history[-5:])
+        #         except:
+        #             print('Oh')
 
         # Iterate over copy of list
         # If a final_pen_event has been declared a "Click Event" in the last frame, this event is now over, and we can delete it.
@@ -224,31 +236,60 @@ class IRPen:
         shortest_distance_point_pairs = self.calculate_distances_between_all_points(new_pen_events)
 
         for entry in shortest_distance_point_pairs:
-            active_pen_event = self.active_pen_events[entry[0]]
+            last_pen_event = self.active_pen_events[entry[0]]
             new_pen_event = new_pen_events[entry[1]]
 
+            if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
+                print('TOUCH EVENT turned into HOVER EVENT')
+                # new_pen_event.state_history.append(new_pen_event.state)
+                # We now want to assign a new ID
+                # TODO: Check why this event is called more than once
+                continue
+
+            new_pen_event.state_history = last_pen_event.state_history
+            new_pen_event.state_history.append(new_pen_event.state)
+
+            # print(new_pen_event.state_history[-4:])
 
             # Move ID and other important information from the active touch final_pen_event into the new
             # touch final_pen_event
 
-            if active_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
-                print('HOVER EVENT turned into TOUCH EVENT')
-            elif new_pen_event.state == State.HOVER and active_pen_event.state != State.HOVER:
-                print('TOUCH EVENT turned into HOVER EVENT')
-                # We now want to assign a new ID
-                continue
+            if State.HOVER in new_pen_event.state_history[-4:-2] and not State.HOVER in new_pen_event.state_history[-3:]:  #  last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
+                pass
+                # print('HOVER EVENT turned into TOUCH EVENT')
+
+            if State.HOVER in new_pen_event.state_history[-3:]:
+                # print('Hover wins')
+                new_pen_event.state = State.HOVER
             else:
-                new_pen_event.state = active_pen_event.state
+                # if State.HOVER in new_pen_event.state_history[-4:-2]:
+                #     new_pen_event.state = State.NEW
+                # else:
+                # TODO: CHANGE this to allow for different types of drag events
+                new_pen_event.state = State.DRAG  # last_pen_event.state
 
-            new_pen_event.id = active_pen_event.id
-            new_pen_event.first_appearance = active_pen_event.first_appearance
-            new_pen_event.history = active_pen_event.history
-            new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - active_pen_event.x) + active_pen_event.x)
-            new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - active_pen_event.y) + active_pen_event.y)
+            # elif new_pen_event.state != State.HOVER:   # last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
+            #     print('HOVER EVENT turned into TOUCH EVENT')
+            #     print('Check state history:', last_pen_event.state_history[-2:])
+            #     if State.HOVER in last_pen_event.state_history[-2:]:
+            #         print('Hover wins')
+            #         new_pen_event.state_history.append(new_pen_event.state)
+            #         new_pen_event.state = State.HOVER
+            #     else:
+            #         new_pen_event.state_history.append(new_pen_event.state)
+            # else:
+            #     new_pen_event.state = last_pen_event.state
+            #     new_pen_event.state_history.append(new_pen_event.state)
 
-            # Set the ID of the active_pen_event back to -1 so that it is ignored in all future checks
-            # We later want to only look at the remaining active_pen_events that did not have a corresponding new_pen_event
-            active_pen_event.id = -1
+            new_pen_event.id = last_pen_event.id
+            new_pen_event.first_appearance = last_pen_event.first_appearance
+            new_pen_event.history = last_pen_event.history
+            new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - last_pen_event.x) + last_pen_event.x)
+            new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - last_pen_event.y) + last_pen_event.y)
+
+            # Set the ID of the last_pen_event back to -1 so that it is ignored in all future checks
+            # We later want to only look at the remaining last_pen_event that did not have a corresponding new_pen_event
+            last_pen_event.id = -1
 
         for new_pen_event in new_pen_events:
             new_pen_event.missing = False
@@ -256,7 +297,7 @@ class IRPen:
 
         # Check all active_pen_events that do not have a match found after comparison with the new_pen_events
         for active_pen_event in self.active_pen_events:
-            # Skip all active_pen_events with ID -1. For those we already have found a matc.h
+            # Skip all active_pen_events with ID -1. For those we already have found a match
             if active_pen_event.id == -1:
                 continue
 
@@ -292,6 +333,8 @@ class IRPen:
             # Add current position to the history list, but ignore hover events
             if final_pen_event.state != State.HOVER:
                 final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
+
+            # final_pen_event.state_history.append(final_pen_event.state)
 
             time_since_first_appearance = now - final_pen_event.first_appearance
             if final_pen_event.state != State.CLICK and final_pen_event.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
