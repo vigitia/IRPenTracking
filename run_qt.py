@@ -19,13 +19,17 @@ from draw_shape import ShapeCreator
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
 
-LINE_THICKNESS = 2
+LINE_THICKNESS = 1
 PEN_COLOR = QColor(255, 255, 255, 255)
-LINE_COLOR = (80, 80, 80)
+LINE_COLOR = (255, 255, 255)
+
+NUM_POINTS_IGNORE = 2  # Number of points we ignore at the beginning of a new line
 
 realsense_d435_camera = RealsenseD435Camera()
 realsense_d435_camera.init_video_capture()
 realsense_d435_camera.start()
+
+ir_pen = IRPen()
 
 
 def timeit(prefix):
@@ -49,7 +53,7 @@ class ApplicationLoopThread(QThread):
         QThread.__init__(self)
 
         self.painting_widget = painting_widget
-        self.ir_pen = IRPen()
+        # self.ir_pen = IRPen()
 
     def __del__(self):
         self.wait()
@@ -61,23 +65,23 @@ class ApplicationLoopThread(QThread):
     # @timeit("Process Frame")
     def process_frame(self):
         global realsense_d435_camera
+        global ir_pen
         ir_image_table = realsense_d435_camera.get_ir_image()
 
         if ir_image_table is not None:
-            # cv2.imshow('ir frame', ir_image_table)
 
-            active_pen_events, stored_lines, new_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events(
-                ir_image_table)
-
-            new_points = []
+            active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(ir_image_table)
 
             if len(pen_events_to_remove) > 0:
                 self.painting_widget.reset_last_point()
 
+            new_points = []
             for active_pen_event in active_pen_events:
-                if active_pen_event.state.value != 3:
-                    if len(active_pen_event.history) > 2:
+                # print(active_pen_event)
+                if active_pen_event.state.value != 3:  # All events except hover
+                    if len(active_pen_event.history) > NUM_POINTS_IGNORE:
                         new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
+
             self.painting_widget.draw_new_points(new_points)
 
         #     new_frame = self.base_image.copy()
@@ -110,7 +114,7 @@ class PaintingWidget(QMainWindow):
         super().__init__()
 
         shape_creator = ShapeCreator(WINDOW_WIDTH, WINDOW_HEIGHT)
-        background_image = shape_creator.draw_shape('shapes/wave.svg', (800, 800), 1000, LINE_THICKNESS,ShapeCreator.DASH, LINE_COLOR)
+        background_image = shape_creator.draw_shape('shapes/wave.svg', (800, 800), 1000, LINE_THICKNESS, ShapeCreator.DASH, LINE_COLOR)
         self.background_image = QImage(background_image, background_image.shape[1], background_image.shape[0], background_image.shape[1] * 3, QImage.Format_RGB888)
 
         self.initUI()
