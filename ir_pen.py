@@ -10,7 +10,7 @@ from scipy.spatial import distance
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = '/home/vigitia/Desktop/GitHub/IRPenTracking/evaluation/hover_predictor_binary_7'
+MODEL_PATH = 'evaluation/hover_predictor_binary_7'
 
 CROP_IMAGE_SIZE = 48
 
@@ -87,30 +87,48 @@ class IRPen:
 
         # TODO: Get here all spots and not just one
         img_cropped, brightest, (x, y) = self.crop_image(ir_frame)
+        #print(np.std(img_cropped), flush=True)
+        #print(min_radius, flush=True)
 
         WINDOW_WIDTH = 3840
         WINDOW_HEIGHT = 2160
-        (x, y) = self.convert_coordinate_to_target_resolution(x, y, ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
+
+        preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
 
         # TODO: for loop here to iterate over all detected bright spots in the image
         if brightest > 100 and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
             prediction, confidence = self.predict(img_cropped)
-            print(confidence, flush=True)
+            #print(confidence, flush=True)
+
+            min_radius, coords = self.find_pen_position(ir_frame)
+            #y_left, y_right = self.find_pen_orientation(ir_frame)
+            color = (0, 0, 0)
+
+            (x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
 
             if prediction == 'draw':
                 print('Status: Touch')
                 new_ir_pen_event = PenEvent(x, y)
                 new_pen_events.append(new_ir_pen_event)
 
-                if DEBUG_MODE:
-                    cv2.imshow('spots', ir_frame)
+                color = (0, 255, 0)
             elif prediction == 'hover':
                 print('Status: Hover')
                 new_ir_pen_event = PenEvent(x, y)
                 new_ir_pen_event.state = State.HOVER
                 new_pen_events.append(new_ir_pen_event)
+                color = (0, 0, 255)
+                #if y_left > -1 and y_right > -1:
+                #    preview = cv2.line(preview, (ir_frame.shape[1]-1,y_right),(0,y_left),(0,255,0),1)
             else:
                 print('Unknown state')
+
+            #preview = cv2.circle(preview, coords, 10, color, -1)
+            preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
+
+        if DEBUG_MODE:
+            cv2.imshow('preview', preview)
+            cv2.waitKey(1)
 
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
@@ -137,6 +155,56 @@ class IRPen:
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
         return state, confidence
+
+    def find_pen_position(self, img):
+        _, thresh = cv2.threshold(img, np.max(img) - 30, 255, cv2.THRESH_BINARY)
+        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contours[0] if len(contours) == 2 else contours[1]
+        position = (0, 0)
+        min_radius = img.shape[0]
+        for contour in contours:
+            (x, y), radius = cv2.minEnclosingCircle(contour)
+            if radius < min_radius:
+                min_radius = radius
+                position = (int(x), int(y))
+        return min_radius, position
+
+    def find_pen_orientation(self, image):
+        (image_height, image_width) = image.shape
+        step_w = int(image_width / 10)
+        step_h = int(image_height / 10)
+
+        samples = []
+        for x in range(3 * step_w, (image_width - 3 * step_w), step_w):
+            for y in range(3 * step_h, (image_height - 3 * step_h), step_h):
+                samples.append(image[y, x])
+                
+        _, thresh = cv2.threshold(image, np.median(samples) * 1.2, 255, cv2.THRESH_BINARY)
+        
+        #y_nonzero, x_nonzero = np.nonzero(image)
+        #x1 = np.min(x_nonzero)
+        #x2 = np.max(x_nonzero)
+        #y1 = np.min(y_nonzero)
+        #y2 = np.max(y_nonzero)
+        
+        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if len(contours) < 1:
+            return -1, -1
+
+        contours = contours[0] if len(contours) == 2 else contours[1]
+
+        #cntr = contours[0]
+        #x,y,w,h = cv2.boundingRect(cntr)
+        #hull = cv2.convexHull(contours[0])
+        
+        [vx, vy, x, y] = cv2.fitLine(contours, cv2.DIST_L2, 0, 0.01, 0.01)
+        
+        rows, cols = image.shape[:2]
+        y_left = int((-x*vy/vx) + y)
+        y_right = int(((cols-x)*vy/vx)+y)
+        return y_left, y_right
+
 
     def merge_pen_events(self, new_pen_events):
         # Get current timestamp
