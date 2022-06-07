@@ -15,11 +15,11 @@ MODEL_PATH = '/home/vigitia/Desktop/GitHub/IRPenTracking/evaluation/hover_predic
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.6  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
-TIME_POINT_MISSING_THRESHOLD_MS = 10
+TIME_POINT_MISSING_THRESHOLD_MS = 22
 
 # Point needs to appear and disappear within this timeframe in ms to count as a click (vs. a drag event)
 CLICK_THRESH_MS = 10
