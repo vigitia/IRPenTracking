@@ -8,13 +8,15 @@ import configparser
 # https://stackoverflow.com/questions/9763116/parse-a-tuple-from-a-string
 from ast import literal_eval as make_tuple  # Needed to convert strings stored in config file back to tuples
 
-CIRCLE_DIAMETER = 5
+CIRCLE_DIAMETER = 2
 CIRCLE_COLOR_OLD = (0, 0, 255)
 CIRCLE_COLOR_NEW = (0, 255, 0)
 FONT_COLOR = (0, 0, 255)
-HINT = 'Click on each of the four corners of the table/projection'
+HINT = 'Click on each of the four corners of the projection'
 
 CONFIG_FILE_NAME = 'config.ini'
+
+SHOW_OLD_POSITIONS = False
 
 
 class SurfaceSelector:
@@ -99,20 +101,21 @@ class SurfaceSelector:
     def display_mode_calibration(self, frame):
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
-        # Show circles of previous coordinates
-        cv2.circle(frame, self.table_corner_top_left, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, -1)
-        cv2.circle(frame, self.table_corner_top_right, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, -1)
-        cv2.circle(frame, self.table_corner_bottom_left, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, -1)
-        cv2.circle(frame, self.table_corner_bottom_right, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, -1)
+        if SHOW_OLD_POSITIONS:
+            # Show circles of previous coordinates
+            cv2.circle(frame, self.table_corner_top_left, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+            cv2.circle(frame, self.table_corner_top_right, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+            cv2.circle(frame, self.table_corner_bottom_left, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+            cv2.circle(frame, self.table_corner_bottom_right, CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
 
         # Draw circles for clicks in a different color to mark the new points
         for coordinate in self.last_mouse_click_coordinates:
-            cv2.circle(frame, coordinate, CIRCLE_DIAMETER, CIRCLE_COLOR_NEW, -1)
+            cv2.circle(frame, coordinate, CIRCLE_DIAMETER, CIRCLE_COLOR_NEW, 1)
 
         # Add text to explain what to do
-        cv2.putText(img=frame, text=HINT + ' (' + str(len(self.last_mouse_click_coordinates)) + '/4)',
-                    org=(int(frame.shape[1] / 6), int(frame.shape[0] / 8)),
-                    fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(0, 0, 255))
+        # cv2.putText(img=frame, text=HINT + ' (' + str(len(self.last_mouse_click_coordinates)) + '/4)',
+        #             org=(int(frame.shape[1] / 6), int(frame.shape[0] / 8)),
+        #             fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, color=(0, 0, 255))
 
         if len(self.last_mouse_click_coordinates) == 4:
             print('[Calibration Mode]: Calibrated')

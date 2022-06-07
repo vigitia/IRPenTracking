@@ -9,11 +9,12 @@ import configparser
 
 CONFIG_FILE_NAME = 'config.ini'
 
+FLIP_IMAGE = True
 
 class TableExtractionService:
     config = {}
 
-    #TODO: reload config file
+    # TODO: reload config file
     def __init__(self):
         self.read_config_file()
 
@@ -27,9 +28,6 @@ class TableExtractionService:
                 self.config[section] = {}
                 for key, value in config.items(section):
                     self.config[section][key] = eval(value)
-
-            # print(self.config)
-            # print('[TableExtractionService]: Successfully read data from config file')
         else:
             print('[TableExtractionService]: Could not find calibration info')
 
@@ -51,15 +49,12 @@ class TableExtractionService:
                            self.config[camera_parameter_name]['cornerbottomleft'],
                            self.config[camera_parameter_name]['cornerbottomright']])
 
-        # pts2 = np.float32([[x, y], [0, y], [x, 0], [0, 0]])
-        pts2 = np.float32([[0, 0], [x, 0], [0, y], [x, y]])
+        if FLIP_IMAGE:
+            pts2 = np.float32([[0, 0], [x, 0], [0, y], [x, y]])
+        else:
+            pts2 = np.float32([[x, y], [0, y], [x, 0], [0, 0]])
+
         matrix = cv2.getPerspectiveTransform(pts1, pts2)
 
         frame = cv2.warpPerspective(frame, matrix, (x, y))
         return frame
-
-    # def get_table_border(self):
-    #     table_border = np.array([self.table_corner_top_left, self.table_corner_top_right,
-    #                              self.table_corner_bottom_right, self.table_corner_bottom_left])
-    #
-    #     return table_border
