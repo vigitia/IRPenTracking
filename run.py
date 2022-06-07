@@ -61,7 +61,7 @@ class Run:
         ir_image_table = self.realsense_d435_camera.get_ir_image()
 
         if ir_image_table is not None:
-            cv2.imshow('ir frame', ir_image_table)
+            #cv2.imshow('ir frame', ir_image_table)
             active_pen_events, stored_lines, new_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events(
                 ir_image_table)
 
