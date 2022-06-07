@@ -44,12 +44,15 @@ SET_ROI = False
 SET_AUTO_EXPOSURE = False
 
 IR_SENSOR_EXPOSURE = 3000  # 1500  #  1800#900 # 1800
-IR_SENSOR_GAIN = 300   # 200 #100  # 200
+IR_SENSOR_GAIN = 100   # 200 #100  # 200
 
 IR_SENSOR_EXPOSURE_MAX = 4000
 IR_SENSOR_EXPOSURE_MIN = 250
 IR_SENSOR_GAIN_MAX = 400
 IR_SENSOR_GAIN_MIN = 25
+
+EXPOSURE_CALIBRATION_MODE = 10000
+GAIN_CALIBARATION_MODE = 20000
 
 NUM_FRAMES_WAIT_INITIALIZING = 30  # Let the camera warm up and let the auto white balance adjust
 
@@ -59,8 +62,8 @@ DEBUG_MODE = False
 
 CALIBRATION_DATA_PATH = ''
 CALIBRATION_MODE = False
-EXPOSURE_CALIBRATION_MODE = False
-EXPOSURE_CALIBRATION_MODE_2 = True
+AUTO_EXPOSURE_1 = True
+AUTO_EXPOSURE_2 = False
 CAMERA_PATH = '/vigitia/realsense_ir_full'
 depth_ir_sensor = None
 write_counter = 0
@@ -89,8 +92,8 @@ class RealsenseD435Camera:
 
     ir_sensor_exposure = IR_SENSOR_EXPOSURE
     ir_sensor_gain = IR_SENSOR_GAIN
-    exposure_calibration_mode = EXPOSURE_CALIBRATION_MODE
-    exposure_calibration_mode_2 = EXPOSURE_CALIBRATION_MODE_2
+    exposure_calibration_mode = AUTO_EXPOSURE_1
+    exposure_calibration_mode_2 = AUTO_EXPOSURE_2
 
     def __init__(self):
         self.load_camera_calibration_data()
@@ -125,9 +128,13 @@ class RealsenseD435Camera:
             self.depth_ir_sensor = profile.get_device().first_depth_sensor()
             self.depth_ir_sensor.set_option(rs.option.laser_power, LASER_POWER)
             self.depth_ir_sensor.set_option(rs.option.enable_auto_exposure, SET_AUTO_EXPOSURE)
-            self.depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
-            self.depth_ir_sensor.set_option(rs.option.gain, IR_SENSOR_GAIN)
-            # print(depth_ir_sensor.get_option(rs.option.exposure), depth_ir_sensor.get_option(rs.option.gain))
+
+            if CALIBRATION_MODE:
+                self.depth_ir_sensor.set_option(rs.option.exposure, EXPOSURE_CALIBRATION_MODE)
+                self.depth_ir_sensor.set_option(rs.option.gain, GAIN_CALIBARATION_MODE)
+            else:
+                self.depth_ir_sensor.set_option(rs.option.exposure, IR_SENSOR_EXPOSURE)
+                self.depth_ir_sensor.set_option(rs.option.gain, IR_SENSOR_GAIN)
 
             if DEBUG_MODE:
                 intrinsics = str(profile.get_stream(rs.stream.infrared).as_video_stream_profile().get_intrinsics())
@@ -184,8 +191,9 @@ class RealsenseD435Camera:
 
         if CALIBRATION_MODE:
             #print(self.left_ir_image.shape)
+
             calibration_finished = self.surface_selector.select_surface(left_ir_image)
-            calibration_finished = False
+            # calibration_finished = False
 
             cv2.waitKey(1)
 
@@ -206,13 +214,17 @@ class RealsenseD435Camera:
                     if self.ir_sensor_exposure > 50:
                         self.ir_sensor_exposure -= 50
                         self.depth_ir_sensor.set_option(rs.option.exposure, self.ir_sensor_exposure)
-                    if self.ir_sensor_gain > 50:
-                        self.ir_sensor_gain -= 50
-                        self.depth_ir_sensor.set_option(rs.option.gain, self.ir_sensor_gain)
+                    # if self.ir_sensor_gain > 50:
+                    #     self.ir_sensor_gain -= 50
+                    #     self.depth_ir_sensor.set_option(rs.option.gain, self.ir_sensor_gain)
                     print(f'gain: {self.ir_sensor_gain}, exposure: {self.ir_sensor_exposure}')
-                elif max_brightness < 100:
-                    self.ir_sensor_exposure += 50
-                    self.depth_ir_sensor.set_option(rs.option.exposure, self.ir_sensor_exposure)
+                elif max_brightness < 200:
+                    if self.ir_sensor_exposure < 10000:
+                        self.ir_sensor_exposure += 50
+                        self.depth_ir_sensor.set_option(rs.option.exposure, self.ir_sensor_exposure)
+                    else:
+                        self.ir_sensor_gain += 50
+                        self.depth_ir_sensor.set_option(rs.option.gain, self.ir_sensor_gain)
                 else:
                     print(f'exposure: {self.ir_sensor_exposure}, gain: {self.ir_sensor_gain}, max: {np.max(ir_image_table)}')
                     self.exposure_calibration_mode = False
