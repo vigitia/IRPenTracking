@@ -43,8 +43,8 @@ LASER_POWER = 0  # 0 - 360
 SET_ROI = False
 SET_AUTO_EXPOSURE = False
 
-IR_SENSOR_EXPOSURE = 3000  # 1500  #  1800#900 # 1800
-IR_SENSOR_GAIN = 100   # 200 #100  # 200
+IR_SENSOR_EXPOSURE = 10000  # 1500  #  1800#900 # 1800
+IR_SENSOR_GAIN = 248   # 200 #100  # 200
 
 IR_SENSOR_EXPOSURE_MAX = 4000
 IR_SENSOR_EXPOSURE_MIN = 250
@@ -61,8 +61,9 @@ DEBUG_MODE = False
 
 
 CALIBRATION_DATA_PATH = ''
+TRAINING_DATA_COLLECTION_MODE = True
 CALIBRATION_MODE = False
-AUTO_EXPOSURE_1 = True
+AUTO_EXPOSURE_1 = False
 AUTO_EXPOSURE_2 = False
 CAMERA_PATH = '/vigitia/realsense_ir_full'
 depth_ir_sensor = None
@@ -95,11 +96,23 @@ class RealsenseD435Camera:
     exposure_calibration_mode = AUTO_EXPOSURE_1
     exposure_calibration_mode_2 = AUTO_EXPOSURE_2
 
+    permutations = [(100, 16), (200, 16), (400, 16), (800, 16), (1600, 16), (3200, 16), (6400, 16), (10000, 16),
+                    (10000, 32), (10000, 64), (10000, 128), (10000, 248)]
+    permutation_index = 0
+    current_exposure = IR_SENSOR_EXPOSURE
+    current_gain = IR_SENSOR_GAIN
+
     def __init__(self):
         self.load_camera_calibration_data()
 
         self.surface_selector = SurfaceSelector(CAMERA_PATH)
         self.table_extractor = TableExtractionService()
+
+        # self.bias_image = cv2.imread('bias_frame.png', cv2.IMREAD_GRAYSCALE)
+        # max = np.max(self.bias_image)
+        # print(max)
+        # self.bias_image = cv2.bitwise_not(self.bias_image)
+        # self.bias_image -= (255-max)
 
     def load_camera_calibration_data(self):
         print('load calibration data')
@@ -110,15 +123,15 @@ class RealsenseD435Camera:
             self.camera_matrix_ir = cv_file.getNode('K').mat()
             self.dist_matrix_ir = cv_file.getNode('D').mat()
             cv_file.release()
+            print(self.camera_matrix_ir)
         except:
             print('Cant load calibration data for ir sensor')
 
     # in case the brightness distribution of the image is uneven,
     # it is recommended to record an empty bias frame and use it
     # to normalize the brightness distribution over the image
-    def overlay_bias_image(self, bias_image, original_image, alpha=0.5):
-        bias_inverted = cv2.bitwise_not(bias_image)
-        result = cv2.addWeighted(original_image, alpha, bias_inverted, 1.0 - alpha, 0.0)
+    def overlay_bias_image(self, original_image, alpha=0.5):
+        result = cv2.addWeighted(original_image, alpha, self.bias_image, 1.0 - alpha, 0.0)
         return result
 
     def init_video_capture(self):
@@ -175,6 +188,16 @@ class RealsenseD435Camera:
         while self.started:
             self.process_frame()
 
+    def get_next_camera_setting_values(self):
+
+        if self.permutation_index == 12:
+            return True, (0, 0)
+        next_perm = self.permutations[self.permutation_index]
+        self.permutation_index += 1
+        return False, next_perm
+
+    saved_image_counter = 0
+
     # @timeit("RealCam")
     def process_frame(self):
         self.num_frame += 1
@@ -183,7 +206,7 @@ class RealsenseD435Camera:
 
         left_ir_image = frames.get_infrared_frame(1)
 
-        if not left_ir_image:  # or not aligned_depth_frame:
+        if not left_ir_image:
             return
 
         if self.num_frame < NUM_FRAMES_WAIT_INITIALIZING:
@@ -193,16 +216,61 @@ class RealsenseD435Camera:
 
         left_ir_image = np.asanyarray(left_ir_image.get_data())
 
+        if DEBUG_MODE:
+            cv2.imshow('ir before undistort', left_ir_image)
+
         # Undistort camera images
         if self.camera_matrix_ir is not None and self.dist_matrix_ir is not None:
             left_ir_image = cv2.undistort(left_ir_image, self.camera_matrix_ir, self.dist_matrix_ir, None, None)
 
-        print(self.num_frame)
-        if self.num_frame == 200:
-            print('Saving bias frame')
-            cv2.imwrite('bias_frame.png', left_ir_image)
+        if DEBUG_MODE:
+            cv2.imshow('ir after undistort', left_ir_image)
 
-        if CALIBRATION_MODE:
+        ir_image_table = self.table_extractor.extract_table_area(left_ir_image, CAMERA_PATH)
+        with self.read_lock:
+            self.ir_image_cropped = ir_image_table
+            self.new_frames = True
+
+        # print(self.num_frame)
+        # if self.num_frame == 200:
+        #     print('Saving bias frame')
+        #     cv2.imwrite('bias_frame.png', left_ir_image)
+
+        # if DEBUG_MODE:
+        #     cv2.imshow('before bias', left_ir_image)
+        #     cv2.imshow('bias', self.bias_image)
+        #
+        # left_ir_image = self.overlay_bias_image(left_ir_image)
+        #
+        # if DEBUG_MODE:
+        #     cv2.imshow('after bias', left_ir_image)
+
+        if TRAINING_DATA_COLLECTION_MODE:
+            if self.num_frame % 5 == 0:
+                cv2.imwrite('out2/exposure_evaluation_2/hover-high_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), ir_image_table)
+                print('Saving:', self.saved_image_counter)
+                self.saved_image_counter += 1
+
+                # if self.saved_image_counter >= 1000:
+                #     print('FINISHED')
+                #     sys.exit()
+
+                NUM_SAVE_IMAGES_PER_PERMUTATION = 100
+                if self.saved_image_counter >= NUM_SAVE_IMAGES_PER_PERMUTATION:
+                    self.saved_image_counter = 0
+
+                    finished, (exposure, gain) = self.get_next_camera_setting_values()
+                    if finished:
+                        print('FINISHED')
+                        sys.exit()
+                    self.current_exposure = exposure
+                    self.current_gain = gain
+
+                    self.depth_ir_sensor.set_option(rs.option.exposure, exposure)
+                    self.depth_ir_sensor.set_option(rs.option.gain, gain)
+                    time.sleep(0.1)
+
+        elif CALIBRATION_MODE:
             #print(self.left_ir_image.shape)
 
             calibration_finished = self.surface_selector.select_surface(left_ir_image)
@@ -215,12 +283,11 @@ class RealsenseD435Camera:
                 exit()
         else:
 
-            ir_image_table = self.table_extractor.extract_table_area(left_ir_image, CAMERA_PATH)
-            with self.read_lock:
-                self.ir_image_cropped = ir_image_table
-                self.new_frames = True
+            if DEBUG_MODE:
+                cv2.imshow('table', ir_image_table)
 
             if self.exposure_calibration_mode:
+                time.sleep(0.1)
                 max_brightness = np.max(ir_image_table)
                 #print(self.ir_sensor_exposure, max_brightness)
                 if max_brightness > 240:
@@ -272,9 +339,10 @@ class RealsenseD435Camera:
                 self.img_id += 1
                 #time.sleep(1)
 
-            img_preview = cv2.cvtColor(ir_image_table, cv2.COLOR_GRAY2BGR)
-            # cv2.imshow('test', img_preview)
-            # cv2.waitKey(1)
+            if DEBUG_MODE:
+                # img_preview = cv2.cvtColor(ir_image_table, cv2.COLOR_GRAY2BGR)
+                # cv2.imshow('test', img_preview)
+                cv2.waitKey(1)
 
     # Returns the requested camera frames
     def get_ir_image(self):
