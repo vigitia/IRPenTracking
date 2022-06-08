@@ -197,6 +197,11 @@ class RealsenseD435Camera:
         if self.camera_matrix_ir is not None and self.dist_matrix_ir is not None:
             left_ir_image = cv2.undistort(left_ir_image, self.camera_matrix_ir, self.dist_matrix_ir, None, None)
 
+        print(self.num_frame)
+        if self.num_frame == 200:
+            print('Saving bias frame')
+            cv2.imwrite('bias_frame.png', left_ir_image)
+
         if CALIBRATION_MODE:
             #print(self.left_ir_image.shape)
 
