@@ -113,6 +113,14 @@ class RealsenseD435Camera:
         except:
             print('Cant load calibration data for ir sensor')
 
+    # in case the brightness distribution of the image is uneven,
+    # it is recommended to record an empty bias frame and use it
+    # to normalize the brightness distribution over the image
+    def overlay_bias_image(self, bias_image, original_image, alpha=0.5):
+        bias_inverted = cv2.bitwise_not(bias_image)
+        result = cv2.addWeighted(original_image, alpha, bias_inverted, 1.0 - alpha, 0.0)
+        return result
+
     def init_video_capture(self):
         # global depth_ir_sensor
         try:
