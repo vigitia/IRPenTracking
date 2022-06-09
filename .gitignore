@@ -131,3 +131,5 @@ dmypy.json
 # vim swap files
 *.swp
 *.swo
+
+out2/
