@@ -10,7 +10,7 @@ from scipy.spatial import distance
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = 'evaluation/hover_predictor_binary_7'
+MODEL_PATH = 'evaluation/hover_predictor_binary_bright_2'
 
 CROP_IMAGE_SIZE = 48
 
@@ -24,8 +24,14 @@ TIME_POINT_MISSING_THRESHOLD_MS = 22
 # Point needs to appear and disappear within this timeframe in ms to count as a click (vs. a drag event)
 CLICK_THRESH_MS = 10
 
+# Hover will be selected over Draw if Hover Event is within the last X event states
+KERNEL_SIZE_HOVER_WINS = 3
+
 
 DEBUG_MODE = True
+
+WINDOW_WIDTH = 3840
+WINDOW_HEIGHT = 2160
 
 # TODO: Change these states
 STATES = ['draw', 'hover', 'undefined']
@@ -91,9 +97,6 @@ class IRPen:
         #print(np.std(img_cropped), flush=True)
         #print(min_radius, flush=True)
 
-        WINDOW_WIDTH = 3840
-        WINDOW_HEIGHT = 2160
-
         preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
 
         # TODO: for loop here to iterate over all detected bright spots in the image
@@ -106,8 +109,6 @@ class IRPen:
             color = (0, 0, 0)
 
             (x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
-
-
 
             if prediction == 'draw':
                 # print('Status: Touch')
@@ -254,11 +255,11 @@ class IRPen:
             # Move ID and other important information from the active touch final_pen_event into the new
             # touch final_pen_event
 
-            if State.HOVER in new_pen_event.state_history[-4:-2] and not State.HOVER in new_pen_event.state_history[-3:]:  #  last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
+            if State.HOVER in new_pen_event.state_history[-4:-2] and not State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:  #  last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
                 pass
                 # print('HOVER EVENT turned into TOUCH EVENT')
 
-            if State.HOVER in new_pen_event.state_history[-3:]:
+            if State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
                 # print('Hover wins')
                 new_pen_event.state = State.HOVER
             else:

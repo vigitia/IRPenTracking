@@ -56,12 +56,15 @@ GAIN_CALIBARATION_MODE = 20000
 
 NUM_FRAMES_WAIT_INITIALIZING = 30  # Let the camera warm up and let the auto white balance adjust
 
+# Cut out the calibrated area from the frame
+EXTRACT_PROJECTION_AREA = True
+
 DEBUG_MODE = False
 # TODO: Add Debug mode
 
 
 CALIBRATION_DATA_PATH = ''
-TRAINING_DATA_COLLECTION_MODE = True
+TRAINING_DATA_COLLECTION_MODE = False
 CALIBRATION_MODE = False
 AUTO_EXPOSURE_1 = False
 AUTO_EXPOSURE_2 = False
@@ -83,7 +86,7 @@ class RealsenseD435Camera:
 
     pipeline = None
 
-    ir_image_cropped = None
+    current_ir_image = None
     new_frames = False
 
     camera_matrix_ir = None
@@ -102,7 +105,10 @@ class RealsenseD435Camera:
     current_exposure = IR_SENSOR_EXPOSURE
     current_gain = IR_SENSOR_GAIN
 
-    def __init__(self):
+    def __init__(self, extract_projection_area=EXTRACT_PROJECTION_AREA):
+
+        self.extract_projection_area = extract_projection_area
+
         self.load_camera_calibration_data()
 
         self.surface_selector = SurfaceSelector(CAMERA_PATH)
@@ -226,10 +232,15 @@ class RealsenseD435Camera:
         if DEBUG_MODE:
             cv2.imshow('ir after undistort', left_ir_image)
 
-        ir_image_table = self.table_extractor.extract_table_area(left_ir_image, CAMERA_PATH)
-        with self.read_lock:
-            self.ir_image_cropped = ir_image_table
-            self.new_frames = True
+        if self.extract_projection_area:
+            ir_image_table = self.table_extractor.extract_table_area(left_ir_image, CAMERA_PATH)
+            with self.read_lock:
+                self.current_ir_image = ir_image_table
+                self.new_frames = True
+        else:
+            with self.read_lock:
+                self.current_ir_image = left_ir_image
+                self.new_frames = True
 
         # print(self.num_frame)
         # if self.num_frame == 200:
@@ -347,9 +358,9 @@ class RealsenseD435Camera:
     # Returns the requested camera frames
     def get_ir_image(self):
         with self.read_lock:
-            if self.new_frames and self.ir_image_cropped is not None:
+            if self.new_frames and self.current_ir_image is not None:
                 self.new_frames = False
-                return self.ir_image_cropped
+                return self.current_ir_image
             return None
 
     def stop(self):

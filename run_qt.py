@@ -31,6 +31,9 @@ realsense_d435_camera.start()
 
 ir_pen = IRPen()
 
+# To test the continuity of lines, enable this flag to cycle through different colors every time a new pen event ID is detected
+COLOR_CYCLE_TESTING = False
+
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -48,6 +51,20 @@ def timeit(prefix):
 
 
 class ApplicationLoopThread(QThread):
+
+    # For testing line continuity, we assign a new color for every new ID of a pen event
+    current_id = 0
+    colors = [QColor(255, 255, 255, 255), QColor(0, 0, 255, 255), QColor(0, 255, 0, 255), QColor(255, 0, 0, 255),
+              QColor(0, 255, 255, 255), QColor(255, 0, 255, 255), QColor(255, 255, 0, 255)]
+    color_index = 0
+    current_color = QColor(255, 255, 255, 255)
+
+    def get_next_color(self):
+        if self.color_index == len(self.colors):
+            self.color_index = 0
+
+        self.current_color = self.colors[self.color_index]
+        self.color_index += 1
 
     def __init__(self, painting_widget):
         QThread.__init__(self)
@@ -77,32 +94,21 @@ class ApplicationLoopThread(QThread):
 
             new_points = []
             for active_pen_event in active_pen_events:
+
+                if COLOR_CYCLE_TESTING:
+                    if active_pen_event.id > self.current_id:
+                        self.get_next_color()
+                        self.current_id = active_pen_event.id
+                #
                 # print(active_pen_event)
                 if active_pen_event.state.value != 3:  # All events except hover
                     if len(active_pen_event.history) > NUM_POINTS_IGNORE:
                         new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
 
-            self.painting_widget.draw_new_points(new_points)
-
-        #     new_frame = self.base_image.copy()
-        #
-        #     for active_pen_event in active_pen_events:
-        #         print(active_pen_event)
-        #         if active_pen_event.state.value == 3:  # HOVER
-        #             cv2.circle(new_frame, active_pen_event.get_coordinates(), 5, (0, 255, 0))
-        #         else:
-        #             line = np.array(active_pen_event.history, np.int32)
-        #             cv2.polylines(new_frame, [line], isClosed=False, color=PEN_COLOR, thickness=LINE_THICKNESS)
-        #
-        #     for line in stored_lines:
-        #         line = np.array(line, np.int32)
-        #         cv2.polylines(new_frame, [line], isClosed=False, color=PEN_COLOR, thickness=LINE_THICKNESS)
-        #
-        #     # print(ir_image_table.shape)
-        #
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     cv2.destroyAllWindows()
-        #     sys.exit(0)
+            if COLOR_CYCLE_TESTING:
+                self.painting_widget.draw_new_points(new_points, self.current_color)
+            else:
+                self.painting_widget.draw_new_points(new_points)
 
 
 class PaintingWidget(QMainWindow):
@@ -123,7 +129,6 @@ class PaintingWidget(QMainWindow):
         self.drawing = False
 
         self.line_thickness = LINE_THICKNESS
-        self.pen_color = PEN_COLOR
 
         self.thread = ApplicationLoopThread(self)
         self.thread.start()
@@ -131,24 +136,33 @@ class PaintingWidget(QMainWindow):
     def initUI(self):
         self.showFullScreen()  # Application should run in Fullscreen
 
+        # setting geometry to main window
+        self.setGeometry(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+
         # Define width and height as global variables
         # self.width = QApplication.desktop().screenGeometry().width()
         # self.height = QApplication.desktop().screenGeometry().height()
 
-        # setting geometry to main window
-        self.setGeometry(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+        # hover_cursor = QLabel(self)
+        # pixmap = QPixmap("testing.png")
+        # # pixmap = pixmap.scaled(500, 500, Qt.KeepAspectRatio)
+        # hover_cursor.setPixmap(pixmap)
+        # hover_cursor.move(100, 100)
+        #
+        # label = QLabel(text="Welcome to Python GUI!")
+        # label.show()
 
         self.reset_image()
 
     def reset_image(self):
-        self.image = self.background_image
+        self.image = self.background_image.copy()
         #self.image = QImage(self.size(), QImage.Format_ARGB32)
         #self.image.fill(Qt.white)
 
-    def draw_new_points(self, points):
+    def draw_new_points(self, points, color=PEN_COLOR):
 
         painter = QPainter(self.image)
-        painter.setPen(QPen(self.pen_color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
         for point in points:
             if self.lastPoint is None:
@@ -174,7 +188,7 @@ class PaintingWidget(QMainWindow):
             painter = QPainter(self.image)
 
             # set the pen of the painter
-            painter.setPen(QPen(self.pen_color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(PEN_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
             # draw line from the last point of cursor to the current point
             # this will draw only one step
@@ -201,6 +215,8 @@ class PaintingWidget(QMainWindow):
         if event.key() == Qt.Key_Escape:
             self.close()
             sys.exit()
+        elif event.key() == Qt.Key_Space:
+            self.reset_image()
 
 
 if __name__ == '__main__':
