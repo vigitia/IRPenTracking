@@ -22,7 +22,7 @@ class CalibrateCamera:
         self.calibration_image_capture_service = CalibrationImageCaptureService(camera_names)
         self.camera_calibration_service = CameraCalibrationService()
 
-        self.realsense_d435_camera = RealsenseD435Camera()
+        self.realsense_d435_camera = RealsenseD435Camera(extract_projection_area=False)
         self.realsense_d435_camera.init_video_capture()
         self.realsense_d435_camera.start()
 
@@ -47,19 +47,20 @@ class CalibrateCamera:
 
             cv2.imshow(camera_name, ir_image_table)
 
-
         if self.check_all_frames_collected():
             self.calibrate_cameras()
 
     def calibrate_cameras(self):
         self.camera_calibration_service.calibrate_cameras(self.num_collected_calibration_frames.keys())
         print('Calibration Finished')
-        exit()
+
+        cv2.destroyAllWindows()
+        sys.exit(0)
 
     def check_all_frames_collected(self):
         for key in self.num_collected_calibration_frames.keys():
             if self.num_collected_calibration_frames[key] < NUM_IMAGES_TARGET:
-                print('Still missing some frames:')
+                # print('Still missing some frames:')
                 print(self.num_collected_calibration_frames)
                 return False
 

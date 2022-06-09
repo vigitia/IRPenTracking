@@ -20,10 +20,11 @@ class CalibrationImageCaptureService:
 
     def collect_calibration_image(self, image, camera_name):
         if image is not None:
+            # TODO: Check if getting the grey frame is necessary
             if len(image.shape) == 3:
                 image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             else:
-                image_gray = image.copy()
+                image_gray = image
 
             ret, corners = cv2.findChessboardCorners(image, CHESSBOARD_SQUARES, None)
 
