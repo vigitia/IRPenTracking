@@ -44,7 +44,7 @@ SET_ROI = False
 SET_AUTO_EXPOSURE = False
 
 IR_SENSOR_EXPOSURE = 10000  # 1500  #  1800#900 # 1800
-IR_SENSOR_GAIN = 248   # 200 #100  # 200
+IR_SENSOR_GAIN = 64   # 200 #100  # 200
 
 IR_SENSOR_EXPOSURE_MAX = 4000
 IR_SENSOR_EXPOSURE_MIN = 250
@@ -99,8 +99,11 @@ class RealsenseD435Camera:
     exposure_calibration_mode = AUTO_EXPOSURE_1
     exposure_calibration_mode_2 = AUTO_EXPOSURE_2
 
-    permutations = [(100, 16), (200, 16), (400, 16), (800, 16), (1600, 16), (3200, 16), (6400, 16), (10000, 16),
-                    (10000, 32), (10000, 64), (10000, 128), (10000, 248)]
+    # permutations = [(100, 16), (200, 16), (400, 16), (800, 16), (1600, 16), (3200, 16), (6400, 16), (10000, 16),
+    #                 (10000, 32), (10000, 64), (10000, 128), (10000, 248)]
+
+    permutations = [(10000, 16), (10000, 32), (10000, 64)]
+
     permutation_index = 0
     current_exposure = IR_SENSOR_EXPOSURE
     current_gain = IR_SENSOR_GAIN
@@ -196,7 +199,7 @@ class RealsenseD435Camera:
 
     def get_next_camera_setting_values(self):
 
-        if self.permutation_index == 12:
+        if self.permutation_index == len(self.permutations):
             return True, (0, 0)
         next_perm = self.permutations[self.permutation_index]
         self.permutation_index += 1
@@ -258,15 +261,15 @@ class RealsenseD435Camera:
 
         if TRAINING_DATA_COLLECTION_MODE:
             if self.num_frame % 5 == 0:
-                cv2.imwrite('out2/exposure_evaluation_2/hover-high_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), ir_image_table)
-                print('Saving:', self.saved_image_counter)
+                cv2.imwrite('out2/exposure_evaluation_4/hover_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), ir_image_table)
+                print('Saving:', self.saved_image_counter, 'gain:', self.current_gain)
                 self.saved_image_counter += 1
 
                 # if self.saved_image_counter >= 1000:
                 #     print('FINISHED')
                 #     sys.exit()
 
-                NUM_SAVE_IMAGES_PER_PERMUTATION = 100
+                NUM_SAVE_IMAGES_PER_PERMUTATION = 500
                 if self.saved_image_counter >= NUM_SAVE_IMAGES_PER_PERMUTATION:
                     self.saved_image_counter = 0
 

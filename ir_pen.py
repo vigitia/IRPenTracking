@@ -10,7 +10,7 @@ from scipy.spatial import distance
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = 'evaluation/hover_predictor_binary_bright_2'
+MODEL_PATH = 'evaluation/hover_predictor_binary_8'
 
 CROP_IMAGE_SIZE = 48
 
