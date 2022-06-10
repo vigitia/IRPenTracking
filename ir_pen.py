@@ -10,12 +10,12 @@ from scipy.spatial import distance
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = 'evaluation/hover_predictor_binary_8'
+MODEL_PATH = 'evaluation/104_2022-06-10'
 
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.99  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
@@ -97,10 +97,13 @@ class IRPen:
         #print(np.std(img_cropped), flush=True)
         #print(min_radius, flush=True)
 
-        preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
+        if DEBUG_MODE:
+            preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
+
+        MIN_BRIGHTNESS = 100
 
         # TODO: for loop here to iterate over all detected bright spots in the image
-        if brightest > 100 and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
+        if brightest > MIN_BRIGHTNESS and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
             prediction, confidence = self.predict(img_cropped)
             #print(confidence, flush=True)
 
@@ -109,6 +112,9 @@ class IRPen:
             color = (0, 0, 0)
 
             (x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
+            print('old', (x, y))
+            (x, y) = self.find_pen_position_subpixel(ir_frame)
+            print('new', (x, y))
 
             if prediction == 'draw':
                 # print('Status: Touch')
@@ -128,8 +134,9 @@ class IRPen:
             else:
                 print('Unknown state')
 
-            #preview = cv2.circle(preview, coords, 10, color, -1)
-            preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
+            if DEBUG_MODE:
+                #preview = cv2.circle(preview, coords, 10, color, -1)
+                preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
 
         # if DEBUG_MODE:
         #     cv2.imshow('preview', preview)
@@ -161,6 +168,38 @@ class IRPen:
         confidence = np.max(prediction)
         return state, confidence
 
+    def find_pen_position_subpixel(self, ir_image):
+        _, thresh = cv2.threshold(ir_image, np.max(ir_image) - 80, 255, cv2.THRESH_BINARY)
+
+        thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_AREA)
+        # cv2.imshow('thresh large', thresh_large)
+        contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contours[0] if len(contours) == 2 else contours[1]
+        min_radius = ir_image.shape[0]
+        smallest_contour = contours[0]
+
+        print(len(contours))
+        for contour in contours:
+            (x, y), radius = cv2.minEnclosingCircle(contour)
+            if radius < min_radius:
+                min_radius = radius
+                smallest_contour = contour
+
+        M = cv2.moments(smallest_contour)
+        # calculate x,y coordinate of center
+        cX = int(M["m10"] / M["m00"])
+
+        cY = int(M["m01"] / M["m00"])
+
+        position = (cX, cY)
+
+        return position
+
+        # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation=cv2.INTER_AREA)
+        # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
+        # cv2.imshow('large', left_ir_image_large)
+
+    # Finds the exact center
     def find_pen_position(self, img):
         _, thresh = cv2.threshold(img, np.max(img) - 30, 255, cv2.THRESH_BINARY)
         contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
