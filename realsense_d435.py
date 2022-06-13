@@ -43,8 +43,8 @@ LASER_POWER = 0  # 0 - 360
 SET_ROI = False
 SET_AUTO_EXPOSURE = False
 
-IR_SENSOR_EXPOSURE = 10000  # 1500  #  1800#900 # 1800
-IR_SENSOR_GAIN = 64   # 200 #100  # 200
+IR_SENSOR_EXPOSURE = 5000  # 1500  #  1800#900 # 1800
+IR_SENSOR_GAIN = 32   # 200 #100  # 200
 
 IR_SENSOR_EXPOSURE_MAX = 4000
 IR_SENSOR_EXPOSURE_MIN = 250
@@ -102,7 +102,8 @@ class RealsenseD435Camera:
     # permutations = [(100, 16), (200, 16), (400, 16), (800, 16), (1600, 16), (3200, 16), (6400, 16), (10000, 16),
     #                 (10000, 32), (10000, 64), (10000, 128), (10000, 248)]
 
-    permutations = [(10000, 16), (10000, 32), (10000, 64)]
+    # permutations = [(10000, 16), (10000, 32), (10000, 64)]
+    permutations = [(5000, 32), (2500, 32)]
 
     permutation_index = 0
     current_exposure = IR_SENSOR_EXPOSURE
@@ -225,6 +226,87 @@ class RealsenseD435Camera:
 
         left_ir_image = np.asanyarray(left_ir_image.get_data())
 
+
+
+
+        # _, thresh = cv2.threshold(left_ir_image.copy(), np.max(left_ir_image) - 80, 255, cv2.THRESH_BINARY)
+        # thresh_large = cv2.resize(thresh, (3840, 2160), interpolation = cv2.INTER_AREA)
+        # cv2.imshow('thresh large', thresh_large)
+        # contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # contours = contours[0] if len(contours) == 2 else contours[1]
+        # min_radius = left_ir_image.shape[0]
+        # smallest_contour = contours[0]
+        #
+        # print(len(contours))
+        # for contour in contours:
+        #     (x, y), radius = cv2.minEnclosingCircle(contour)
+        #     if radius < min_radius:
+        #         min_radius = radius
+        #         smallest_contour = contour
+        #
+        # M = cv2.moments(smallest_contour)
+        # # calculate x,y coordinate of center
+        # cX = int(M["m10"] / M["m00"])
+        #
+        # cY = int(M["m01"] / M["m00"])
+        #
+        # position = (cX, cY)
+        #
+        # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation = cv2.INTER_AREA)
+        # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
+        # cv2.imshow('large', left_ir_image_large)
+
+
+
+        # try:
+        #     _, thresh = cv2.threshold(left_ir_image, np.max(left_ir_image) - 30, 255, cv2.THRESH_BINARY)
+        #     contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #     contours = contours[0] if len(contours) == 2 else contours[1]
+        #     position = (0, 0)
+        #     min_radius = left_ir_image.shape[0]
+        #     for contour in contours:
+        #         (x, y), radius = cv2.minEnclosingCircle(contour)
+        #         if radius < min_radius:
+        #             min_radius = radius
+        #             position = (int(x), int(y))
+        #
+        #     #print(left_ir_image[position[1], position[0] - 2], left_ir_image[position[1], position[0] - 1], left_ir_image[position[1], position[0]], left_ir_image[position[1], position[0] + 1], left_ir_image[position[1], position[0] + 2])
+        #
+        #
+        #
+        #     # cv2.circle(left_ir_image, position, 0, (0, 0, 0))
+        #
+        #
+        #
+        #     size = 48
+        #     margin = int(size / 2)
+        #     # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(left_ir_image)
+        #     img_cropped = left_ir_image[position[1] - margin: position[1] + margin, position[0] - margin: position[0] + margin]
+        #
+        #     print(img_cropped[24])
+        #
+        #     horizontal_slice = img_cropped[24]
+        #     sum = 0
+        #     for i in range(len(horizontal_slice)):
+        #         brightness_value = horizontal_slice[i]
+        #         # print(brightness_value)
+        #         sum += i * (brightness_value/255)
+        #     print(sum)
+        #     print(sum/len(horizontal_slice))
+        #
+        #
+        #
+        #
+        #     img_cropped = cv2.circle(img_cropped, (position[0], position[1]), 1, (0, 0, 0))
+        #
+        #     # print(img_cropped.shape)
+        #
+        #     cv2.imshow('crop', cv2.resize(img_cropped, (960, 960), interpolation = cv2.INTER_AREA))
+        # except:
+        #     pass
+
+
+
         if DEBUG_MODE:
             cv2.imshow('ir before undistort', left_ir_image)
 
@@ -261,8 +343,8 @@ class RealsenseD435Camera:
 
         if TRAINING_DATA_COLLECTION_MODE:
             if self.num_frame % 5 == 0:
-                cv2.imwrite('out2/exposure_evaluation_4/hover_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), ir_image_table)
-                print('Saving:', self.saved_image_counter, 'gain:', self.current_gain)
+                cv2.imwrite('out2/2022-06-10/hover/hover_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), ir_image_table)
+                print('Saving:', self.saved_image_counter, 'exposure', self.current_exposure, 'gain:', self.current_gain)
                 self.saved_image_counter += 1
 
                 # if self.saved_image_counter >= 1000:

@@ -15,7 +15,7 @@ MODEL_PATH = 'evaluation/104_2022-06-10'
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.99  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
@@ -35,6 +35,20 @@ WINDOW_HEIGHT = 2160
 
 # TODO: Change these states
 STATES = ['draw', 'hover', 'undefined']
+
+def timeit(prefix):
+    def timeit_decorator(func):
+        def wrapper(*args, **kwargs):
+            start_time = datetime.datetime.now()
+            # print("I " + prefix + "> " + str(start_time))
+            retval = func(*args, **kwargs)
+            end_time = datetime.datetime.now()
+            run_time = (end_time - start_time).microseconds / 1000.0
+            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
+            print(prefix + "> " + str(run_time) + " ms", flush=True)
+            return retval
+        return wrapper
+    return timeit_decorator
 
 
 # Enum to define State of a Point
@@ -86,6 +100,7 @@ class IRPen:
         model = keras.models.load_model(MODEL_PATH)
         self.keras_lite_model = LiteModel.from_keras_model(model)
 
+    # @timeit('Pen Events')
     def get_ir_pen_events(self, ir_frame):
         new_pen_events = []
 

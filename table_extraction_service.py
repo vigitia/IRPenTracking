@@ -9,7 +9,7 @@ import configparser
 
 CONFIG_FILE_NAME = 'config.ini'
 
-FLIP_IMAGE = True
+FLIP_IMAGE = False
 
 class TableExtractionService:
     config = {}
