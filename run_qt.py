@@ -15,7 +15,7 @@ import numpy as np
 from realsense_d435 import RealsenseD435Camera
 from ir_pen import IRPen
 
-from draw_shape import ShapeCreator
+# from draw_shape import ShapeCreator
 
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
