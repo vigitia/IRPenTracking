@@ -155,8 +155,8 @@ class LaserPenDetectorService:
         # TODO: REMOVE this line
         change_color = False
 
-        if self.svm is None:
-            self.svm = PenStateSVM.create(CALIBRATION_FILE)
+        #if self.svm is None:
+        #    self.svm = PenStateSVM.create(CALIBRATION_FILE)
 
         if self.smp is None:
             self.smp = PenStateSMP()
