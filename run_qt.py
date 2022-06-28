@@ -31,15 +31,16 @@ realsense_d435_camera.init_video_capture()
 realsense_d435_camera.start()
 
 ir_pen = IRPen()
+ir_pen_2 = IRPen()
 
 # To test the continuity of lines, enable this flag to cycle through different colors every time a new pen event ID
 # is detected
 COLOR_CYCLE_TESTING = False
 
 
-PHRASES_MODE = True
+PHRASES_MODE = False
 
-PARTICIPANT_ID = 0
+PARTICIPANT_ID = 7
 
 
 def timeit(prefix):
@@ -90,11 +91,39 @@ class ApplicationLoopThread(QThread):
     def process_frame(self):
         global realsense_d435_camera
         global ir_pen
-        ir_image_table = realsense_d435_camera.get_ir_image()
+        ir_image_table, current_ir_image_table_1, current_ir_image_table_2 = realsense_d435_camera.get_ir_image()
+
+
 
         if ir_image_table is not None:
 
-            active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(ir_image_table)
+            # cv2.imshow('Realsense D435 IR', ir_image_table)
+
+            _, brightest_1, _, (max_x_1, max_y) = cv2.minMaxLoc(current_ir_image_table_1)
+            _, brightest_2, _, (max_x_2, max_y) = cv2.minMaxLoc(current_ir_image_table_2)
+
+            if brightest_1 > brightest_2:
+                # max_x = max_x_1
+                active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(
+                    current_ir_image_table_1)
+            else:
+                # max_x = max_x_2
+                active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(
+                    current_ir_image_table_2)
+
+
+            # if max_x > 424:
+            #     print('Camera 1')
+            #     active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(
+            #         current_ir_image_table_1)
+            # else:
+            #     print('Camera 2')
+            #     active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(
+            #         current_ir_image_table_2)
+
+            # active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(ir_image_table)
+            # active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(current_ir_image_table_1)
+            # active_pen_events_2, stored_lines_2, new_lines_2, pen_events_to_remove_2 = ir_pen.get_ir_pen_events(current_ir_image_table_2)
 
             if len(pen_events_to_remove) > 0:
                 self.painting_widget.reset_last_point()
@@ -111,6 +140,13 @@ class ApplicationLoopThread(QThread):
                 if active_pen_event.state.value != 3:  # All events except hover
                     if len(active_pen_event.history) > NUM_POINTS_IGNORE:
                         new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
+
+
+
+            # for active_pen_event in active_pen_events_2:
+            #     if active_pen_event.state.value != 3:  # All events except hover
+            #         if len(active_pen_event.history) > NUM_POINTS_IGNORE:
+            #             new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
 
             if COLOR_CYCLE_TESTING:
                 self.painting_widget.draw_new_points(new_points, self.current_color)

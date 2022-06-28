@@ -28,7 +28,7 @@ CLICK_THRESH_MS = 10
 KERNEL_SIZE_HOVER_WINS = 3
 
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
@@ -102,6 +102,7 @@ class IRPen:
 
     # @timeit('Pen Events')
     def get_ir_pen_events(self, ir_frame):
+
         new_pen_events = []
 
         self.new_lines = []
@@ -111,6 +112,9 @@ class IRPen:
         img_cropped, brightest, (x, y) = self.crop_image(ir_frame)
         #print(np.std(img_cropped), flush=True)
         #print(min_radius, flush=True)
+
+        #if img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
+        #    cv2.imshow('crop', cv2.resize(img_cropped, (848, 848), interpolation=cv2.INTER_LINEAR))
 
         if DEBUG_MODE:
             preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
@@ -127,9 +131,9 @@ class IRPen:
             color = (0, 0, 0)
 
             (x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
-            print('old', (x, y))
+            #print('old', (x, y))
             (x, y) = self.find_pen_position_subpixel(ir_frame)
-            print('new', (x, y))
+            #print('new', (x, y))
 
             if prediction == 'draw':
                 # print('Status: Touch')
@@ -171,8 +175,11 @@ class IRPen:
         margin = int(size / 2)
         _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
         img_cropped = img[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
+        # img_cropped_large = cv2.resize(img_cropped, (480, 480), interpolation=cv2.INTER_LINEAR)
+        # cv2.imshow('large', img_cropped_large)
         return img_cropped, brightest, (max_x, max_y)
 
+    # @timeit('Predict')
     def predict(self, img):
         img = img.astype('float32') / 255
         img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
@@ -181,19 +188,19 @@ class IRPen:
             return STATES[-1], 0
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
+        print(state)
         return state, confidence
 
     def find_pen_position_subpixel(self, ir_image):
         _, thresh = cv2.threshold(ir_image, np.max(ir_image) - 80, 255, cv2.THRESH_BINARY)
 
-        thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_AREA)
-        # cv2.imshow('thresh large', thresh_large)
+        thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
         contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = contours[0] if len(contours) == 2 else contours[1]
         min_radius = ir_image.shape[0]
         smallest_contour = contours[0]
 
-        print(len(contours))
+        # print(len(contours))
         for contour in contours:
             (x, y), radius = cv2.minEnclosingCircle(contour)
             if radius < min_radius:
