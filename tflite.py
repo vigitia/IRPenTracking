@@ -1,6 +1,22 @@
+import datetime
+
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
+
+def timeit(prefix):
+    def timeit_decorator(func):
+        def wrapper(*args, **kwargs):
+            start_time = datetime.datetime.now()
+            # print("I " + prefix + "> " + str(start_time))
+            retval = func(*args, **kwargs)
+            end_time = datetime.datetime.now()
+            run_time = (end_time - start_time).microseconds / 1000.0
+            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
+            print(prefix + "> " + str(run_time) + " ms", flush=True)
+            return retval
+        return wrapper
+    return timeit_decorator
 
 # source: Michael Wurm, 2019 on medium
 # https://micwurm.medium.com/using-tf-lite-to-speed-up-predictions-a3954886eb98
@@ -27,7 +43,8 @@ class LiteModel:
         self.input_dtype = input_det["dtype"]
         self.output_dtype = output_det["dtype"]
         self.working = False
-        
+
+    @timeit('Predict tflite')
     def predict(self, inp):
         while self.working:
             pass

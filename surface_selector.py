@@ -123,8 +123,8 @@ class SurfaceSelector:
             cv2.destroyAllWindows()
             return True
 
-        cv2.imshow('Surface Selector', frame)
-        cv2.setMouseCallback('Surface Selector', self.on_mouse_click)
+        cv2.imshow(self.camera_parameter_name, frame)
+        cv2.setMouseCallback(self.camera_parameter_name, self.on_mouse_click)
         #cv2.imshow('test', frame)
         #print('dmc end')
         #cv2.waitKey(1)

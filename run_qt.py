@@ -1,7 +1,9 @@
 # Based on https://www.geeksforgeeks.org/pyqt5-create-paint-application/
 import csv
 import random
+import time
 
+import pandas as pd
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -25,7 +27,7 @@ LINE_THICKNESS = 1
 PEN_COLOR = QColor(255, 255, 255, 255)
 LINE_COLOR = (255, 255, 255)
 
-NUM_POINTS_IGNORE = 2  # Number of points we ignore at the beginning of a new line
+NUM_POINTS_IGNORE = 0  # Number of points we ignore at the beginning of a new line
 
 realsense_d435_camera = RealsenseD435Camera()
 realsense_d435_camera.init_video_capture()
@@ -42,6 +44,9 @@ COLOR_CYCLE_TESTING = False
 PHRASES_MODE = False
 
 PARTICIPANT_ID = 7
+
+
+STEREO_MODE = True
 
 
 def timeit(prefix):
@@ -67,6 +72,7 @@ class ApplicationLoopThread(QThread):
               QColor(0, 255, 255, 255), QColor(255, 0, 255, 255), QColor(255, 255, 0, 255)]
     color_index = 0
     current_color = QColor(255, 255, 255, 255)
+
 
     def get_next_color(self):
         if self.color_index == len(self.colors):
@@ -158,130 +164,104 @@ class ApplicationLoopThread(QThread):
         global realsense_d435_camera
         global ir_pen_1
         global ir_pen_2
-        ir_image_table, current_ir_image_table_1, current_ir_image_table_2 = realsense_d435_camera.get_ir_image()
+        ir_image_fake_color, current_ir_image_table_1, current_ir_image_table_2 = realsense_d435_camera.get_ir_image()
 
-        if ir_image_table is not None and current_ir_image_table_1 is not None and current_ir_image_table_2 is not None:
-
-            _, brightest_1, _, (max_x_1, max_y_1) = cv2.minMaxLoc(current_ir_image_table_1)
-            _, brightest_2, _, (max_x_2, max_y_2) = cv2.minMaxLoc(current_ir_image_table_2)
-
-            # LATENZ MESSUNG
-            # if brightest_1 > 100:
-            #     self.painting_widget.fill_screen(True)
-            #     return
-            # else:
-            #     self.painting_widget.fill_screen(False)
-            #     return
-
-            MIN_BRIGHTNESS = 30
+        if ir_image_fake_color is not None and current_ir_image_table_1 is not None and current_ir_image_table_2 is not None:
 
             pos = None
+            text = ''
 
-            active_pen_events_1, _, _, pen_events_to_remove_1 = ir_pen_1.get_ir_pen_events(
-                current_ir_image_table_1)
-            active_pen_events_2, _, _, pen_events_to_remove_2 = ir_pen_2.get_ir_pen_events(
-                current_ir_image_table_2)
-
-            active_pen_events = []
-            pen_events_to_remove = pen_events_to_remove_1 + pen_events_to_remove_2
-
-            _, thresh_1 = cv2.threshold(current_ir_image_table_1, int(np.median(current_ir_image_table_1) * 1.2), 255, cv2.THRESH_BINARY)
-            _, thresh_2 = cv2.threshold(current_ir_image_table_2, int(np.median(current_ir_image_table_2) * 1.2), 255, cv2.THRESH_BINARY)
-
-            dest_and = cv2.bitwise_and(thresh_1, thresh_2, mask=None)
-
-            self.painting_widget.preview_images_on_canvas([current_ir_image_table_1, current_ir_image_table_2, ir_image_table, dest_and],
-                                                          ['left ir', 'right ir', 'Fake color', 'AND'])
-
-            max_and = np.max(dest_and)
-            max_thresh_1 = np.max(thresh_1)
-            max_thresh_2 = np.max(thresh_2)
-
-            # print(brightest_1, brightest_2, np.max(dest_and), np.max(thresh_1), np.max(thresh_2))
-
-            # if (brightest_1 < MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS) or (np.max(thresh_1) == 0 and np.max(thresh_2) == 0):
-            #
-            # # elif brightest_1 >= MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS:
-
-            if max_and != 0:
-                non_zero_px = cv2.countNonZero(dest_and)
-
-                text = '-- both ' + str(non_zero_px)
-                success, new_pos = self.find_pen_position_subpixel(dest_and)
-                if success:
-                    pos = new_pos
-
-                if brightest_1 > brightest_2:
-                    active_pen_events = active_pen_events_1
-
-                else:
-                    active_pen_events = active_pen_events_2
-            elif (max_thresh_1 == 0 and max_thresh_2 == 0):
-                text = '-- No Pen'
-
-            elif (max_thresh_1 != 0 and max_thresh_2 != 0):
-                text = 'hover far'
-
-            elif brightest_1 >= MIN_BRIGHTNESS and max_thresh_2 == 0:
-                text = '-- cam right'
-                active_pen_events = active_pen_events_1
-
-            # elif brightest_2 >= MIN_BRIGHTNESS and brightest_1 < MIN_BRIGHTNESS:
-            elif brightest_2 >= MIN_BRIGHTNESS and max_thresh_1 == 0:
-                text = '-- cam left'
-                active_pen_events = active_pen_events_2
+            if STEREO_MODE:
+                active_pen_events, _, _, pen_events_to_remove, data_1 = ir_pen_1.get_ir_pen_events(
+                    ir_image_fake_color)
             else:
-                text = 'We missed someting'
 
-            # print(text)
+                _, brightest_1, _, (max_x_1, max_y_1) = cv2.minMaxLoc(current_ir_image_table_1)
+                _, brightest_2, _, (max_x_2, max_y_2) = cv2.minMaxLoc(current_ir_image_table_2)
 
+                # LATENZ MESSUNG
+                # if brightest_1 > 100:
+                #     self.painting_widget.fill_screen(True)
+                #     return
+                # else:
+                #     self.painting_widget.fill_screen(False)
+                #     return
 
-
-            #
-            # _, thresh_1 = cv2.threshold(current_ir_image_table_1, np.max(current_ir_image_table_1) - 120, 255, cv2.THRESH_BINARY)
-            # _, thresh_2 = cv2.threshold(current_ir_image_table_2, np.max(current_ir_image_table_2) - 120, 255, cv2.THRESH_BINARY)
-            #
-            # dest_and = cv2.bitwise_and(thresh_1, thresh_2, mask=None)
-            #
-            # if np.max(dest_and) == 255:
-            #     print('----------> Maybe')
-            #
-            #
-            #
-            # active_pen_events_1, stored_lines, new_lines, pen_events_to_remove_1 = ir_pen_1.get_ir_pen_events(current_ir_image_table_1)
-            # active_pen_events_2, stored_lines, new_lines, pen_events_to_remove_2 = ir_pen_2.get_ir_pen_events(current_ir_image_table_2)
-            #
-            # dist = 0
-            #
-            # if len(active_pen_events_1) > 0 and len(active_pen_events_2) > 0:
-            #     dist = distance.euclidean((active_pen_events_1[0].x, active_pen_events_1[0].y), (active_pen_events_2[0].x, active_pen_events_2[0].y))
-            #
-            #     # print('Dist:', dist)
-            #
-            # if brightest_1 > brightest_2:
-            #     # max_x = max_x_1
-            #     active_pen_events = active_pen_events_1
-            # else:
-            #     # max_x = max_x_2
-            #     active_pen_events = active_pen_events_2
+                MIN_BRIGHTNESS = 60
 
 
-            # if max_x > 424:
-            #     print('Camera 1')
-            #     active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(
-            #         current_ir_image_table_1)
-            # else:
-            #     print('Camera 2')
-            #     active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(
-            #         current_ir_image_table_2)
 
-            # active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(ir_image_table)
-            # active_pen_events, stored_lines, new_lines, pen_events_to_remove = ir_pen.get_ir_pen_events(current_ir_image_table_1)
-            # active_pen_events_2, stored_lines_2, new_lines_2, pen_events_to_remove_2 = ir_pen.get_ir_pen_events(current_ir_image_table_2)
+                active_pen_events_1, _, _, pen_events_to_remove_1, data_1 = ir_pen_1.get_ir_pen_events(
+                    current_ir_image_table_1)
+                active_pen_events_2, _, _, pen_events_to_remove_2, data_2 = ir_pen_2.get_ir_pen_events(
+                    current_ir_image_table_2)
+
+                print(data_1, data_2)
+
+                active_pen_events = []
+                pen_events_to_remove = pen_events_to_remove_1 + pen_events_to_remove_2
+
+                # _, thresh_1 = cv2.threshold(current_ir_image_table_1, int(np.median(current_ir_image_table_1) * 1.5), 255, cv2.THRESH_BINARY)
+                # _, thresh_2 = cv2.threshold(current_ir_image_table_2, int(np.median(current_ir_image_table_2) * 1.5), 255, cv2.THRESH_BINARY)
+
+                value_offset = 50
+                _, thresh_1 = cv2.threshold(current_ir_image_table_1, (brightest_1 - value_offset) if brightest_1 > MIN_BRIGHTNESS else 200,  255,
+                                            cv2.THRESH_BINARY)
+                _, thresh_2 = cv2.threshold(current_ir_image_table_2, (brightest_2 - value_offset) if brightest_2 > MIN_BRIGHTNESS else 200, 255, cv2.THRESH_BINARY)
+
+                dest_and = cv2.bitwise_and(thresh_1, thresh_2, mask=None)
+
+                self.painting_widget.preview_images_on_canvas([current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, dest_and],
+                                                              ['right ir', 'left ir', 'Fake color', 'AND'])
+
+                max_and = np.max(dest_and)
+                max_thresh_1 = np.max(thresh_1)
+                max_thresh_2 = np.max(thresh_2)
+
+                # print(brightest_1, brightest_2, np.max(dest_and), np.max(thresh_1), np.max(thresh_2))
+
+                # if (brightest_1 < MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS) or (np.max(thresh_1) == 0 and np.max(thresh_2) == 0):
+                #
+                # # elif brightest_1 >= MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS:
+
+                if max_and != 0:
+                    non_zero_px = cv2.countNonZero(dest_and)
+
+                    success, new_pos = self.find_pen_position_subpixel(dest_and)
+                    if success:
+                        pos = new_pos
+
+                    if brightest_1 > brightest_2:
+                        text = 'both - using cam 1 (non zero px: {})'.format(non_zero_px)
+                        active_pen_events = active_pen_events_1
+                        data = data_1
+                    else:
+                        text = 'both - using cam 2 (non zero px: {})'.format(non_zero_px)
+                        active_pen_events = active_pen_events_2
+                        data = data_2
+                elif max_thresh_1 == 0 and max_thresh_2 == 0:
+                    text = 'No Pen'
+
+                elif max_thresh_1 != 0 and max_thresh_2 != 0:
+                    text = 'hover far'
+
+                elif brightest_1 >= MIN_BRIGHTNESS and max_thresh_2 == 0:
+                    text = 'cam right'
+                    active_pen_events = active_pen_events_1
+                    data = data_1
+
+                # elif brightest_2 >= MIN_BRIGHTNESS and brightest_1 < MIN_BRIGHTNESS:
+                elif brightest_2 >= MIN_BRIGHTNESS and max_thresh_1 == 0:
+                    text = 'cam left'
+                    active_pen_events = active_pen_events_2
+                    data = data_2
+                else:
+                    text = 'We missed something'
 
             if len(pen_events_to_remove) > 0:
                 self.painting_widget.reset_last_point()
 
+                # self.painting_widget.add_data(data)
 
             new_points = []
             # if 40 > dist > 0:
@@ -291,6 +271,9 @@ class ApplicationLoopThread(QThread):
                     if active_pen_event.id > self.current_id:
                         self.get_next_color()
                         self.current_id = active_pen_event.id
+
+                #if active_pen_event.state.value != 3:
+                #    cv2.imwrite('additional_training_images/hover/hover_{}.png'.format(round(time.time() * 1000)), ir_image_table)
                 #
                 # print(active_pen_event)
                 if active_pen_event.state.value != 3:  # All events except hover
@@ -324,7 +307,7 @@ class PaintingWidget(QMainWindow):
 
     num_phrases_written = 0
 
-    preview_image = None
+    stored_data = []
 
     def __init__(self):
         super().__init__()
@@ -345,7 +328,11 @@ class PaintingWidget(QMainWindow):
         self.thread = ApplicationLoopThread(self)
         self.thread.start()
 
+    def add_data(self, data):
+        print(len(self.stored_data))
 
+        if len(data.keys()) > 0:
+            self.stored_data.append(data)
 
     def initUI(self):
         self.showFullScreen()  # Application should run in Fullscreen
@@ -403,8 +390,14 @@ class PaintingWidget(QMainWindow):
 
         if 'left' in text:
             color = QColor(255, 0, 255, 255)
-        if 'right' in text:
+        elif 'right' in text:
             color = QColor(255, 255, 0, 255)
+        elif 'cam 1' in text:
+            color = QColor(0, 255, 0, 255)
+        elif 'cam 2' in text:
+            color = QColor(255, 0, 0, 255)
+
+
 
         # print('drawing', points)
 
@@ -416,7 +409,7 @@ class PaintingWidget(QMainWindow):
         # painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.setBrush(QBrush(RECTANGLE_COLOR))
-        painter.drawRect(80, 500, 600, 100)
+        painter.drawRect(80, 500, 1000, 100)
 
         painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
@@ -426,7 +419,7 @@ class PaintingWidget(QMainWindow):
         font.setPointSize(40)
         painter.setFont(font)
 
-        painter.drawText(100, 600, text)
+        painter.drawText(100, 550, text)
 
         for point in points:
             if self.lastPoint is None:
@@ -509,9 +502,13 @@ class PaintingWidget(QMainWindow):
     # Handle Key-press events
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
+            # df = pd.DataFrame(self.stored_data)
+            # df.to_csv('stored_data_hover.csv')
+
             self.save_screenshot()
+
             self.close()
-            sys.exit()
+            sys.exit(0)
         elif event.key() == Qt.Key_Space:
             self.save_screenshot()
 

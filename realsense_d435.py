@@ -14,6 +14,8 @@ import time
 import random
 import datetime
 
+from scipy.spatial import distance
+
 from surface_selector import SurfaceSelector
 from table_extraction_service import TableExtractionService
 
@@ -59,7 +61,7 @@ NUM_FRAMES_WAIT_INITIALIZING = 30  # Let the camera warm up and let the auto whi
 # Cut out the calibrated area from the frame
 EXTRACT_PROJECTION_AREA = True
 
-DEBUG_MODE = False
+DEBUG_MODE = 0
 
 
 CALIBRATION_DATA_PATH = ''
@@ -120,6 +122,9 @@ class RealsenseD435Camera:
         self.surface_selector_1 = SurfaceSelector(CAMERA_PATH_1)
         self.surface_selector_2 = SurfaceSelector(CAMERA_PATH_2)
         self.table_extractor = TableExtractionService()
+
+        if TRAINING_DATA_COLLECTION_MODE:
+            time.sleep(5)
 
         # self.bias_image = cv2.imread('bias_frame.png', cv2.IMREAD_GRAYSCALE)
         # max = np.max(self.bias_image)
@@ -241,12 +246,12 @@ class RealsenseD435Camera:
     def process_frame(self):
         self.num_frame += 1
 
+        # TODO: Two process_frame functions
         frames = self.pipeline.wait_for_frames()
         left_ir_image_1 = frames.get_infrared_frame(1)
 
         frames_2 = self.pipeline_2.wait_for_frames()
         left_ir_image_2 = frames_2.get_infrared_frame(1)
-
 
         if not left_ir_image_1:
             return
@@ -259,91 +264,12 @@ class RealsenseD435Camera:
         left_ir_image_1 = np.asanyarray(left_ir_image_1.get_data())
         left_ir_image_2 = np.asanyarray(left_ir_image_2.get_data())
 
-
-
-        # _, thresh = cv2.threshold(left_ir_image.copy(), np.max(left_ir_image) - 80, 255, cv2.THRESH_BINARY)
-        # thresh_large = cv2.resize(thresh, (3840, 2160), interpolation = cv2.INTER_AREA)
-        # cv2.imshow('thresh large', thresh_large)
-        # contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # contours = contours[0] if len(contours) == 2 else contours[1]
-        # min_radius = left_ir_image.shape[0]
-        # smallest_contour = contours[0]
-        #
-        # print(len(contours))
-        # for contour in contours:
-        #     (x, y), radius = cv2.minEnclosingCircle(contour)
-        #     if radius < min_radius:
-        #         min_radius = radius
-        #         smallest_contour = contour
-        #
-        # M = cv2.moments(smallest_contour)
-        # # calculate x,y coordinate of center
-        # cX = int(M["m10"] / M["m00"])
-        #
-        # cY = int(M["m01"] / M["m00"])
-        #
-        # position = (cX, cY)
-        #
-        # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation = cv2.INTER_AREA)
-        # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
-        # cv2.imshow('large', left_ir_image_large)
-
-
-
-        # try:
-        #     _, thresh = cv2.threshold(left_ir_image, np.max(left_ir_image) - 30, 255, cv2.THRESH_BINARY)
-        #     contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        #     contours = contours[0] if len(contours) == 2 else contours[1]
-        #     position = (0, 0)
-        #     min_radius = left_ir_image.shape[0]
-        #     for contour in contours:
-        #         (x, y), radius = cv2.minEnclosingCircle(contour)
-        #         if radius < min_radius:
-        #             min_radius = radius
-        #             position = (int(x), int(y))
-        #
-        #     #print(left_ir_image[position[1], position[0] - 2], left_ir_image[position[1], position[0] - 1], left_ir_image[position[1], position[0]], left_ir_image[position[1], position[0] + 1], left_ir_image[position[1], position[0] + 2])
-        #
-        #
-        #
-        #     # cv2.circle(left_ir_image, position, 0, (0, 0, 0))
-        #
-        #
-        #
-        #     size = 48
-        #     margin = int(size / 2)
-        #     # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(left_ir_image)
-        #     img_cropped = left_ir_image[position[1] - margin: position[1] + margin, position[0] - margin: position[0] + margin]
-        #
-        #     print(img_cropped[24])
-        #
-        #     horizontal_slice = img_cropped[24]
-        #     sum = 0
-        #     for i in range(len(horizontal_slice)):
-        #         brightness_value = horizontal_slice[i]
-        #         # print(brightness_value)
-        #         sum += i * (brightness_value/255)
-        #     print(sum)
-        #     print(sum/len(horizontal_slice))
-        #
-        #
-        #
-        #
-        #     img_cropped = cv2.circle(img_cropped, (position[0], position[1]), 1, (0, 0, 0))
-        #
-        #     # print(img_cropped.shape)
-        #
-        #     cv2.imshow('crop', cv2.resize(img_cropped, (960, 960), interpolation = cv2.INTER_AREA))
-        # except:
-        #     pass
-
-
-
         if DEBUG_MODE:
-            cv2.imshow('ir before undistort 1', left_ir_image_1)
-            cv2.imshow('ir before undistort 2', left_ir_image_2)
+            cv2.imshow('Raw IR image 1', left_ir_image_1)
+            cv2.imshow('Raw IR image 2', left_ir_image_2)
 
         # Undistort camera images
+        # TODO: Get this to work for both cameras
         if self.camera_matrix_ir is not None and self.dist_matrix_ir is not None:
             left_ir_image_1 = cv2.undistort(left_ir_image_1, self.camera_matrix_ir, self.dist_matrix_ir, None, None)
 
@@ -354,7 +280,12 @@ class RealsenseD435Camera:
             ir_image_table_1 = self.table_extractor.extract_table_area(left_ir_image_1, CAMERA_PATH_1)
             ir_image_table_2 = self.table_extractor.extract_table_area(left_ir_image_2, CAMERA_PATH_2)
 
-
+            # _, thresh_1 = cv2.threshold(ir_image_table_1, 80, 255, cv2.THRESH_BINARY)
+            # _, thresh_2 = cv2.threshold(ir_image_table_2, 80, 255, cv2.THRESH_BINARY)
+            #
+            # dest_and = cv2.bitwise_and(thresh_1, thresh_2, mask=None)
+            #
+            # cv2.imshow('AND', dest_and)
 
             zeroes = np.zeros(ir_image_table_1.shape, 'uint8')
             fake_color = np.dstack((ir_image_table_1, ir_image_table_2, zeroes))
@@ -363,9 +294,30 @@ class RealsenseD435Camera:
             fake_color_grey = cv2.cvtColor(fake_color, cv2.COLOR_BGR2GRAY)
             # cv2.imshow('fake gray', fake_color_grey)
 
+            # _, brightest_1, _, (max_x_1, max_y_1) = cv2.minMaxLoc(ir_image_table_1)
+            # _, brightest_2, _, (max_x_2, max_y_2) = cv2.minMaxLoc(ir_image_table_2)
+
+            # if brightest_1 > 100 or brightest_2 > 100:
+            #
+            #     pos1 = self.find_pen_position_subpixel(ir_image_table_1)
+            #     pos2 = self.find_pen_position_subpixel(ir_image_table_2)
+            #
+            #     dist = distance.euclidean(pos1, pos2)
+            #
+            #     print(brightest_1, brightest_2, dist)
+            #
+            #     if dist > 40:
+            #         print('No Touch!')
+
+            # _ = self.find_pen_position_subpixel(ir_image_table_1, '1')
+            # _ = self.find_pen_position_subpixel(ir_image_table_2, '2')
+            # _, _ = self.find_pen_position(ir_image_table_1, '1')
+            # _, _ = self.find_pen_position(ir_image_table_2, '2')
+
+
             with self.read_lock:
                 # self.current_ir_image = ir_image_table_1
-                self.current_ir_image = fake_color_grey
+                self.current_ir_image = fake_color
                 self.current_ir_image_table_1 = ir_image_table_1
                 self.current_ir_image_table_2 = ir_image_table_2
                 self.new_frames = True
@@ -391,7 +343,7 @@ class RealsenseD435Camera:
         if TRAINING_DATA_COLLECTION_MODE:
             if self.num_frame % 5 == 0:
                 # cv2.imwrite('out2/2022-06-10/hover/hover_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), ir_image_table_1)
-                cv2.imwrite('out2/2022-06-24/hover/hover_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), fake_color)
+                cv2.imwrite('out2/2022-06-29/hover2/hover_{}_{}_{}.png'.format(self.saved_image_counter, self.current_exposure, self.current_gain), fake_color)
                 print('Saving:', self.saved_image_counter, 'exposure', self.current_exposure, 'gain:', self.current_gain)
                 self.saved_image_counter += 1
 
@@ -399,7 +351,7 @@ class RealsenseD435Camera:
                 #     print('FINISHED')
                 #     sys.exit()
 
-                NUM_SAVE_IMAGES_PER_PERMUTATION = 500
+                NUM_SAVE_IMAGES_PER_PERMUTATION = 1000
                 if self.saved_image_counter >= NUM_SAVE_IMAGES_PER_PERMUTATION:
                     self.saved_image_counter = 0
 
@@ -500,6 +452,58 @@ class RealsenseD435Camera:
                 # img_preview = cv2.cvtColor(ir_image_table, cv2.COLOR_GRAY2BGR)
                 # cv2.imshow('test', img_preview)
                 cv2.waitKey(1)
+
+    def find_pen_position_subpixel(self, ir_image, window_name):
+        _, thresh = cv2.threshold(ir_image, np.max(ir_image) - 1, 255, cv2.THRESH_BINARY)
+
+        thresh_large = cv2.resize(thresh, (3840, 2160), interpolation=cv2.INTER_LINEAR)
+        contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contours[0] if len(contours) == 2 else contours[1]
+        min_radius = ir_image.shape[0]
+        smallest_contour = contours[0]
+
+        # print(len(contours))
+        for contour in contours:
+            (x, y), radius = cv2.minEnclosingCircle(contour)
+            if radius < min_radius:
+                min_radius = radius
+                smallest_contour = contour
+
+        M = cv2.moments(smallest_contour)
+        # calculate x,y coordinate of center
+        cX = int(M["m10"] / M["m00"])
+
+        cY = int(M["m01"] / M["m00"])
+
+        position = (cX, cY)
+
+        x_camera_coord = int((cX / 3840) * 848)
+        y_camera_coord = int((cY / 2160) * 480)
+
+        ir_copy = ir_image.copy()
+        cv2.circle(ir_copy, (x_camera_coord, y_camera_coord), 2, (80))
+        cv2.imshow('center {}'.format(window_name), ir_copy)
+        cv2.imshow('thresh', thresh)
+
+        return position
+
+    def find_pen_position(self, ir_image, window_name):
+        _, thresh = cv2.threshold(ir_image, np.max(ir_image) - 1, 255, cv2.THRESH_BINARY)
+        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = contours[0] if len(contours) == 2 else contours[1]
+        position = (0, 0)
+        min_radius = ir_image.shape[0]
+        for contour in contours:
+            (x, y), radius = cv2.minEnclosingCircle(contour)
+            if radius < min_radius:
+                min_radius = radius
+                position = (int(x), int(y))
+
+        ir_copy = ir_image.copy()
+        cv2.circle(ir_copy, position, 2, (80))
+        cv2.imshow('center Andi {}'.format(window_name), ir_copy)
+
+        return min_radius, position
 
     # Returns the requested camera frames
     def get_ir_image(self):

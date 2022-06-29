@@ -10,7 +10,7 @@ from scipy.spatial import distance
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = 'evaluation/104_2022-06-10'
+MODEL_PATH = 'evaluation/hover_predictor_stereo_twochannel_3'  # 'evaluation/hover_predictor_stereo_both_sides_6'
 
 CROP_IMAGE_SIZE = 48
 
@@ -94,11 +94,15 @@ class IRPen:
     pen_events_to_remove = []  # Points that got deleted from active_points in the current frame
     double_click_candidates = []
 
-    def __init__(self):
+    camera_name = ''
+
+    def __init__(self, camera_name):
         keras.backend.clear_session()
 
-        model = keras.models.load_model(MODEL_PATH)
-        self.keras_lite_model = LiteModel.from_keras_model(model)
+        self.model = keras.models.load_model(MODEL_PATH)
+        self.keras_lite_model = LiteModel.from_keras_model(self.model)
+
+        self.camera_name = camera_name
 
     # @timeit('Pen Events')
     def get_ir_pen_events(self, ir_frame):
@@ -116,23 +120,27 @@ class IRPen:
         #if img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
         #    cv2.imshow('crop', cv2.resize(img_cropped, (848, 848), interpolation=cv2.INTER_LINEAR))
 
-        if DEBUG_MODE:
-            preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
+        # if DEBUG_MODE:
+        #     preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
 
         MIN_BRIGHTNESS = 100
 
+        data = {}
+
         # TODO: for loop here to iterate over all detected bright spots in the image
-        if brightest > MIN_BRIGHTNESS and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
+
+        if brightest > MIN_BRIGHTNESS and img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
+        # if brightest > MIN_BRIGHTNESS and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
             prediction, confidence = self.predict(img_cropped)
             #print(confidence, flush=True)
 
-            min_radius, coords = self.find_pen_position(ir_frame)
+            #min_radius, coords = self.find_pen_position(ir_frame)
             #y_left, y_right = self.find_pen_orientation(ir_frame)
-            color = (0, 0, 0)
+            #color = (0, 0, 0)
 
-            (x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
+            #(x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
             #print('old', (x, y))
-            (x, y) = self.find_pen_position_subpixel(ir_frame)
+            (x, y), radius = self.find_pen_position_subpixel(ir_frame)
             #print('new', (x, y))
 
             if prediction == 'draw':
@@ -153,17 +161,23 @@ class IRPen:
             else:
                 print('Unknown state')
 
-            if DEBUG_MODE:
+            #if DEBUG_MODE:
                 #preview = cv2.circle(preview, coords, 10, color, -1)
-                preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
+                #preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
 
         # if DEBUG_MODE:
         #     cv2.imshow('preview', preview)
         #     cv2.waitKey(1)
 
+            data = {
+                'x': x,
+                'y': y,
+                'radius': radius
+            }
+
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
-        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove
+        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, data
 
     def convert_coordinate_to_target_resolution(self, x, y, current_res_x, current_res_y, target_x, target_y):
         x_new = int((x / current_res_x) * target_x)
@@ -172,18 +186,73 @@ class IRPen:
         return x_new, y_new
 
     def crop_image(self, img, size=CROP_IMAGE_SIZE):
+        if len(img.shape) == 3:
+            img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            img_grey = img
         margin = int(size / 2)
-        _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
+        _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img_grey)
         img_cropped = img[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
         # img_cropped_large = cv2.resize(img_cropped, (480, 480), interpolation=cv2.INTER_LINEAR)
         # cv2.imshow('large', img_cropped_large)
         return img_cropped, brightest, (max_x, max_y)
 
+    def crop_image_2(self, img, size=16):
+        margin = int(size / 2)
+        brightest = int(np.max(img))
+        _, thresh = cv2.threshold(img, brightest - 1, 255, cv2.THRESH_BINARY)
+        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # print(contours)
+
+        contours = contours[0] if len(contours) == 2 else contours[1]
+
+        x_values = []
+        y_values = []
+        for cnt in contours:
+            for point in cnt:
+                point = point[0]
+                # print(point)
+                x_values.append(point[0])
+                y_values.append(point[1])
+
+        # print('x', np.max(x_values), np.min(x_values))
+        # print('y', np.max(y_values), np.min(y_values))
+        d_x = np.max(x_values) - np.min(x_values)
+        d_y = np.max(y_values) - np.min(y_values)
+        center_x = int(np.min(x_values) + d_x / 2)
+        center_y = int(np.min(y_values) + d_y / 2)
+        # print(center_x, center_y)
+
+        left = np.max([0, center_x - margin])
+        top = np.max([0, center_y - margin])
+
+        # print(left, top)
+
+        if left + size >= img.shape[1]:
+            # left -= (left + size - img.shape[1] - 1)
+            left = img.shape[1] - size - 1
+        if top + size >= img.shape[0]:
+            # top -= (top + size - img.shape[0] - 1)
+            top = img.shape[0] - size - 1
+
+        # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
+        img_cropped = img[top: top + size, left: left + size]
+        return img_cropped, (left + margin, top + margin)
+
     # @timeit('Predict')
     def predict(self, img):
+        if len(img.shape) == 3:
+            print(img[10,10,:])
+            img = img[:, :, :2]
+            print(img[10, 10, :], 'after')
         img = img.astype('float32') / 255
-        img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
+        if len(img.shape) == 3:
+            img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 2)
+        else:
+            img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
         prediction = self.keras_lite_model.predict(img)
+        # prediction = self.model.predict(img)
         if not prediction.any():
             return STATES[-1], 0
         state = STATES[np.argmax(prediction)]
@@ -192,12 +261,16 @@ class IRPen:
         return state, confidence
 
     def find_pen_position_subpixel(self, ir_image):
-        _, thresh = cv2.threshold(ir_image, np.max(ir_image) - 80, 255, cv2.THRESH_BINARY)
+        if len(ir_image.shape) == 3:
+            ir_image_grey = cv2.cvtColor(ir_image, cv2.COLOR_BGR2GRAY)
+        else:
+            ir_image_grey = ir_image
+        _, thresh = cv2.threshold(ir_image_grey, np.max(ir_image_grey) - 1, 255, cv2.THRESH_BINARY)
 
         thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
         contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = contours[0] if len(contours) == 2 else contours[1]
-        min_radius = ir_image.shape[0]
+        min_radius = ir_image_grey.shape[0]
         smallest_contour = contours[0]
 
         # print(len(contours))
@@ -215,7 +288,7 @@ class IRPen:
 
         position = (cX, cY)
 
-        return position
+        return position, min_radius
 
         # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation=cv2.INTER_AREA)
         # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
