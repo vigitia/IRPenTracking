@@ -27,14 +27,12 @@ LINE_THICKNESS = 1
 PEN_COLOR = QColor(255, 255, 255, 255)
 LINE_COLOR = (255, 255, 255)
 
-NUM_POINTS_IGNORE = 0  # Number of points we ignore at the beginning of a new line
-
 realsense_d435_camera = RealsenseD435Camera()
 realsense_d435_camera.init_video_capture()
 realsense_d435_camera.start()
 
 ir_pen_1 = IRPen('left camera')
-ir_pen_2 = IRPen('right camera')
+# ir_pen_2 = IRPen('right camera')
 
 # To test the continuity of lines, enable this flag to cycle through different colors every time a new pen event ID
 # is detected
@@ -96,242 +94,250 @@ class ApplicationLoopThread(QThread):
             # self.process_frame()
             # self.process_frame_stereo()
 
-    def find_pen_position_subpixel(self, thresh):
-        thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
-        contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # def find_pen_position_subpixel(self, thresh):
+    #     thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
+    #     contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #
+    #     contours = contours[0] if len(contours) == 2 else contours[1]
+    #
+    #     if len(contours) == 0:
+    #         return False, None
+    #
+    #     min_radius = thresh.shape[0]
+    #     smallest_contour = contours[0]
+    #
+    #     # print(len(contours))
+    #     for contour in contours:
+    #         (x, y), radius = cv2.minEnclosingCircle(contour)
+    #         if radius < min_radius:
+    #             min_radius = radius
+    #             smallest_contour = contour
+    #
+    #     M = cv2.moments(smallest_contour)
+    #     # calculate x,y coordinate of center
+    #     cX = int(M["m10"] / M["m00"])
+    #
+    #     cY = int(M["m01"] / M["m00"])
+    #
+    #     position = (cX, cY)
+    #
+    #     return True, position
 
-        contours = contours[0] if len(contours) == 2 else contours[1]
-
-        if len(contours) == 0:
-            return False, None
-
-        min_radius = thresh.shape[0]
-        smallest_contour = contours[0]
-
-        # print(len(contours))
-        for contour in contours:
-            (x, y), radius = cv2.minEnclosingCircle(contour)
-            if radius < min_radius:
-                min_radius = radius
-                smallest_contour = contour
-
-        M = cv2.moments(smallest_contour)
-        # calculate x,y coordinate of center
-        cX = int(M["m10"] / M["m00"])
-
-        cY = int(M["m01"] / M["m00"])
-
-        position = (cX, cY)
-
-        return True, position
-
+    # @timeit("Process Frames")
     def process_frames(self):
         global realsense_d435_camera
         global ir_pen_1
-        current_ir_image_table_1, current_ir_image_table_2, left_ir_image_1, left_ir_image_2, crop_1, crop_2 = realsense_d435_camera.get_ir_image()
+        current_ir_image_table_1, current_ir_image_table_2, left_ir_image_1, left_ir_image_2, crop_1, crop_2 = realsense_d435_camera.get_camera_frames()
 
         if current_ir_image_table_1 is not None and current_ir_image_table_2 is not None:
-            active_pen_events, stored_lines, _, _ = ir_pen_1.get_ir_pen_events_multicam([current_ir_image_table_1, current_ir_image_table_2], crop_1)
+            active_pen_events, stored_lines, _, _, projection_area_frames, added_frames = ir_pen_1.get_ir_pen_events_multicam([current_ir_image_table_1, current_ir_image_table_2], crop_1)
+
+            zeroes = np.zeros(projection_area_frames[0].shape, 'uint8')
+            ir_image_fake_color = np.dstack((projection_area_frames[0], projection_area_frames[1], zeroes))
 
             self.painting_widget.draw_all_points(active_pen_events, stored_lines)
 
-    def process_frame_stereo(self):
-        global realsense_d435_camera
-        global ir_pen_1
-        global ir_pen_2
+            # self.painting_widget.preview_images_on_canvas(
+            #     [current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color],
+            #     ['right ir', 'left ir', 'Fake color', 'AND'])
 
-        ir_image_table, current_ir_image_table_1, current_ir_image_table_2 = realsense_d435_camera.get_ir_image()
-
-        if ir_image_table is not None:
-            active_pen_events, _, _, pen_events_to_remove = ir_pen_1.get_ir_pen_events(ir_image_table)
-
-            if len(pen_events_to_remove) > 0:
-                self.painting_widget.reset_last_point()
-
-            new_points = []
-            for active_pen_event in active_pen_events:
-
-                if COLOR_CYCLE_TESTING:
-                    if active_pen_event.id > self.current_id:
-                        self.get_next_color()
-                        self.current_id = active_pen_event.id
-
-                if active_pen_event.state.value != 3:  # All events except hover
-                    if len(active_pen_event.history) > NUM_POINTS_IGNORE:
-                            new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
-
-            # for active_pen_event in active_pen_events_2:
-            #     if active_pen_event.state.value != 3:  # All events except hover
-            #         if len(active_pen_event.history) > NUM_POINTS_IGNORE:
-            #             new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
-
-            if COLOR_CYCLE_TESTING:
-                self.painting_widget.draw_new_points(new_points, self.current_color)
-            else:
-                self.painting_widget.draw_new_points(new_points)
+    # def process_frame_stereo(self):
+    #     global realsense_d435_camera
+    #     global ir_pen_1
+    #     global ir_pen_2
+    #
+    #     ir_image_table, current_ir_image_table_1, current_ir_image_table_2 = realsense_d435_camera.get_ir_image()
+    #
+    #     if ir_image_table is not None:
+    #         active_pen_events, _, _, pen_events_to_remove = ir_pen_1.get_ir_pen_events(ir_image_table)
+    #
+    #         if len(pen_events_to_remove) > 0:
+    #             self.painting_widget.reset_last_point()
+    #
+    #         new_points = []
+    #         for active_pen_event in active_pen_events:
+    #
+    #             if COLOR_CYCLE_TESTING:
+    #                 if active_pen_event.id > self.current_id:
+    #                     self.get_next_color()
+    #                     self.current_id = active_pen_event.id
+    #
+    #             if active_pen_event.state.value != 3:  # All events except hover
+    #                 if len(active_pen_event.history) > NUM_POINTS_IGNORE:
+    #                         new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
+    #
+    #         # for active_pen_event in active_pen_events_2:
+    #         #     if active_pen_event.state.value != 3:  # All events except hover
+    #         #         if len(active_pen_event.history) > NUM_POINTS_IGNORE:
+    #         #             new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
+    #
+    #         if COLOR_CYCLE_TESTING:
+    #             self.painting_widget.draw_new_points(new_points, self.current_color)
+    #         else:
+    #             self.painting_widget.draw_new_points(new_points)
 
     # @timeit("Process Frame")
-    def process_frame(self):
-        global realsense_d435_camera
-        global ir_pen_1
-        global ir_pen_2
-        current_ir_image_table_1, current_ir_image_table_2, left_ir_image_1, left_ir_image_2, crop_1, crop_2 = realsense_d435_camera.get_ir_image()
-
-        if current_ir_image_table_1 is not None and current_ir_image_table_2 is not None:
-
-
-            current_ir_image_table_cropped_1 = current_ir_image_table_1[crop_1[1] : crop_1[3], crop_1[0]: crop_1[2]]
-            current_ir_image_table_cropped_2 = current_ir_image_table_2[crop_2[1] : crop_2[3], crop_2[0]: crop_2[2]]
-            current_ir_image_table_cropped_1 = cv2.resize(current_ir_image_table_cropped_1, (848, 480))
-            current_ir_image_table_cropped_2 = cv2.resize(current_ir_image_table_cropped_2, (848, 480))
-
-            zeroes = np.zeros(current_ir_image_table_cropped_1.shape, 'uint8')
-            ir_image_fake_color = np.dstack((current_ir_image_table_cropped_1, current_ir_image_table_cropped_2, zeroes))
-
-            #print(crop_1, current_ir_image_table_1.shape, current_ir_image_table_cropped_1.shape)
-
-            pos = None
-            text = ''
-
-            if STEREO_MODE:
-                active_pen_events, _, _, pen_events_to_remove, data_1 = ir_pen_1.get_ir_pen_events(
-                    ir_image_fake_color)
-            else:
-
-                _, brightest_1, _, (max_x_1, max_y_1) = cv2.minMaxLoc(current_ir_image_table_cropped_1)
-                _, brightest_2, _, (max_x_2, max_y_2) = cv2.minMaxLoc(current_ir_image_table_cropped_2)
-
-                # LATENZ MESSUNG
-                # if brightest_1 > 100:
-                #     self.painting_widget.fill_screen(True)
-                #     return
-                # else:
-                #     self.painting_widget.fill_screen(False)
-                #     return
-
-
-                MIN_BRIGHTNESS = 60
-
-
-
-                active_pen_events_1, _, _, pen_events_to_remove_1, data_1 = ir_pen_1.get_ir_pen_events(
-                    current_ir_image_table_cropped_1)
-                active_pen_events_2, _, _, pen_events_to_remove_2, data_2 = ir_pen_2.get_ir_pen_events(
-                    current_ir_image_table_cropped_2)
-
-                dist = 0
-
-                if len(active_pen_events_1) > 0 and len(active_pen_events_2) > 0:
-                    dist = distance.euclidean((active_pen_events_1[0].x, active_pen_events_1[0].y),
-                                              (active_pen_events_2[0].x, active_pen_events_2[0].y))
-                    dist = int(dist)
-
-                # print('DIST:', dist)
-
-                # print(data_1, data_2)
-
-                active_pen_events = []
-                pen_events_to_remove = pen_events_to_remove_1 + pen_events_to_remove_2
-
-                # _, thresh_1 = cv2.threshold(current_ir_image_table_1, int(np.median(current_ir_image_table_1) * 1.5), 255, cv2.THRESH_BINARY)
-                # _, thresh_2 = cv2.threshold(current_ir_image_table_2, int(np.median(current_ir_image_table_2) * 1.5), 255, cv2.THRESH_BINARY)
-
-                value_offset = 0.5
-                _, thresh_1 = cv2.threshold(current_ir_image_table_cropped_1, (brightest_1 * value_offset) if brightest_1 > MIN_BRIGHTNESS else 254,  255,
-                                            cv2.THRESH_BINARY)
-                _, thresh_2 = cv2.threshold(current_ir_image_table_cropped_2, (brightest_2 * value_offset) if brightest_2 > MIN_BRIGHTNESS else 254, 255, cv2.THRESH_BINARY)
-
-                dest_and = cv2.bitwise_and(thresh_1, thresh_2, mask=None)
-
-                # self.painting_widget.preview_images_on_canvas([current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, dest_and],
-                #self.painting_widget.preview_images_on_canvas([current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, dest_and],
-                #                                              ['right ir', 'left ir', 'Fake color', 'AND'])
-
-                max_and = np.max(dest_and)
-                max_thresh_1 = np.max(thresh_1)
-                max_thresh_2 = np.max(thresh_2)
-
-                # print(brightest_1, brightest_2, np.max(dest_and), np.max(thresh_1), np.max(thresh_2))
-
-                # if (brightest_1 < MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS) or (np.max(thresh_1) == 0 and np.max(thresh_2) == 0):
-                #
-                # # elif brightest_1 >= MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS:
-
-                if max_and != 0:
-                # if 0 < dist < 50:
-                    non_zero_px = cv2.countNonZero(dest_and)
-
-                    success, new_pos = self.find_pen_position_subpixel(dest_and)
-                    if success:
-                        pos = new_pos
-
-                    if brightest_1 > brightest_2:
-                        text = 'both - using cam 1 (non zero px: {})'.format(non_zero_px)
-                        active_pen_events = active_pen_events_1
-                        data = data_1
-                    else:
-                        text = 'both - using cam 2 (non zero px: {})'.format(non_zero_px)
-                        active_pen_events = active_pen_events_2
-                        data = data_2
-                elif max_thresh_1 == 0 and max_thresh_2 == 0:
-                    text = 'No Pen'
-
-                elif max_thresh_1 != 0 and max_thresh_2 != 0:
-                    text = 'hover far'
-                    # cv2.imwrite('additional_training_images/false_hover_far/hover_{}.png'.format(round(time.time() * 1000)),
-                    #             ir_image_fake_color)
-
-                elif brightest_1 >= MIN_BRIGHTNESS and max_thresh_2 == 0:
-                    text = 'cam right'
-                    active_pen_events = active_pen_events_1
-                    data = data_1
-
-                # elif brightest_2 >= MIN_BRIGHTNESS and brightest_1 < MIN_BRIGHTNESS:
-                elif brightest_2 >= MIN_BRIGHTNESS and max_thresh_1 == 0:
-                    text = 'cam left'
-                    active_pen_events = active_pen_events_2
-                    data = data_2
-                else:
-                    text = 'We missed something'
-
-            if len(pen_events_to_remove) > 0:
-                self.painting_widget.reset_last_point()
-
-                # self.painting_widget.add_data(data)
-
-            new_points = []
-            # if 40 > dist > 0:
-            for active_pen_event in active_pen_events:
-
-                if COLOR_CYCLE_TESTING:
-                    if active_pen_event.id > self.current_id:
-                        self.get_next_color()
-                        self.current_id = active_pen_event.id
-
-                #if active_pen_event.state.value != 3:
-                #    cv2.imwrite('additional_training_images/hover/hover_{}.png'.format(round(time.time() * 1000)), ir_image_table)
-                #
-                # print(active_pen_event)
-                if active_pen_event.state.value != 3:  # All events except hover
-                    if len(active_pen_event.history) > NUM_POINTS_IGNORE:
-                        if pos is not None:
-                            new_points.append(QPoint(pos[0], pos[1]))
-                        else:
-                            new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
-
-
-
-            # for active_pen_event in active_pen_events_2:
-            #     if active_pen_event.state.value != 3:  # All events except hover
-            #         if len(active_pen_event.history) > NUM_POINTS_IGNORE:
-            #             new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
-
-            text = '{}; Dist: {}'.format(brightest_1 - brightest_2, dist)+ ' ' + text
-
-            if COLOR_CYCLE_TESTING:
-                self.painting_widget.draw_new_points(new_points, text, self.current_color)
-            else:
-                self.painting_widget.draw_new_points(new_points, text)
+    # def process_frame(self):
+    #     global realsense_d435_camera
+    #     global ir_pen_1
+    #     global ir_pen_2
+    #     current_ir_image_table_1, current_ir_image_table_2, left_ir_image_1, left_ir_image_2, crop_1, crop_2 = realsense_d435_camera.get_ir_image()
+    #
+    #     if current_ir_image_table_1 is not None and current_ir_image_table_2 is not None:
+    #
+    #
+    #         current_ir_image_table_cropped_1 = current_ir_image_table_1[crop_1[1] : crop_1[3], crop_1[0]: crop_1[2]]
+    #         current_ir_image_table_cropped_2 = current_ir_image_table_2[crop_2[1] : crop_2[3], crop_2[0]: crop_2[2]]
+    #         current_ir_image_table_cropped_1 = cv2.resize(current_ir_image_table_cropped_1, (848, 480))
+    #         current_ir_image_table_cropped_2 = cv2.resize(current_ir_image_table_cropped_2, (848, 480))
+    #
+    #         zeroes = np.zeros(current_ir_image_table_cropped_1.shape, 'uint8')
+    #         ir_image_fake_color = np.dstack((current_ir_image_table_cropped_1, current_ir_image_table_cropped_2, zeroes))
+    #
+    #         #print(crop_1, current_ir_image_table_1.shape, current_ir_image_table_cropped_1.shape)
+    #
+    #         pos = None
+    #         text = ''
+    #
+    #         if STEREO_MODE:
+    #             active_pen_events, _, _, pen_events_to_remove, data_1 = ir_pen_1.get_ir_pen_events(
+    #                 ir_image_fake_color)
+    #         else:
+    #
+    #             _, brightest_1, _, (max_x_1, max_y_1) = cv2.minMaxLoc(current_ir_image_table_cropped_1)
+    #             _, brightest_2, _, (max_x_2, max_y_2) = cv2.minMaxLoc(current_ir_image_table_cropped_2)
+    #
+    #             # LATENZ MESSUNG
+    #             # if brightest_1 > 100:
+    #             #     self.painting_widget.fill_screen(True)
+    #             #     return
+    #             # else:
+    #             #     self.painting_widget.fill_screen(False)
+    #             #     return
+    #
+    #
+    #             MIN_BRIGHTNESS = 60
+    #
+    #
+    #
+    #             active_pen_events_1, _, _, pen_events_to_remove_1, data_1 = ir_pen_1.get_ir_pen_events(
+    #                 current_ir_image_table_cropped_1)
+    #             active_pen_events_2, _, _, pen_events_to_remove_2, data_2 = ir_pen_2.get_ir_pen_events(
+    #                 current_ir_image_table_cropped_2)
+    #
+    #             dist = 0
+    #
+    #             if len(active_pen_events_1) > 0 and len(active_pen_events_2) > 0:
+    #                 dist = distance.euclidean((active_pen_events_1[0].x, active_pen_events_1[0].y),
+    #                                           (active_pen_events_2[0].x, active_pen_events_2[0].y))
+    #                 dist = int(dist)
+    #
+    #             # print('DIST:', dist)
+    #
+    #             # print(data_1, data_2)
+    #
+    #             active_pen_events = []
+    #             pen_events_to_remove = pen_events_to_remove_1 + pen_events_to_remove_2
+    #
+    #             # _, thresh_1 = cv2.threshold(current_ir_image_table_1, int(np.median(current_ir_image_table_1) * 1.5), 255, cv2.THRESH_BINARY)
+    #             # _, thresh_2 = cv2.threshold(current_ir_image_table_2, int(np.median(current_ir_image_table_2) * 1.5), 255, cv2.THRESH_BINARY)
+    #
+    #             value_offset = 0.5
+    #             _, thresh_1 = cv2.threshold(current_ir_image_table_cropped_1, (brightest_1 * value_offset) if brightest_1 > MIN_BRIGHTNESS else 254,  255,
+    #                                         cv2.THRESH_BINARY)
+    #             _, thresh_2 = cv2.threshold(current_ir_image_table_cropped_2, (brightest_2 * value_offset) if brightest_2 > MIN_BRIGHTNESS else 254, 255, cv2.THRESH_BINARY)
+    #
+    #             dest_and = cv2.bitwise_and(thresh_1, thresh_2, mask=None)
+    #
+    #             # self.painting_widget.preview_images_on_canvas([current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, dest_and],
+    #             #self.painting_widget.preview_images_on_canvas([current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, dest_and],
+    #             #                                              ['right ir', 'left ir', 'Fake color', 'AND'])
+    #
+    #             max_and = np.max(dest_and)
+    #             max_thresh_1 = np.max(thresh_1)
+    #             max_thresh_2 = np.max(thresh_2)
+    #
+    #             # print(brightest_1, brightest_2, np.max(dest_and), np.max(thresh_1), np.max(thresh_2))
+    #
+    #             # if (brightest_1 < MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS) or (np.max(thresh_1) == 0 and np.max(thresh_2) == 0):
+    #             #
+    #             # # elif brightest_1 >= MIN_BRIGHTNESS and brightest_2 < MIN_BRIGHTNESS:
+    #
+    #             if max_and != 0:
+    #             # if 0 < dist < 50:
+    #                 non_zero_px = cv2.countNonZero(dest_and)
+    #
+    #                 success, new_pos = self.find_pen_position_subpixel(dest_and)
+    #                 if success:
+    #                     pos = new_pos
+    #
+    #                 if brightest_1 > brightest_2:
+    #                     text = 'both - using cam 1 (non zero px: {})'.format(non_zero_px)
+    #                     active_pen_events = active_pen_events_1
+    #                     data = data_1
+    #                 else:
+    #                     text = 'both - using cam 2 (non zero px: {})'.format(non_zero_px)
+    #                     active_pen_events = active_pen_events_2
+    #                     data = data_2
+    #             elif max_thresh_1 == 0 and max_thresh_2 == 0:
+    #                 text = 'No Pen'
+    #
+    #             elif max_thresh_1 != 0 and max_thresh_2 != 0:
+    #                 text = 'hover far'
+    #                 # cv2.imwrite('additional_training_images/false_hover_far/hover_{}.png'.format(round(time.time() * 1000)),
+    #                 #             ir_image_fake_color)
+    #
+    #             elif brightest_1 >= MIN_BRIGHTNESS and max_thresh_2 == 0:
+    #                 text = 'cam right'
+    #                 active_pen_events = active_pen_events_1
+    #                 data = data_1
+    #
+    #             # elif brightest_2 >= MIN_BRIGHTNESS and brightest_1 < MIN_BRIGHTNESS:
+    #             elif brightest_2 >= MIN_BRIGHTNESS and max_thresh_1 == 0:
+    #                 text = 'cam left'
+    #                 active_pen_events = active_pen_events_2
+    #                 data = data_2
+    #             else:
+    #                 text = 'We missed something'
+    #
+    #         if len(pen_events_to_remove) > 0:
+    #             self.painting_widget.reset_last_point()
+    #
+    #             # self.painting_widget.add_data(data)
+    #
+    #         new_points = []
+    #         # if 40 > dist > 0:
+    #         for active_pen_event in active_pen_events:
+    #
+    #             if COLOR_CYCLE_TESTING:
+    #                 if active_pen_event.id > self.current_id:
+    #                     self.get_next_color()
+    #                     self.current_id = active_pen_event.id
+    #
+    #             #if active_pen_event.state.value != 3:
+    #             #    cv2.imwrite('additional_training_images/hover/hover_{}.png'.format(round(time.time() * 1000)), ir_image_table)
+    #             #
+    #             # print(active_pen_event)
+    #             if active_pen_event.state.value != 3:  # All events except hover
+    #                 if len(active_pen_event.history) > NUM_POINTS_IGNORE:
+    #                     if pos is not None:
+    #                         new_points.append(QPoint(pos[0], pos[1]))
+    #                     else:
+    #                         new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
+    #
+    #
+    #
+    #         # for active_pen_event in active_pen_events_2:
+    #         #     if active_pen_event.state.value != 3:  # All events except hover
+    #         #         if len(active_pen_event.history) > NUM_POINTS_IGNORE:
+    #         #             new_points.append(QPoint(active_pen_event.x, active_pen_event.y))
+    #
+    #         text = '{}; Dist: {}'.format(brightest_1 - brightest_2, dist)+ ' ' + text
+    #
+    #         if COLOR_CYCLE_TESTING:
+    #             self.painting_widget.draw_new_points(new_points, text, self.current_color)
+    #         else:
+    #             self.painting_widget.draw_new_points(new_points, text)
 
 
 class PaintingWidget(QMainWindow):
@@ -431,10 +437,11 @@ class PaintingWidget(QMainWindow):
         painter = QPainter(self.image)
 
         color = QColor(255, 255, 255, 255)
+        color_hover = QColor(255, 255, 255, 40)
 
         painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
-        polygons_to_draw =[]
+        polygons_to_draw = []
 
         for active_pen_event in active_pen_events:
 
@@ -443,6 +450,12 @@ class PaintingWidget(QMainWindow):
             if active_pen_event.state.value != 3:  # All events except hover
                 for point in active_pen_event.history:
                     polygon.append(QPoint(point[0], point[1]))
+            else:
+                painter.setPen(QPen(color_hover, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                painter.setBrush(QBrush(color_hover, Qt.SolidPattern))
+                painter.drawEllipse(active_pen_event.x, active_pen_event.y, 5, 5)
+
+                painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
             if len(polygon) > 0:
                 polygons_to_draw.append(polygon)

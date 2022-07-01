@@ -98,6 +98,8 @@ class IRPen:
     pen_events_to_remove = []  # Points that got deleted from active_points in the current frame
     double_click_candidates = []
 
+    added_frames = None
+
     camera_name = ''
 
     def __init__(self, camera_name):
@@ -118,6 +120,8 @@ class IRPen:
         threshold_frames = []
         brightness_values = []
 
+        added_frames = None
+
         predictions = []
 
         for frame in camera_frames:
@@ -134,12 +138,9 @@ class IRPen:
                 predictions.append(prediction)
 
                 value_offset = 0.5
-                _, thresh_1 = cv2.threshold(projection_area_frame, brightest * value_offset, 255, cv2.THRESH_BINARY)
+                _, thresh = cv2.threshold(projection_area_frame, brightest * value_offset, 255, cv2.THRESH_BINARY)
 
-                threshold_frames.append(projection_area_frame)
-            else:
-                # TODO: Add state for no prediction
-                pass
+                threshold_frames.append(thresh)
 
         # If no predictions are there, we can skip the rest
         if len(predictions) > 0:
@@ -157,17 +158,18 @@ class IRPen:
             # TODO: This should also work with more than two cameras
             # Check if we have white pixels when overlapping both camera frames ->
             if len(threshold_frames) == 2:
-                dest_and = cv2.bitwise_and(threshold_frames[0], threshold_frames[1], mask=None)
-                max_and = np.max(dest_and)
+                added_frames = cv2.bitwise_and(threshold_frames[0], threshold_frames[1], mask=None)
+                max_and = np.max(added_frames)
                 # max_thresh_1 = np.max(threshold_frames[0])
                 # max_thresh_2 = np.max(threshold_frames[1])
 
                 if max_and > 0:
                     # We have an overlap in the AND image -> Use the overlap region to calculate the pos of the event
-                    print('Two cameras -> Hover close or draw')
-                    (x, y), radius = self.find_pen_position_subpixel(dest_and)
+                    # print('Two cameras -> Hover close or draw')
+                    (x, y), radius = self.find_pen_position_subpixel(added_frames)
                 else:
-                    print('Hover far')
+                    # print('Hover far')
+                    final_prediction = 'hover'
                     (x, y), radius = self.find_pen_position_subpixel(projection_area_frames[brightest_image_index])
             else:
                 (x, y), radius = self.find_pen_position_subpixel(projection_area_frames[brightest_image_index])
@@ -189,7 +191,7 @@ class IRPen:
         # This function needs to be called even if there are no new pen events to update all existing events
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
-        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove
+        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, projection_area_frames, added_frames
 
 
     # Pass a frame that shows more than the projection area into this function to get just the projection area back
@@ -348,7 +350,7 @@ class IRPen:
             return STATES[-1], 0
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
-        print(state)
+        # print(state)
         return state, confidence
 
     def find_pen_position_subpixel(self, ir_image):
