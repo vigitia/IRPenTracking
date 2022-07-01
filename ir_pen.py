@@ -10,7 +10,8 @@ from scipy.spatial import distance
 from cv2 import cv2
 
 # TODO: Relative Path
-MODEL_PATH = 'evaluation/hover_predictor_stereo_twochannel_3'  # 'evaluation/hover_predictor_stereo_both_sides_6'
+#MODEL_PATH = 'evaluation/hover_predictor_stereo_twochannel_3'  #
+MODEL_PATH = 'evaluation/hover_predictor_stereo_both_sides_close_1'
 
 CROP_IMAGE_SIZE = 48
 
@@ -26,6 +27,9 @@ CLICK_THRESH_MS = 10
 
 # Hover will be selected over Draw if Hover Event is within the last X event states
 KERNEL_SIZE_HOVER_WINS = 3
+
+
+MIN_BRIGHTNESS_FOR_PREDICTION = 100
 
 
 DEBUG_MODE = False
@@ -104,6 +108,95 @@ class IRPen:
 
         self.camera_name = camera_name
 
+    def get_ir_pen_events_multicam(self, camera_frames, crop_coordinates):
+        new_pen_events = []
+
+        self.new_lines = []
+        self.pen_events_to_remove = []
+
+        projection_area_frames = []
+        threshold_frames = []
+        brightness_values = []
+
+        predictions = []
+
+        for frame in camera_frames:
+            # TODO: Get here all spots and not just one
+
+            pen_event_roi, brightest, (x, y) = self.crop_image(frame)
+            brightness_values.append(brightest)
+
+            projection_area_frame = self.crop_extended_frame(frame, crop_coordinates)
+            projection_area_frames.append(projection_area_frame)
+
+            if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
+                prediction, confidence = self.predict(pen_event_roi)
+                predictions.append(prediction)
+
+                value_offset = 0.5
+                _, thresh_1 = cv2.threshold(projection_area_frame, brightest * value_offset, 255, cv2.THRESH_BINARY)
+
+                threshold_frames.append(projection_area_frame)
+            else:
+                # TODO: Add state for no prediction
+                pass
+
+        # If no predictions are there, we can skip the rest
+        if len(predictions) > 0:
+
+            brightest_image_index = brightness_values.index(max(brightness_values))
+
+            if all(x == predictions[0] for x in predictions):
+                # The predictions for all cameras are the same
+                final_prediction = predictions[0]
+            else:
+                # There is a disagreement
+                # Currently we then use the prediction of the brightest point in all camera frames
+                final_prediction = predictions[brightest_image_index]
+
+            # TODO: This should also work with more than two cameras
+            # Check if we have white pixels when overlapping both camera frames ->
+            if len(threshold_frames) == 2:
+                dest_and = cv2.bitwise_and(threshold_frames[0], threshold_frames[1], mask=None)
+                max_and = np.max(dest_and)
+                # max_thresh_1 = np.max(threshold_frames[0])
+                # max_thresh_2 = np.max(threshold_frames[1])
+
+                if max_and > 0:
+                    # We have an overlap in the AND image -> Use the overlap region to calculate the pos of the event
+                    print('Two cameras -> Hover close or draw')
+                    (x, y), radius = self.find_pen_position_subpixel(dest_and)
+                else:
+                    print('Hover far')
+                    (x, y), radius = self.find_pen_position_subpixel(projection_area_frames[brightest_image_index])
+            else:
+                (x, y), radius = self.find_pen_position_subpixel(projection_area_frames[brightest_image_index])
+
+            if final_prediction == 'draw':
+                # print('Status: Touch')
+                new_ir_pen_event = PenEvent(x, y)
+                new_ir_pen_event.state = State.DRAG
+                new_pen_events.append(new_ir_pen_event)
+
+            elif final_prediction == 'hover':
+                # print('Status: Hover')
+                new_ir_pen_event = PenEvent(x, y)
+                new_ir_pen_event.state = State.HOVER
+                new_pen_events.append(new_ir_pen_event)
+            else:
+                print('Unknown state')
+
+        # This function needs to be called even if there are no new pen events to update all existing events
+        self.active_pen_events = self.merge_pen_events(new_pen_events)
+
+        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove
+
+
+    # Pass a frame that shows more than the projection area into this function to get just the projection area back
+    def crop_extended_frame(self, frame, crop_coordinates):
+        frame = frame[crop_coordinates[1]: crop_coordinates[3], crop_coordinates[0]: crop_coordinates[2]]
+        return cv2.resize(frame, (848, 480))
+
     # @timeit('Pen Events')
     def get_ir_pen_events(self, ir_frame):
 
@@ -123,13 +216,11 @@ class IRPen:
         # if DEBUG_MODE:
         #     preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
 
-        MIN_BRIGHTNESS = 100
-
         data = {}
 
         # TODO: for loop here to iterate over all detected bright spots in the image
 
-        if brightest > MIN_BRIGHTNESS and img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
+        if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
         # if brightest > MIN_BRIGHTNESS and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
             prediction, confidence = self.predict(img_cropped)
             #print(confidence, flush=True)
