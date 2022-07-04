@@ -72,6 +72,8 @@ class TableExtractionService:
 
         matrix = cv2.getPerspectiveTransform(pts1, pts2)
 
+        # print(matrix)
+
         frame = cv2.warpPerspective(frame, matrix, (x, y))
         return frame
 
@@ -120,3 +122,49 @@ class TableExtractionService:
 
         frame = cv2.warpPerspective(frame, matrix, (x, y))
         return frame, (x0, y0, x1, y1)
+
+    def get_homography(self, frame, camera_parameter_name):
+        if frame is None:
+            return None
+
+        x = frame.shape[1]
+        y = frame.shape[0]
+
+        if camera_parameter_name not in self.config.keys():
+            # print('No calibration for', camera_parameter_name)
+            return None
+
+        pts1 = np.float32([self.config[camera_parameter_name]['cornertopleft'],
+                           self.config[camera_parameter_name]['cornertopright'],
+                           self.config[camera_parameter_name]['cornerbottomleft'],
+                           self.config[camera_parameter_name]['cornerbottomright']])
+
+        x0 = 0
+        y0 = 0
+        x1 = x
+        y1 = y
+
+        #print('coords', x0, y0, x1, y1)
+
+        if FLIP_IMAGE:
+            pts2 = np.float32([[x0, y0], [x1, y0], [x0, y1], [x1, y1]])
+        else:
+            pts2 = np.float32([[x1, y1], [x0, y1], [x1, y0], [y0, y0]])
+
+        # if FLIP_IMAGE:
+        #     pts2 = np.float32([[0, 0], [x, 0], [0, y], [x, y]])
+        # else:
+        #     pts2 = np.float32([[x, y], [0, y], [x, 0], [0, 0]])
+
+        # if FLIP_IMAGE:
+        #     pts2 = np.float32([[int(-1.2 * x), int(-1.2 * y)], [x, int(1.2 * y)], [int(1.2 * x), y], [x, y]])
+        # else:
+        #     pts2 = np.float32([[x, y], [int(-1.2 * x), y], [x, int(-1.2 * y)], [int(-1.2 * x), int(-1.2 * y)]])
+
+        homography, status = cv2.findHomography(pts1, pts2)
+        # print(homography)
+        # matrix = cv2.getPerspectiveTransform(pts1, pts2)
+        # print(matrix)
+
+        return homography
+

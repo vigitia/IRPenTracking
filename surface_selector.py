@@ -172,12 +172,12 @@ class SurfaceSelector:
         with open(CONFIG_FILE_NAME, 'w') as configfile:
             config.write(configfile)
 
-    def dot(self, u, v):
-        return sum((a * b) for a, b in zip(u, v))
-
-    def vector_norm(self, v):
-        return math.sqrt(self.dot(v, v))
-
-    def normalize_vector(self, v):
-        n = float(self.vector_norm(v))
-        return [float(v[i]) / n for i in range(len(v))] if n != 0 else [-1 for i in range(len(v))]
+    # def dot(self, u, v):
+    #     return sum((a * b) for a, b in zip(u, v))
+    #
+    # def vector_norm(self, v):
+    #     return math.sqrt(self.dot(v, v))
+    #
+    # def normalize_vector(self, v):
+    #     n = float(self.vector_norm(v))
+    #     return [float(v[i]) / n for i in range(len(v))] if n != 0 else [-1 for i in range(len(v))]

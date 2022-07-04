@@ -124,22 +124,58 @@ class ApplicationLoopThread(QThread):
     #     return True, position
 
     # @timeit("Process Frames")
+
+    # @timeit("Process frames")
     def process_frames(self):
         global realsense_d435_camera
         global ir_pen_1
-        current_ir_image_table_1, current_ir_image_table_2, left_ir_image_1, left_ir_image_2, crop_1, crop_2 = realsense_d435_camera.get_camera_frames()
+        left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
 
-        if current_ir_image_table_1 is not None and current_ir_image_table_2 is not None:
-            active_pen_events, stored_lines, _, _, projection_area_frames, added_frames = ir_pen_1.get_ir_pen_events_multicam([current_ir_image_table_1, current_ir_image_table_2], crop_1)
+        if left_ir_image_1 is not None and left_ir_image_2 is not None:
 
-            zeroes = np.zeros(projection_area_frames[0].shape, 'uint8')
-            ir_image_fake_color = np.dstack((projection_area_frames[0], projection_area_frames[1], zeroes))
+            # old: 12 - 15 ms
+            # crop: 9 - 10 ms
+            start_time = time.time()
 
-            self.painting_widget.draw_all_points(active_pen_events, stored_lines)
+            # pen_event_roi, brightest, (x, y) = ir_pen_1.crop_image(left_ir_image_1)
+            # coords = [x, y, 1]
+            # coords = np.array(coords)
+            #
+            # print(matrix1)
+            # result = matrix1.dot(coords)
+            # # result = matrix1 @ coords
+            # print(coords, result)
+
+            active_pen_events, stored_lines, _, _, added_frames = ir_pen_1.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
+            end_time = time.time()
+            print('get_ir_pen_events_multicam', round((end_time - start_time) * 1000, 2))
+
+
+
+            # start_time = time.time()
+            # end_time = time.time()
+            # print('findContours', round((end_time - start_time) * 1000, 2))
+
+
+            # zeroes = np.zeros(projection_area_frames[0].shape, 'uint8')
+            # ir_image_fake_color = np.dstack((projection_area_frames[0], projection_area_frames[1], zeroes))
+
+            # ir_image_fake_color_extended = np.dstack((current_ir_image_table_0, current_ir_image_table_1, zeroes))
+            #
+            # img_pen_roi, brightest, _ = ir_pen_1.crop_image(ir_image_fake_color_extended)
+            #
+            # if brightest < 100:
+            #     img_pen_roi = np.zeros((48, 48), 'uint8')
+            #
+            # img_pen_roi = cv2.resize(img_pen_roi, (1024, 1024))
+
+
+            self.painting_widget.draw_all_points(active_pen_events, stored_lines) # 1.2 ms
+
 
             # self.painting_widget.preview_images_on_canvas(
-            #     [current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color],
-            #     ['right ir', 'left ir', 'Fake color', 'AND'])
+            #     [current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, img_pen_roi],
+            #     ['right ir', 'left ir', 'Fake color', 'ROI'])
 
     # def process_frame_stereo(self):
     #     global realsense_d435_camera
