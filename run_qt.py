@@ -1,19 +1,11 @@
-# Based on https://www.geeksforgeeks.org/pyqt5-create-paint-application/
-import csv
-import random
-import time
-
-import pandas as pd
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
 
 import sys
-import cv2
 import datetime
 
-import numpy as np
-from scipy.spatial import distance
+import cv2
+from PyQt5.QtCore import Qt, QPoint, QThread
+from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QSurfaceFormat, QPolygon, QFont, QImage)
+from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
 
 from realsense_d435 import RealsenseD435Camera
 from ir_pen import IRPen
@@ -58,9 +50,9 @@ def timeit(prefix):
             end_time = datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
             # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
-            if run_time > 0.1:
-                last_time = run_time
-                print(prefix + "> " + str(run_time) + " ms", flush=True)
+            # if run_time > 0.1:
+            last_time = f'{run_time:.3f}'
+            #print(f'{prefix} > {last_time}  ms', flush=True)
             return retval
         return wrapper
     return timeit_decorator
@@ -172,9 +164,7 @@ class ApplicationLoopThread(QThread):
             #
             # img_pen_roi = cv2.resize(img_pen_roi, (1024, 1024))
 
-
             self.painting_widget.draw_all_points(active_pen_events, stored_lines) # 1.2 ms
-
 
             # self.painting_widget.preview_images_on_canvas(
             #     [current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, img_pen_roi],
@@ -379,329 +369,476 @@ class ApplicationLoopThread(QThread):
     #             self.painting_widget.draw_new_points(new_points, text)
 
 
-class PaintingWidget(QMainWindow):
+# class PaintingWidget(QMainWindow):
+#
+#     # TODO: Change this to work with multiple pens at once
+#     # lastPoint = None
+#
+#     mackenzie_phrases = []
+#
+#     # height_multiplier = 2
+#
+#     num_phrases_written = 0
+#
+#     stored_data = []
+#
+#     def __init__(self):
+#         super().__init__()
+#
+#         # shape_creator = ShapeCreator(WINDOW_WIDTH, WINDOW_HEIGHT)
+#         # background_image = shape_creator.draw_shape('shapes/wave.svg', (800, 800), 1000, LINE_THICKNESS, ShapeCreator.DASH, LINE_COLOR)
+#         # self.background_image = QImage(background_image, background_image.shape[1], background_image.shape[0], background_image.shape[1] * 3, QImage.Format_RGB888)
+#
+#         self.read_mackenzie_phrases()
+#
+#         # drawing flag
+#         self.drawing = False
+#
+#         self.line_thickness = LINE_THICKNESS
+#
+#         self.initUI()
+#
+#         self.thread = ApplicationLoopThread(self)
+#         self.thread.start()
+#
+#     def add_data(self, data):
+#         print(len(self.stored_data))
+#
+#         if len(data.keys()) > 0:
+#             self.stored_data.append(data)
+#
+#     def initUI(self):
+#         self.showFullScreen()  # Application should run in Fullscreen
+#
+#         # setting geometry to main window
+#         self.setGeometry(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+#
+#         # Define width and height as global variables
+#         # self.width = QApplication.desktop().screenGeometry().width()
+#         # self.height = QApplication.desktop().screenGeometry().height()
+#
+#         # hover_cursor = QLabel(self)
+#         # pixmap = QPixmap("testing.png")
+#         # # pixmap = pixmap.scaled(500, 500, Qt.KeepAspectRatio)
+#         # hover_cursor.setPixmap(pixmap)
+#         # hover_cursor.move(100, 100)
+#         #
+#         # label = QLabel(text="Welcome to Python GUI!")
+#         # label.show()
+#
+#         # self.reset_image()
+#
+#     def read_mackenzie_phrases(self):
+#         with open('phrases.txt') as file:
+#             lines = file.readlines()
+#             for line in lines:
+#                 self.mackenzie_phrases.append(line.replace('\n', ''))
+#
+#     def get_random_phrase(self):
+#
+#         index = random.randint(0, len(self.mackenzie_phrases) - 1)
+#
+#         random_phrase = self.mackenzie_phrases.pop(index)
+#
+#         return random_phrase
+#
+#
+#     def reset_image(self):
+#         # self.image = self.background_image.copy()
+#         self.image = QImage(self.size(), QImage.Format_ARGB32)
+#         self.image.fill(Qt.black)
+#
+#         if PHRASES_MODE:
+#             self.draw_rectangle()
+#
+#     # Only for latency measurements
+#     def fill_screen(self, fill):
+#         self.image = QImage(self.size(), QImage.Format_ARGB32)
+#         if fill:
+#             self.image.fill(Qt.white)
+#         else:
+#             self.image.fill(Qt.black)
+#         self.update()
+#
+#     def draw_all_points(self, active_pen_events, stored_lines):
+#
+#         # self.reset_image()
+#
+#         new_image = QImage(self.size(), QImage.Format_ARGB32)
+#         new_image.fill(Qt.black)
+#
+#         painter = QPainter(new_image)
+#
+#         color = QColor(255, 255, 255, 255)
+#         color_hover = QColor(255, 255, 255, 40)
+#
+#         painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#
+#         global last_time
+#         font = QFont()
+#         font.setFamily('Arial')
+#         # font.setBold(True)
+#         font.setPointSize(40)
+#         painter.setFont(font)
+#
+#         painter.drawText(100, 550, str(int(last_time)) + ' ms')
+#
+#         polygons_to_draw = []
+#
+#         for active_pen_event in active_pen_events:
+#
+#             polygon = []
+#
+#             if active_pen_event.state.value != 3:  # All events except hover
+#                 for point in active_pen_event.history:
+#                     polygon.append(QPoint(point[0], point[1]))
+#             else:
+#                 # Draw a dot to show hover events
+#                 painter.setPen(QPen(color_hover, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#                 painter.setBrush(QBrush(color_hover, Qt.SolidPattern))
+#                 painter.drawEllipse(active_pen_event.x, active_pen_event.y, 5, 5)
+#
+#                 painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#
+#             if len(polygon) > 0:
+#                 polygons_to_draw.append(polygon)
+#
+#         for line in stored_lines:
+#
+#             polygon = []
+#
+#             for point in line:
+#                 polygon.append(QPoint(point[0], point[1]))
+#
+#             if len(polygon) > 0:
+#                 polygons_to_draw.append(polygon)
+#
+#         for polygon in polygons_to_draw:
+#             # painter.drawPolygon(QPolygon(polygon))
+#             painter.drawPolyline(QPolygon(polygon))
+#
+#         self.image = new_image
+#         self.update()
+#
+#
+#     # def draw_new_points(self, points, text, color=PEN_COLOR):
+#     #
+#     #     if 'left' in text:
+#     #         color = QColor(255, 0, 255, 255)
+#     #     elif 'right' in text:
+#     #         color = QColor(255, 255, 0, 255)
+#     #     elif 'cam 1' in text:
+#     #         color = QColor(0, 255, 0, 255)
+#     #     elif 'cam 2' in text:
+#     #         color = QColor(255, 0, 0, 255)
+#     #
+#     #
+#     #
+#     #     # print('drawing', points)
+#     #
+#     #     painter = QPainter(self.image)
+#     #     # painter.setRenderHint(QPainter.Antialiasing)
+#     #
+#     #     RECTANGLE_COLOR = QColor(40, 40, 40, 255)
+#     #
+#     #     # painter.setRenderHint(QPainter.Antialiasing)
+#     #     painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#     #     painter.setBrush(QBrush(RECTANGLE_COLOR))
+#     #     painter.drawRect(80, 500, 1000, 100)
+#     #
+#     #     painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#     #
+#     #     font = QFont()
+#     #     font.setFamily('Arial')
+#     #     # font.setBold(True)
+#     #     font.setPointSize(40)
+#     #     painter.setFont(font)
+#     #
+#     #     painter.drawText(100, 550, text)
+#     #
+#     #     for point in points:
+#     #         if self.lastPoint is None:
+#     #             painter.drawPoint(point)
+#     #         else:
+#     #             painter.drawLine(self.lastPoint, point)
+#     #         self.lastPoint = point
+#     #
+#     #     self.update()
+#     #
+#     # def draw_rectangle(self):
+#     #     painter = QPainter(self.image)
+#     #
+#     #     painter.setPen(QPen(Qt.white))
+#     #
+#     #     font = QFont()
+#     #     font.setFamily('Arial')
+#     #     # font.setBold(True)
+#     #     font.setPointSize(80)
+#     #     painter.setFont(font)
+#     #
+#     #     painter.drawText(100, 300, self.get_random_phrase())
+#     #
+#     #     RECTANGLE_COLOR = QColor(50, 50, 50, 255)
+#     #
+#     #     # painter.setRenderHint(QPainter.Antialiasing)
+#     #     painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#     #     painter.setBrush(QBrush(RECTANGLE_COLOR))
+#     #
+#     #     if self.height_multiplier > 3:
+#     #         self.height_multiplier = 2
+#     #
+#     #     height = 58 * self.height_multiplier
+#     #     width = WINDOW_WIDTH/2
+#     #
+#     #     self.height_multiplier += 1
+#     #
+#     #     painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
+#     #
+#     #     self.update()
+#     #
+#     # def reset_last_point(self):
+#     #     print('##########################################')
+#     #     self.lastPoint = None
+#
+#     # def mousePressEvent(self, event):
+#     #     if event.button() == Qt.LeftButton:
+#     #         self.drawing = True
+#     #         self.lastPoint = event.pos()
+#     #
+#     # def mouseMoveEvent(self, event):
+#     #     # checking if left button is pressed and drawing flag is true
+#     #     if (event.buttons() & Qt.LeftButton) & self.drawing:
+#     #         # creating painter object
+#     #         painter = QPainter(self.image)
+#     #
+#     #         # set the pen of the painter
+#     #         painter.setPen(QPen(PEN_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+#     #
+#     #         # draw line from the last point of cursor to the current point
+#     #         # this will draw only one step
+#     #         # painter.drawLine(self.lastPoint, event.pos())
+#     #         painter.drawPoint(event.pos())
+#     #
+#     #         self.lastPoint = event.pos()
+#     #         self.update()
+#     #
+#     # def mouseReleaseEvent(self, event):
+#     #     if event.button() == Qt.LeftButton:
+#     #         self.drawing = False
+#
+#     # paint event
+#     def paintEvent(self, event):
+#         # create a canvas
+#         canvasPainter = QPainter(self)
+#
+#         # draw rectangle  on the canvas
+#         canvasPainter.drawImage(self.rect(), self.image, self.image.rect())
+#
+#     # Handle Key-press events
+#     def keyPressEvent(self, event):
+#         if event.key() == Qt.Key_Escape:
+#             # df = pd.DataFrame(self.stored_data)
+#             # df.to_csv('stored_data_hover.csv')
+#
+#             self.save_screenshot()
+#
+#             self.close()
+#             sys.exit(0)
+#         elif event.key() == Qt.Key_Space:
+#             self.save_screenshot()
+#
+#             if PHRASES_MODE:
+#                 self.num_phrases_written += 1
+#                 if self.num_phrases_written == 10:
+#                     print('10 Phrases have been written')
+#                     self.close()
+#                     sys.exit()
+#
+#             self.reset_image()
+#
+#     # Save the current window content as a png
+#     def save_screenshot(self):
+#         filename = datetime.datetime.now().strftime('%Y_%m_%d-%H-%M-%S')
+#         self.image.save('./output_images/Participant_{}_{}.png'.format(PARTICIPANT_ID, filename))
+#
+#     def preview_images_on_canvas(self, images_to_preview, image_names):
+#         painter = QPainter(self.image)
+#
+#         x_anchor = 3840
+#
+#         for i, image_to_preview in enumerate(images_to_preview):
+#             if len(image_to_preview.shape) < 3:
+#                 image_to_preview = cv2.cvtColor(image_to_preview, cv2.COLOR_GRAY2RGB)
+#             image_to_preview = cv2.putText(
+#                 img=image_to_preview,
+#                 text=image_names[i],
+#                 org=(50, 50),
+#                 fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+#                 fontScale=2.0,
+#                 color=(255, 255, 255),
+#                 thickness=2
+#             )
+#             image_to_preview = cv2.copyMakeBorder(image_to_preview, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=(255,255,255))
+#             preview_image = QImage(image_to_preview.data, image_to_preview.shape[1], image_to_preview.shape[0],
+#                                    QImage.Format_RGB888)
+#
+#             x_anchor -= image_to_preview.shape[1]
+#
+#             painter.drawImage(x_anchor, 0, preview_image)
+#
+#         self.update()
 
-    # TODO: Change this to work with multiple pens at once
-    # lastPoint = None
 
-    mackenzie_phrases = []
+class GLWidget(QOpenGLWidget):
 
-    # height_multiplier = 2
+    active_pen_events = []
+    stored_lines = []
 
-    num_phrases_written = 0
+    def __init__(self, parent):
+        super(GLWidget, self).__init__(parent)
 
-    stored_data = []
-
-    def __init__(self):
-        super().__init__()
-
-        # shape_creator = ShapeCreator(WINDOW_WIDTH, WINDOW_HEIGHT)
-        # background_image = shape_creator.draw_shape('shapes/wave.svg', (800, 800), 1000, LINE_THICKNESS, ShapeCreator.DASH, LINE_COLOR)
-        # self.background_image = QImage(background_image, background_image.shape[1], background_image.shape[0], background_image.shape[1] * 3, QImage.Format_RGB888)
-
-        self.read_mackenzie_phrases()
-
-        # drawing flag
-        self.drawing = False
-
-        self.line_thickness = LINE_THICKNESS
-
-        self.initUI()
-
-        self.thread = ApplicationLoopThread(self)
-        self.thread.start()
-
-    def add_data(self, data):
-        print(len(self.stored_data))
-
-        if len(data.keys()) > 0:
-            self.stored_data.append(data)
-
-    def initUI(self):
-        self.showFullScreen()  # Application should run in Fullscreen
-
-        # setting geometry to main window
         self.setGeometry(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 
-        # Define width and height as global variables
-        # self.width = QApplication.desktop().screenGeometry().width()
-        # self.height = QApplication.desktop().screenGeometry().height()
+        self.background = QBrush(QColor(0, 0, 0))
 
-        # hover_cursor = QLabel(self)
-        # pixmap = QPixmap("testing.png")
-        # # pixmap = pixmap.scaled(500, 500, Qt.KeepAspectRatio)
-        # hover_cursor.setPixmap(pixmap)
-        # hover_cursor.move(100, 100)
-        #
-        # label = QLabel(text="Welcome to Python GUI!")
-        # label.show()
+        self.background_image = QImage(self.size(), QImage.Format_RGB32)
+        self.background_image.fill(Qt.black)
 
-        # self.reset_image()
+        self.pen = QPen(Qt.white)
+        self.pen.setWidth(1)
 
-    def read_mackenzie_phrases(self):
-        with open('phrases.txt') as file:
-            lines = file.readlines()
-            for line in lines:
-                self.mackenzie_phrases.append(line.replace('\n', ''))
+        self.font = QFont()
+        # self.font.setFamily('Arial')
+        # self.font.setBold(True)
+        self.font.setPixelSize(40)
 
-    def get_random_phrase(self):
+        self.color = QColor(255, 255, 255, 255)
+        self.color_hover = QColor(255, 255, 255, 40)
 
-        index = random.randint(0, len(self.mackenzie_phrases) - 1)
+        self.setAutoFillBackground(False)
 
-        random_phrase = self.mackenzie_phrases.pop(index)
+        self.last_stored_lines_length = 0
 
-        return random_phrase
+    def update_data(self, active_pen_events, stored_lines):
+        self.active_pen_events = active_pen_events
+        self.stored_lines = stored_lines
+
+    @timeit("Paint")
+    def paintEvent(self, event):
+        painter = QPainter()
+        painter.begin(self)
 
 
-    def reset_image(self):
-        # self.image = self.background_image.copy()
-        self.image = QImage(self.size(), QImage.Format_ARGB32)
-        self.image.fill(Qt.black)
+        #painter.setRenderHint(QPainter.Antialiasing)
 
-        if PHRASES_MODE:
-            self.draw_rectangle()
+        #painter.fillRect(event.rect(), self.background)
+        painter.drawImage(event.rect(), self.background_image, self.background_image.rect())
 
-    # Only for latency measurements
-    def fill_screen(self, fill):
-        self.image = QImage(self.size(), QImage.Format_ARGB32)
-        if fill:
-            self.image.fill(Qt.white)
-        else:
-            self.image.fill(Qt.black)
-        self.update()
+        painter.setPen(self.pen)
 
-    def draw_all_points(self, active_pen_events, stored_lines):
-
-        # self.reset_image()
-
-        new_image = QImage(self.size(), QImage.Format_ARGB32)
-        new_image.fill(Qt.black)
-
-        painter = QPainter(new_image)
-
-        color = QColor(255, 255, 255, 255)
-        color_hover = QColor(255, 255, 255, 40)
-
-        painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
         global last_time
-        font = QFont()
-        font.setFamily('Arial')
-        # font.setBold(True)
-        font.setPointSize(40)
-        painter.setFont(font)
+        painter.setFont(self.font)
+        painter.drawText(100, 550, str(last_time) + ' ms')
 
-        painter.drawText(100, 550, str(int(last_time)) + ' ms')
+        # polyline = [QPoint(10, 10), QPoint(100, 200), QPoint(200, 200), QPoint(500, 500)]
+        # painter.drawPolyline(QPolygon(polyline))
 
         polygons_to_draw = []
 
-        for active_pen_event in active_pen_events:
+        for active_pen_event in self.active_pen_events:
 
             polygon = []
 
             if active_pen_event.state.value != 3:  # All events except hover
                 for point in active_pen_event.history:
                     polygon.append(QPoint(point[0], point[1]))
-            else:
-                # Draw a dot to show hover events
-                painter.setPen(QPen(color_hover, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                painter.setBrush(QBrush(color_hover, Qt.SolidPattern))
-                painter.drawEllipse(active_pen_event.x, active_pen_event.y, 5, 5)
-
-                painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-
-            if len(polygon) > 0:
-                polygons_to_draw.append(polygon)
-
-        for line in stored_lines:
-
-            polygon = []
-
-            for point in line:
-                polygon.append(QPoint(point[0], point[1]))
+            # else:
+            #     # Draw a dot to show hover events
+            #     painter.setPen(QPen(self.color_hover, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            #     painter.setBrush(QBrush(self.color_hover, Qt.SolidPattern))
+            #     painter.drawEllipse(active_pen_event.x, active_pen_event.y, 5, 5)
+            #
+            #     painter.setPen(QPen(self.color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
 
             if len(polygon) > 0:
                 polygons_to_draw.append(polygon)
+
+        if len(self.stored_lines) > self.last_stored_lines_length:
+            background_painter = QPainter(self.background_image)
+            background_painter.begin(self)
+            background_painter.setPen(self.pen)
+
+            #for line in self.stored_lines:
+            for i in range(self.last_stored_lines_length, len(self.stored_lines)):
+                line = self.stored_lines[i]
+
+                polygon = []
+
+                for point in line:
+                    polygon.append(QPoint(point[0], point[1]))
+
+                if len(polygon) > 0:
+                    background_painter.drawPolyline(QPolygon(polygon))
+            self.last_stored_lines_length = len(self.stored_lines)
 
         for polygon in polygons_to_draw:
             # painter.drawPolygon(QPolygon(polygon))
             painter.drawPolyline(QPolygon(polygon))
 
-        self.image = new_image
-        self.update()
+        painter.end()
 
 
-    # def draw_new_points(self, points, text, color=PEN_COLOR):
-    #
-    #     if 'left' in text:
-    #         color = QColor(255, 0, 255, 255)
-    #     elif 'right' in text:
-    #         color = QColor(255, 255, 0, 255)
-    #     elif 'cam 1' in text:
-    #         color = QColor(0, 255, 0, 255)
-    #     elif 'cam 2' in text:
-    #         color = QColor(255, 0, 0, 255)
-    #
-    #
-    #
-    #     # print('drawing', points)
-    #
-    #     painter = QPainter(self.image)
-    #     # painter.setRenderHint(QPainter.Antialiasing)
-    #
-    #     RECTANGLE_COLOR = QColor(40, 40, 40, 255)
-    #
-    #     # painter.setRenderHint(QPainter.Antialiasing)
-    #     painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-    #     painter.setBrush(QBrush(RECTANGLE_COLOR))
-    #     painter.drawRect(80, 500, 1000, 100)
-    #
-    #     painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-    #
-    #     font = QFont()
-    #     font.setFamily('Arial')
-    #     # font.setBold(True)
-    #     font.setPointSize(40)
-    #     painter.setFont(font)
-    #
-    #     painter.drawText(100, 550, text)
-    #
-    #     for point in points:
-    #         if self.lastPoint is None:
-    #             painter.drawPoint(point)
-    #         else:
-    #             painter.drawLine(self.lastPoint, point)
-    #         self.lastPoint = point
-    #
-    #     self.update()
-    #
-    # def draw_rectangle(self):
-    #     painter = QPainter(self.image)
-    #
-    #     painter.setPen(QPen(Qt.white))
-    #
-    #     font = QFont()
-    #     font.setFamily('Arial')
-    #     # font.setBold(True)
-    #     font.setPointSize(80)
-    #     painter.setFont(font)
-    #
-    #     painter.drawText(100, 300, self.get_random_phrase())
-    #
-    #     RECTANGLE_COLOR = QColor(50, 50, 50, 255)
-    #
-    #     # painter.setRenderHint(QPainter.Antialiasing)
-    #     painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-    #     painter.setBrush(QBrush(RECTANGLE_COLOR))
-    #
-    #     if self.height_multiplier > 3:
-    #         self.height_multiplier = 2
-    #
-    #     height = 58 * self.height_multiplier
-    #     width = WINDOW_WIDTH/2
-    #
-    #     self.height_multiplier += 1
-    #
-    #     painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
-    #
-    #     self.update()
-    #
-    # def reset_last_point(self):
-    #     print('##########################################')
-    #     self.lastPoint = None
+class Window(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
-    # def mousePressEvent(self, event):
-    #     if event.button() == Qt.LeftButton:
-    #         self.drawing = True
-    #         self.lastPoint = event.pos()
-    #
-    # def mouseMoveEvent(self, event):
-    #     # checking if left button is pressed and drawing flag is true
-    #     if (event.buttons() & Qt.LeftButton) & self.drawing:
-    #         # creating painter object
-    #         painter = QPainter(self.image)
-    #
-    #         # set the pen of the painter
-    #         painter.setPen(QPen(PEN_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-    #
-    #         # draw line from the last point of cursor to the current point
-    #         # this will draw only one step
-    #         # painter.drawLine(self.lastPoint, event.pos())
-    #         painter.drawPoint(event.pos())
-    #
-    #         self.lastPoint = event.pos()
-    #         self.update()
-    #
-    # def mouseReleaseEvent(self, event):
-    #     if event.button() == Qt.LeftButton:
-    #         self.drawing = False
+        self.showFullScreen()
 
-    # paint event
-    def paintEvent(self, event):
-        # create a canvas
-        canvasPainter = QPainter(self)
+        self.openGL = GLWidget(self)
 
-        # draw rectangle  on the canvas
-        canvasPainter.drawImage(self.rect(), self.image, self.image.rect())
+        self.setCentralWidget(self.openGL)
 
-    # Handle Key-press events
+        self.thread = ApplicationLoopThread(self)
+        self.thread.start()
+
+    def draw_all_points(self, active_pen_events, stored_lines):
+        self.openGL.update_data(active_pen_events, stored_lines)
+
+        self.openGL.update()
+
+        # Handle Key-press events
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             # df = pd.DataFrame(self.stored_data)
             # df.to_csv('stored_data_hover.csv')
 
-            self.save_screenshot()
+            # self.save_screenshot()
 
             self.close()
             sys.exit(0)
-        elif event.key() == Qt.Key_Space:
-            self.save_screenshot()
-
-            if PHRASES_MODE:
-                self.num_phrases_written += 1
-                if self.num_phrases_written == 10:
-                    print('10 Phrases have been written')
-                    self.close()
-                    sys.exit()
-
-            self.reset_image()
-
-    # Save the current window content as a png
-    def save_screenshot(self):
-        filename = datetime.datetime.now().strftime('%Y_%m_%d-%H-%M-%S')
-        self.image.save('./output_images/Participant_{}_{}.png'.format(PARTICIPANT_ID, filename))
-
-    def preview_images_on_canvas(self, images_to_preview, image_names):
-        painter = QPainter(self.image)
-
-        x_anchor = 3840
-
-        for i, image_to_preview in enumerate(images_to_preview):
-            if len(image_to_preview.shape) < 3:
-                image_to_preview = cv2.cvtColor(image_to_preview, cv2.COLOR_GRAY2RGB)
-            image_to_preview = cv2.putText(
-                img=image_to_preview,
-                text=image_names[i],
-                org=(50, 50),
-                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=2.0,
-                color=(255, 255, 255),
-                thickness=2
-            )
-            image_to_preview = cv2.copyMakeBorder(image_to_preview, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=(255,255,255))
-            preview_image = QImage(image_to_preview.data, image_to_preview.shape[1], image_to_preview.shape[0],
-                                   QImage.Format_RGB888)
-
-            x_anchor -= image_to_preview.shape[1]
-
-            painter.drawImage(x_anchor, 0, preview_image)
-
-        self.update()
+        # elif event.key() == Qt.Key_Space:
+        #     self.save_screenshot()
+        #
+        #     if PHRASES_MODE:
+        #         self.num_phrases_written += 1
+        #         if self.num_phrases_written == 10:
+        #             print('10 Phrases have been written')
+        #             self.close()
+        #             sys.exit()
+        #
+        #     self.reset_image()
 
 
 if __name__ == '__main__':
+
     app = QApplication(sys.argv)
-    app.setStyle("fusion")
-    window = PaintingWidget()
+
+    fmt = QSurfaceFormat()
+    fmt.setSamples(4)
+    QSurfaceFormat.setDefaultFormat(fmt)
+
+    window = Window()
     window.show()
     sys.exit(app.exec_())

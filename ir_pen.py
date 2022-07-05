@@ -103,15 +103,11 @@ class IRPen:
 
     added_frames = None
 
-    camera_name = ''
-
-    def __init__(self, camera_name):
+    def __init__(self):
         keras.backend.clear_session()
 
         self.model = keras.models.load_model(MODEL_PATH)
         self.keras_lite_model = LiteModel.from_keras_model(self.model)
-
-        self.camera_name = camera_name
 
     # Achtung Baustelle
     def transform_point(self, point, M):
@@ -156,10 +152,10 @@ class IRPen:
             coords = np.array(coords)
 
             transformed_coords = transform_matrices[i].dot(coords)
-            print(transformed_coords)
+            # print(transformed_coords)
 
             roi_coords.append((int(transformed_coords[0] / transformed_coords[2]), int(transformed_coords[1] / transformed_coords[2])))
-            print((int(transformed_coords[0] / transformed_coords[2]), int(transformed_coords[1] / transformed_coords[2])))
+            # print((int(transformed_coords[0] / transformed_coords[2]), int(transformed_coords[1] / transformed_coords[2])))
 
             brightness_values.append(brightest)
 
@@ -218,7 +214,6 @@ class IRPen:
                 # (x, y) = roi_coords[brightest_image_index]
                 # x = int((x / CAMERA_WIDTH) * WINDOW_WIDTH)
                 # y = int((y / CAMERA_HEIGHT) * WINDOW_HEIGHT)
-
 
             if final_prediction == 'draw':
                 # print('Status: Touch')
@@ -379,7 +374,7 @@ class IRPen:
         img_cropped = img[top: top + size, left: left + size]
         return img_cropped, np.max(img_cropped), (left + margin, top + margin)
 
-    # @timeit('Predict')
+    @timeit('Predict')
     def predict(self, img):
         if len(img.shape) == 3:
             print(img[10,10,:])
@@ -403,6 +398,7 @@ class IRPen:
     def find_pen_position_subpixel_crop(self, ir_image, coords_original):
         w = ir_image.shape[0]
         h = ir_image.shape[1]
+        print('1', ir_image.shape)
         #center_original = (coords_original[0] + w/2, coords_original[1] + h/2)
         center_original = coords_original
 
@@ -416,6 +412,8 @@ class IRPen:
             ir_image_grey = cv2.cvtColor(ir_image, cv2.COLOR_BGR2GRAY)
         else:
             ir_image_grey = ir_image
+        # TODO:
+        print('2', ir_image_grey.shape)
         _, thresh = cv2.threshold(ir_image_grey, np.max(ir_image_grey) - 1, 255, cv2.THRESH_BINARY)
 
         # TODO: resize only cropped area
@@ -441,7 +439,7 @@ class IRPen:
 
         cY = int(M["m01"] / M["m00"])
 
-        position = (top_left_scaled[0] + cX, top_left_scaled[1] + cY)
+        position = (int(top_left_scaled[0] + cX), int(top_left_scaled[1] + cY))
 
         return position, min_radius
 
