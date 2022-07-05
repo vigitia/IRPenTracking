@@ -42,14 +42,13 @@ class Run:
 
     def loop(self):
         while True:
-            self.process_frame()
+            self.process_frames()
 
-    def process_frame(self):
-        ir_image_table = self.realsense_d435_camera.get_ir_image()
+    def process_frames(self):
+        left_ir_image_1, left_ir_image_2, matrix1, matrix2 = self.realsense_d435_camera.get_camera_frames()
 
-        if ir_image_table is not None:
-            active_pen_events, stored_lines, new_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events(
-                ir_image_table)
+        if left_ir_image_1 is not None and left_ir_image_2 is not None:
+            active_pen_events, stored_lines, _, _, added_frames = self.ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
 
             state = 'hover'
             x = 0
@@ -60,7 +59,26 @@ class Run:
                 if active_pen_event.state == State.DRAG:
                     state = 'draw'
 
+            print(x, y)
             self.input_device.input_event(x, y, state)
+
+    # def process_frame(self):
+    #     ir_image_table = self.realsense_d435_camera.get_ir_image()
+    #
+    #     if ir_image_table is not None:
+    #         active_pen_events, stored_lines, new_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events(
+    #             ir_image_table)
+    #
+    #         state = 'hover'
+    #         x = 0
+    #         y = 0
+    #         for active_pen_event in active_pen_events:
+    #             x = active_pen_event.x
+    #             y = active_pen_event.y
+    #             if active_pen_event.state == State.DRAG:
+    #                 state = 'draw'
+    #
+    #         self.input_device.input_event(x, y, state)
 
 if __name__ == '__main__':
     run = Run()
