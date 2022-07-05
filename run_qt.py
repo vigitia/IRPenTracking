@@ -31,8 +31,7 @@ realsense_d435_camera = RealsenseD435Camera()
 realsense_d435_camera.init_video_capture()
 realsense_d435_camera.start()
 
-ir_pen_1 = IRPen('left camera')
-# ir_pen_2 = IRPen('right camera')
+ir_pen = IRPen()
 
 # To test the continuity of lines, enable this flag to cycle through different colors every time a new pen event ID
 # is detected
@@ -46,17 +45,22 @@ PARTICIPANT_ID = 7
 
 STEREO_MODE = False
 
+last_time = 0
+
 
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
+            global last_time
             start_time = datetime.datetime.now()
             # print("I " + prefix + "> " + str(start_time))
             retval = func(*args, **kwargs)
             end_time = datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
             # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
-            print(prefix + "> " + str(run_time) + " ms", flush=True)
+            if run_time > 0.1:
+                last_time = run_time
+                print(prefix + "> " + str(run_time) + " ms", flush=True)
             return retval
         return wrapper
     return timeit_decorator
@@ -70,7 +74,6 @@ class ApplicationLoopThread(QThread):
               QColor(0, 255, 255, 255), QColor(255, 0, 255, 255), QColor(255, 255, 0, 255)]
     color_index = 0
     current_color = QColor(255, 255, 255, 255)
-
 
     def get_next_color(self):
         if self.color_index == len(self.colors):
@@ -128,14 +131,14 @@ class ApplicationLoopThread(QThread):
     # @timeit("Process frames")
     def process_frames(self):
         global realsense_d435_camera
-        global ir_pen_1
+        global ir_pen
         left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
 
         if left_ir_image_1 is not None and left_ir_image_2 is not None:
 
             # old: 12 - 15 ms
             # crop: 9 - 10 ms
-            start_time = time.time()
+            # start_time = time.time()
 
             # pen_event_roi, brightest, (x, y) = ir_pen_1.crop_image(left_ir_image_1)
             # coords = [x, y, 1]
@@ -146,9 +149,9 @@ class ApplicationLoopThread(QThread):
             # # result = matrix1 @ coords
             # print(coords, result)
 
-            active_pen_events, stored_lines, _, _, added_frames = ir_pen_1.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
-            end_time = time.time()
-            print('get_ir_pen_events_multicam', round((end_time - start_time) * 1000, 2))
+            active_pen_events, stored_lines, _, _, added_frames = ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
+            # end_time = time.time()
+            # print('get_ir_pen_events_multicam: {} ms'.format(round((end_time - start_time) * 1000, 2)))
 
 
 
@@ -379,11 +382,11 @@ class ApplicationLoopThread(QThread):
 class PaintingWidget(QMainWindow):
 
     # TODO: Change this to work with multiple pens at once
-    lastPoint = None
+    # lastPoint = None
 
     mackenzie_phrases = []
 
-    height_multiplier = 2
+    # height_multiplier = 2
 
     num_phrases_written = 0
 
@@ -433,7 +436,7 @@ class PaintingWidget(QMainWindow):
         # label = QLabel(text="Welcome to Python GUI!")
         # label.show()
 
-        self.reset_image()
+        # self.reset_image()
 
     def read_mackenzie_phrases(self):
         with open('phrases.txt') as file:
@@ -458,6 +461,7 @@ class PaintingWidget(QMainWindow):
         if PHRASES_MODE:
             self.draw_rectangle()
 
+    # Only for latency measurements
     def fill_screen(self, fill):
         self.image = QImage(self.size(), QImage.Format_ARGB32)
         if fill:
@@ -468,14 +472,26 @@ class PaintingWidget(QMainWindow):
 
     def draw_all_points(self, active_pen_events, stored_lines):
 
-        self.reset_image()
+        # self.reset_image()
 
-        painter = QPainter(self.image)
+        new_image = QImage(self.size(), QImage.Format_ARGB32)
+        new_image.fill(Qt.black)
+
+        painter = QPainter(new_image)
 
         color = QColor(255, 255, 255, 255)
         color_hover = QColor(255, 255, 255, 40)
 
         painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+
+        global last_time
+        font = QFont()
+        font.setFamily('Arial')
+        # font.setBold(True)
+        font.setPointSize(40)
+        painter.setFont(font)
+
+        painter.drawText(100, 550, str(int(last_time)) + ' ms')
 
         polygons_to_draw = []
 
@@ -487,6 +503,7 @@ class PaintingWidget(QMainWindow):
                 for point in active_pen_event.history:
                     polygon.append(QPoint(point[0], point[1]))
             else:
+                # Draw a dot to show hover events
                 painter.setPen(QPen(color_hover, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
                 painter.setBrush(QBrush(color_hover, Qt.SolidPattern))
                 painter.drawEllipse(active_pen_event.x, active_pen_event.y, 5, 5)
@@ -510,113 +527,114 @@ class PaintingWidget(QMainWindow):
             # painter.drawPolygon(QPolygon(polygon))
             painter.drawPolyline(QPolygon(polygon))
 
+        self.image = new_image
         self.update()
 
 
-    def draw_new_points(self, points, text, color=PEN_COLOR):
+    # def draw_new_points(self, points, text, color=PEN_COLOR):
+    #
+    #     if 'left' in text:
+    #         color = QColor(255, 0, 255, 255)
+    #     elif 'right' in text:
+    #         color = QColor(255, 255, 0, 255)
+    #     elif 'cam 1' in text:
+    #         color = QColor(0, 255, 0, 255)
+    #     elif 'cam 2' in text:
+    #         color = QColor(255, 0, 0, 255)
+    #
+    #
+    #
+    #     # print('drawing', points)
+    #
+    #     painter = QPainter(self.image)
+    #     # painter.setRenderHint(QPainter.Antialiasing)
+    #
+    #     RECTANGLE_COLOR = QColor(40, 40, 40, 255)
+    #
+    #     # painter.setRenderHint(QPainter.Antialiasing)
+    #     painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    #     painter.setBrush(QBrush(RECTANGLE_COLOR))
+    #     painter.drawRect(80, 500, 1000, 100)
+    #
+    #     painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    #
+    #     font = QFont()
+    #     font.setFamily('Arial')
+    #     # font.setBold(True)
+    #     font.setPointSize(40)
+    #     painter.setFont(font)
+    #
+    #     painter.drawText(100, 550, text)
+    #
+    #     for point in points:
+    #         if self.lastPoint is None:
+    #             painter.drawPoint(point)
+    #         else:
+    #             painter.drawLine(self.lastPoint, point)
+    #         self.lastPoint = point
+    #
+    #     self.update()
+    #
+    # def draw_rectangle(self):
+    #     painter = QPainter(self.image)
+    #
+    #     painter.setPen(QPen(Qt.white))
+    #
+    #     font = QFont()
+    #     font.setFamily('Arial')
+    #     # font.setBold(True)
+    #     font.setPointSize(80)
+    #     painter.setFont(font)
+    #
+    #     painter.drawText(100, 300, self.get_random_phrase())
+    #
+    #     RECTANGLE_COLOR = QColor(50, 50, 50, 255)
+    #
+    #     # painter.setRenderHint(QPainter.Antialiasing)
+    #     painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    #     painter.setBrush(QBrush(RECTANGLE_COLOR))
+    #
+    #     if self.height_multiplier > 3:
+    #         self.height_multiplier = 2
+    #
+    #     height = 58 * self.height_multiplier
+    #     width = WINDOW_WIDTH/2
+    #
+    #     self.height_multiplier += 1
+    #
+    #     painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
+    #
+    #     self.update()
+    #
+    # def reset_last_point(self):
+    #     print('##########################################')
+    #     self.lastPoint = None
 
-        if 'left' in text:
-            color = QColor(255, 0, 255, 255)
-        elif 'right' in text:
-            color = QColor(255, 255, 0, 255)
-        elif 'cam 1' in text:
-            color = QColor(0, 255, 0, 255)
-        elif 'cam 2' in text:
-            color = QColor(255, 0, 0, 255)
-
-
-
-        # print('drawing', points)
-
-        painter = QPainter(self.image)
-        # painter.setRenderHint(QPainter.Antialiasing)
-
-        RECTANGLE_COLOR = QColor(40, 40, 40, 255)
-
-        # painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.setBrush(QBrush(RECTANGLE_COLOR))
-        painter.drawRect(80, 500, 1000, 100)
-
-        painter.setPen(QPen(color, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-
-        font = QFont()
-        font.setFamily('Arial')
-        # font.setBold(True)
-        font.setPointSize(40)
-        painter.setFont(font)
-
-        painter.drawText(100, 550, text)
-
-        for point in points:
-            if self.lastPoint is None:
-                painter.drawPoint(point)
-            else:
-                painter.drawLine(self.lastPoint, point)
-            self.lastPoint = point
-
-        self.update()
-
-    def draw_rectangle(self):
-        painter = QPainter(self.image)
-
-        painter.setPen(QPen(Qt.white))
-
-        font = QFont()
-        font.setFamily('Arial')
-        # font.setBold(True)
-        font.setPointSize(80)
-        painter.setFont(font)
-
-        painter.drawText(100, 300, self.get_random_phrase())
-
-        RECTANGLE_COLOR = QColor(50, 50, 50, 255)
-
-        # painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.setBrush(QBrush(RECTANGLE_COLOR))
-
-        if self.height_multiplier > 3:
-            self.height_multiplier = 2
-
-        height = 58 * self.height_multiplier
-        width = WINDOW_WIDTH/2
-
-        self.height_multiplier += 1
-
-        painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
-
-        self.update()
-
-    def reset_last_point(self):
-        print('##########################################')
-        self.lastPoint = None
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.drawing = True
-            self.lastPoint = event.pos()
-
-    def mouseMoveEvent(self, event):
-        # checking if left button is pressed and drawing flag is true
-        if (event.buttons() & Qt.LeftButton) & self.drawing:
-            # creating painter object
-            painter = QPainter(self.image)
-
-            # set the pen of the painter
-            painter.setPen(QPen(PEN_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-
-            # draw line from the last point of cursor to the current point
-            # this will draw only one step
-            # painter.drawLine(self.lastPoint, event.pos())
-            painter.drawPoint(event.pos())
-
-            self.lastPoint = event.pos()
-            self.update()
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.drawing = False
+    # def mousePressEvent(self, event):
+    #     if event.button() == Qt.LeftButton:
+    #         self.drawing = True
+    #         self.lastPoint = event.pos()
+    #
+    # def mouseMoveEvent(self, event):
+    #     # checking if left button is pressed and drawing flag is true
+    #     if (event.buttons() & Qt.LeftButton) & self.drawing:
+    #         # creating painter object
+    #         painter = QPainter(self.image)
+    #
+    #         # set the pen of the painter
+    #         painter.setPen(QPen(PEN_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    #
+    #         # draw line from the last point of cursor to the current point
+    #         # this will draw only one step
+    #         # painter.drawLine(self.lastPoint, event.pos())
+    #         painter.drawPoint(event.pos())
+    #
+    #         self.lastPoint = event.pos()
+    #         self.update()
+    #
+    # def mouseReleaseEvent(self, event):
+    #     if event.button() == Qt.LeftButton:
+    #         self.drawing = False
 
     # paint event
     def paintEvent(self, event):
