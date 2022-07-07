@@ -123,12 +123,9 @@ class TableExtractionService:
         frame = cv2.warpPerspective(frame, matrix, (x, y))
         return frame, (x0, y0, x1, y1)
 
-    def get_homography(self, frame, camera_parameter_name):
-        if frame is None:
-            return None
-
-        x = frame.shape[1]
-        y = frame.shape[0]
+    def get_homography(self, width, height, camera_parameter_name):
+        x = width
+        y = height
 
         if camera_parameter_name not in self.config.keys():
             # print('No calibration for', camera_parameter_name)

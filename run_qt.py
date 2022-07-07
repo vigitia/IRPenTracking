@@ -8,6 +8,7 @@ from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QSurfaceFormat, QPolygo
 from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
 
 from realsense_d435 import RealsenseD435Camera
+from flir_blackfly_s import FlirBlackflyS
 from ir_pen import IRPen
 
 # from draw_shape import ShapeCreator
@@ -19,9 +20,12 @@ LINE_THICKNESS = 1
 PEN_COLOR = QColor(255, 255, 255, 255)
 LINE_COLOR = (255, 255, 255)
 
-realsense_d435_camera = RealsenseD435Camera()
-realsense_d435_camera.init_video_capture()
-realsense_d435_camera.start()
+# realsense_d435_camera = RealsenseD435Camera()
+# realsense_d435_camera.init_video_capture()
+# realsense_d435_camera.start()
+
+flir_blackfly_s = FlirBlackflyS()
+flir_blackfly_s.start()
 
 ir_pen = IRPen()
 
@@ -38,6 +42,7 @@ PARTICIPANT_ID = 7
 STEREO_MODE = False
 
 last_time = 0
+current_debug_distances = [0, (0, 0)]
 
 
 def timeit(prefix):
@@ -51,7 +56,7 @@ def timeit(prefix):
             run_time = (end_time - start_time).microseconds / 1000.0
             # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
             # if run_time > 0.1:
-            last_time = f'{run_time:.3f}'
+            last_time = prefix + ' ' + f'{run_time:.3f}'
             #print(f'{prefix} > {last_time}  ms', flush=True)
             return retval
         return wrapper
@@ -86,47 +91,19 @@ class ApplicationLoopThread(QThread):
     def run(self):
         while True:
             self.process_frames()
-            # self.process_frame()
-            # self.process_frame_stereo()
 
-    # def find_pen_position_subpixel(self, thresh):
-    #     thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
-    #     contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #
-    #     contours = contours[0] if len(contours) == 2 else contours[1]
-    #
-    #     if len(contours) == 0:
-    #         return False, None
-    #
-    #     min_radius = thresh.shape[0]
-    #     smallest_contour = contours[0]
-    #
-    #     # print(len(contours))
-    #     for contour in contours:
-    #         (x, y), radius = cv2.minEnclosingCircle(contour)
-    #         if radius < min_radius:
-    #             min_radius = radius
-    #             smallest_contour = contour
-    #
-    #     M = cv2.moments(smallest_contour)
-    #     # calculate x,y coordinate of center
-    #     cX = int(M["m10"] / M["m00"])
-    #
-    #     cY = int(M["m01"] / M["m00"])
-    #
-    #     position = (cX, cY)
-    #
-    #     return True, position
-
-    # @timeit("Process Frames")
-
-    # @timeit("Process frames")
+    @timeit("Process frames")
     def process_frames(self):
-        global realsense_d435_camera
+        # global realsense_d435_camera
+        global flir_blackfly_s
         global ir_pen
-        left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
+        # left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
 
-        if left_ir_image_1 is not None and left_ir_image_2 is not None:
+        new_frames, matrices = flir_blackfly_s.get_camera_frames()
+        # if left_ir_image_1 is not None and left_ir_image_2 is not None:
+
+        if len(new_frames) > 0:
+            print(len(new_frames))
 
             # old: 12 - 15 ms
             # crop: 9 - 10 ms
@@ -141,7 +118,10 @@ class ApplicationLoopThread(QThread):
             # # result = matrix1 @ coords
             # print(coords, result)
 
-            active_pen_events, stored_lines, _, _, added_frames = ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
+            # active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
+            active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(new_frames, matrices)
+            global current_debug_distances
+            current_debug_distances = debug_distances
             # end_time = time.time()
             # print('get_ir_pen_events_multicam: {} ms'.format(round((end_time - start_time) * 1000, 2)))
 
@@ -723,7 +703,7 @@ class GLWidget(QOpenGLWidget):
         self.active_pen_events = active_pen_events
         self.stored_lines = stored_lines
 
-    @timeit("Paint")
+    # @timeit("Paint")
     def paintEvent(self, event):
         painter = QPainter()
         painter.begin(self)
@@ -738,11 +718,11 @@ class GLWidget(QOpenGLWidget):
 
 
         global last_time
+        global current_debug_distances
         painter.setFont(self.font)
-        painter.drawText(100, 550, str(last_time) + ' ms')
+        painter.drawText(current_debug_distances[1][0], current_debug_distances[1][1], str(current_debug_distances[0]))
+        # painter.drawText(100, 500, str(last_time) + ' ms')
 
-        # polyline = [QPoint(10, 10), QPoint(100, 200), QPoint(200, 200), QPoint(500, 500)]
-        # painter.drawPolyline(QPolygon(polyline))
 
         polygons_to_draw = []
 

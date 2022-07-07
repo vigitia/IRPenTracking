@@ -34,7 +34,6 @@ class FlirBlackflyS:
         self.init_cameras()
 
     def start(self):
-        print('START!')
         if self.started:
             return None
         else:
@@ -45,7 +44,6 @@ class FlirBlackflyS:
             return self
 
     def update(self):
-        print('Update')
         while self.started:
             self.process_frames()
 
@@ -262,8 +260,6 @@ class FlirBlackflyS:
         return result
 
     def init_cameras(self):
-        result = True
-
         # Retrieve singleton reference to system object
         self.system = PySpin.System.GetInstance()
 
@@ -306,6 +302,15 @@ class FlirBlackflyS:
                 # Print device information
                 # result &= self.print_device_info(nodemap_tldevice, i)
 
+                node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
+                if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
+                    width_to_set = node_width.GetMax()
+                    node_width.SetValue(width_to_set)
+                    print('Width set to %i...' % node_width.GetValue())
+                else:
+                    print('Width not available...')
+
+
             # Initialize each camera
 
             # *** LATER ***
@@ -344,10 +349,6 @@ class FlirBlackflyS:
 
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
-            result = False
-
-        print('Done initializing!')
-        print(result)
 
         self.started = False
         self.read_lock = threading.Lock()
