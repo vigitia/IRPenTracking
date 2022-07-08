@@ -12,12 +12,12 @@ from cv2 import cv2
 # TODO: Relative Path
 #MODEL_PATH = 'evaluation/hover_predictor_stereo_twochannel_3'  #
 #MODEL_PATH = 'evaluation/hover_predictor_stereo_both_sides_close_1'
-MODEL_PATH = 'evaluation/hover_predictor_flir_1'
+MODEL_PATH = 'evaluation/hover_predictor_flir_2'
 
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 1  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
@@ -29,8 +29,7 @@ CLICK_THRESH_MS = 10
 # Hover will be selected over Draw if Hover Event is within the last X event states
 KERNEL_SIZE_HOVER_WINS = 3
 
-
-MIN_BRIGHTNESS_FOR_PREDICTION = 100
+MIN_BRIGHTNESS_FOR_PREDICTION = 60
 
 
 DEBUG_MODE = False
@@ -48,9 +47,9 @@ CAMERA_HEIGHT = 1200
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'hover'
-TRAIN_PATH = 'out3/2022-07-07_2'
-TRAIN_IMAGE_COUNT = 1000
+TRAIN_STATE = 'hover_far'
+TRAIN_PATH = 'out3/2022-07-08'
+TRAIN_IMAGE_COUNT = 3000
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -121,11 +120,16 @@ class IRPen:
         self.keras_lite_model = LiteModel.from_keras_model(self.model)
 
     def save_training_image(self, img, pos):
+        if self.saved_image_counter == 0:
+            print('Starting in 10 Seconds')
+            time.sleep(10)
+
+        self.saved_image_counter += 1
         if self.saved_image_counter % 10 == 0:
             cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{int(self.saved_image_counter / 10)}_{pos[0]}_{pos[1]}.png', img)
             print(f'saving frame {int(self.saved_image_counter / 10)}/{TRAIN_IMAGE_COUNT}')
-        self.saved_image_counter += 1
-        if self.saved_image_counter / 10 > TRAIN_IMAGE_COUNT:
+
+        if self.saved_image_counter / 10 >= TRAIN_IMAGE_COUNT:
             sys.exit(0)
 
     # Achtung Baustelle
@@ -135,7 +139,7 @@ class IRPen:
         transformed /= transformed[2]
         return transformed
 
-    @timeit('Pen Events')
+    # @timeit('Pen Events')
     def get_ir_pen_events_multicam(self, camera_frames, transform_matrices):
         new_pen_events = []
 
@@ -235,7 +239,7 @@ class IRPen:
 
             # print(distance_between_points, center_x, center_y)
 
-            MAX_DISTANCE_DRAW = 1000
+            MAX_DISTANCE_DRAW = 50
             if distance_between_points > MAX_DISTANCE_DRAW:
                 # Calculate center between the two points
 

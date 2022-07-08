@@ -92,7 +92,7 @@ class ApplicationLoopThread(QThread):
         while True:
             self.process_frames()
 
-    @timeit("Process frames")
+    # @timeit("Process frames")
     def process_frames(self):
         # global realsense_d435_camera
         global flir_blackfly_s
@@ -103,7 +103,6 @@ class ApplicationLoopThread(QThread):
         # if left_ir_image_1 is not None and left_ir_image_2 is not None:
 
         if len(new_frames) > 0:
-            print(len(new_frames))
 
             # old: 12 - 15 ms
             # crop: 9 - 10 ms
@@ -685,7 +684,7 @@ class GLWidget(QOpenGLWidget):
         self.background_image.fill(Qt.black)
 
         self.pen = QPen(Qt.white)
-        self.pen.setWidth(1)
+        self.pen.setWidth(LINE_THICKNESS)
 
         self.font = QFont()
         # self.font.setFamily('Arial')

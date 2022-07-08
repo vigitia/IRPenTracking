@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 import datetime
 import sys
 import threading
@@ -21,16 +22,16 @@ CALIBRATION_MODE = False
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1200
 
+CAM_EXPOSURE = 1000
+FRAMERATE = 158
 
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
             start_time = datetime.datetime.now()
-            # print("I " + prefix + "> " + str(start_time))
             retval = func(*args, **kwargs)
             end_time = datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
-            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
             print(prefix + "> " + str(run_time) + " ms", flush=True)
             return retval
         return wrapper
@@ -76,7 +77,7 @@ class FlirBlackflyS:
             # End acquisition
             cam.EndAcquisition()
 
-            # Deinitialize camera
+            # Deinitialize camera. Each camera needs to be deinitialized once all images have been acquired.
             cam.DeInit()
 
         # Release reference to camera
@@ -90,7 +91,9 @@ class FlirBlackflyS:
         # Release system instance
         self.system.ReleaseInstance()
 
-    @timeit('Flir Blackfly S')
+    # @timeit('Flir Blackfly S')
+    # With 2 cameras: min: 9.082ms max: 25.83ms  mean: 10.33ms
+    # Target: 6.25 ms
     def process_frames(self):
 
         newest_frames = []
@@ -99,35 +102,23 @@ class FlirBlackflyS:
             for i, cam in enumerate(self.cam_list):
                 self.matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Camera {}'.format(i)))
 
-        for i, cam in enumerate(self.cam_list):
+        for cam in self.cam_list:
             try:
-                # grabTimeout=1000
-                image_result = cam.GetNextImage(1000)
+                #start = datetime.datetime.now()
+                image_result = cam.GetNextImage(1000)  # grabTimeout=1000
 
-                #  Ensure image completion
-                if image_result.IsIncomplete():
+                if image_result.IsIncomplete():  # Ensure image completion
                     print('Image incomplete with image status %d' % image_result.GetImageStatus())
                 else:
-                    # Getting the image data as a numpy array
                     image_data = image_result.GetNDArray()
-
                     newest_frames.append(image_data)
-
-                    width = image_result.GetWidth()
-                    height = image_result.GetHeight()
-                    # print('Camera %d grabbed image, width = %d, height = %d' % (i, width, height))
 
                     # Convert image to mono 8
                     # image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
 
-                    # Save image
-                    # image_converted.Save(filename)
-                    # print('Image saved at %s' % filename)
-
-                    # print(image_data.shape)
-
                 image_result.Release()  # Release image
-
+                #end = datetime.datetime.now()
+                #print('GetNextImage', (end - start).microseconds / 1000.0)
             except PySpin.SpinnakerException as ex:
                 print('Error: %s' % ex)
 
@@ -136,7 +127,6 @@ class FlirBlackflyS:
             self.new_frames_available = True
 
         if DEBUG_MODE:
-
             extracted_frames = []
 
             for i, frame in enumerate(newest_frames):
@@ -160,7 +150,7 @@ class FlirBlackflyS:
 
             for i, cam in enumerate(self.cam_list):
 
-                calibration_finished = self.surface_selector.select_surface(newest_frames[i], 'Flir Camera {}'.format(i))
+                calibration_finished = self.surface_selector.select_surface(newest_frames, 'Flir Camera {}'.format(i))
 
                 if calibration_finished:
                     print("[Surface Selector Node]: Calibration Finished for camera {}".format(i))
@@ -171,130 +161,6 @@ class FlirBlackflyS:
                 self.started = False
                 cv2.destroyAllWindows()
                 sys.exit(0)
-
-    def configure_custom_image_settings(self, nodemap):
-        """
-           Configures a number of settings on the camera including offsets  X and Y, width,
-           height, and pixel format. These settings must be applied before BeginAcquisition()
-           is called; otherwise, they will be read only. Also, it is important to note that
-           settings are applied immediately. This means if you plan to reduce the width and
-           move the x offset accordingly, you need to apply such changes in the appropriate order.
-
-           :param nodemap: GenICam nodemap.
-           :type nodemap: INodeMap
-           :return: True if successful, False otherwise.
-           :rtype: bool
-           """
-        print('\n*** CONFIGURING CUSTOM IMAGE SETTINGS *** \n')
-
-        try:
-            result = True
-
-            # Apply mono 8 pixel format
-            #
-            # *** NOTES ***
-            # Enumeration nodes are slightly more complicated to set than other
-            # nodes. This is because setting an enumeration node requires working
-            # with two nodes instead of the usual one.
-            #
-            # As such, there are a number of steps to setting an enumeration node:
-            # retrieve the enumeration node from the nodemap, retrieve the desired
-            # entry node from the enumeration node, retrieve the integer value from
-            # the entry node, and set the new value of the enumeration node with
-            # the integer value from the entry node.
-            #
-            # Retrieve the enumeration node from the nodemap
-            node_pixel_format = PySpin.CEnumerationPtr(nodemap.GetNode('PixelFormat'))
-            if PySpin.IsAvailable(node_pixel_format) and PySpin.IsWritable(node_pixel_format):
-
-                # Retrieve the desired entry node from the enumeration node
-                node_pixel_format_mono8 = PySpin.CEnumEntryPtr(node_pixel_format.GetEntryByName('Mono8'))
-                if PySpin.IsAvailable(node_pixel_format_mono8) and PySpin.IsReadable(node_pixel_format_mono8):
-
-                    # Retrieve the integer value from the entry node
-                    pixel_format_mono8 = node_pixel_format_mono8.GetValue()
-
-                    # Set integer as new value for enumeration node
-                    node_pixel_format.SetIntValue(pixel_format_mono8)
-
-                    print('Pixel format set to %s...' % node_pixel_format.GetCurrentEntry().GetSymbolic())
-
-                else:
-                    print('Pixel format mono 8 not available...')
-
-            else:
-                print('Pixel format not available...')
-
-            # Apply minimum to offset X
-            #
-            # *** NOTES ***
-            # Numeric nodes have both a minimum and maximum. A minimum is retrieved
-            # with the method GetMin(). Sometimes it can be important to check
-            # minimums to ensure that your desired value is within range.
-            node_offset_x = PySpin.CIntegerPtr(nodemap.GetNode('OffsetX'))
-            if PySpin.IsAvailable(node_offset_x) and PySpin.IsWritable(node_offset_x):
-
-                node_offset_x.SetValue(node_offset_x.GetMin())
-                print('Offset X set to %i...' % node_offset_x.GetMin())
-
-            else:
-                print('Offset X not available...')
-
-            # Apply minimum to offset Y
-            #
-            # *** NOTES ***
-            # It is often desirable to check the increment as well. The increment
-            # is a number of which a desired value must be a multiple of. Certain
-            # nodes, such as those corresponding to offsets X and Y, have an
-            # increment of 1, which basically means that any value within range
-            # is appropriate. The increment is retrieved with the method GetInc().
-            node_offset_y = PySpin.CIntegerPtr(nodemap.GetNode('OffsetY'))
-            if PySpin.IsAvailable(node_offset_y) and PySpin.IsWritable(node_offset_y):
-
-                node_offset_y.SetValue(node_offset_y.GetMin())
-                print('Offset Y set to %i...' % node_offset_y.GetMin())
-
-            else:
-                print('Offset Y not available...')
-
-            # Set maximum width
-            #
-            # *** NOTES ***
-            # Other nodes, such as those corresponding to image width and height,
-            # might have an increment other than 1. In these cases, it can be
-            # important to check that the desired value is a multiple of the
-            # increment. However, as these values are being set to the maximum,
-            # there is no reason to check against the increment.
-            node_width = PySpin.CIntegerPtr(nodemap.GetNode('Width'))
-            if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
-
-                width_to_set = node_width.GetMax()
-                node_width.SetValue(width_to_set)
-                print('Width set to %i...' % node_width.GetValue())
-
-            else:
-                print('Width not available...')
-
-            # Set maximum height
-            #
-            # *** NOTES ***
-            # A maximum is retrieved with the method GetMax(). A node's minimum and
-            # maximum should always be a multiple of its increment.
-            node_height = PySpin.CIntegerPtr(nodemap.GetNode('Height'))
-            if PySpin.IsAvailable(node_height) and PySpin.IsWritable(node_height):
-
-                height_to_set = node_height.GetMax()
-                node_height.SetValue(height_to_set)
-                print('Height set to %i...' % node_height.GetValue())
-
-            else:
-                print('Height not available...')
-
-        except PySpin.SpinnakerException as ex:
-            print('Error: %s' % ex)
-            return False
-
-        return result
 
     def init_cameras(self):
         # Retrieve singleton reference to system object
@@ -322,34 +188,22 @@ class FlirBlackflyS:
             return False
 
         try:
-            # Retrieve transport layer nodemaps and print device information for each camera
-            print('DEVICE INFORMATION\n')
+            if DEBUG_MODE:
+                # Retrieve transport layer nodemaps and print device information for each camera
+                for i, cam in enumerate(self.cam_list):
+                    # Retrieve TL device nodemap
+                    nodemap_tldevice = cam.GetTLDeviceNodeMap()
 
-            for i, cam in enumerate(self.cam_list):
-                # Retrieve TL device nodemap
-                nodemap_tldevice = cam.GetTLDeviceNodeMap()
-
-                # Print device information
-                # self.print_device_info(nodemap_tldevice, i)
-
-                # node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
-                # node_width.SetValue(800)
-                # if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
-                #     width_to_set = node_width.GetMax()
-                #     node_width.SetValue(width_to_set)
-                #     print('Width set to %i' % node_width.GetValue())
-                # else:
-                #     print('Width not available')
+                    # Print device information
+                    self.print_device_info(nodemap_tldevice, i)
 
             # Initialize each camera
-
-            # *** LATER ***
-            # Each camera needs to be deinitialized once all images have been acquired.
             for i, cam in enumerate(self.cam_list):
                 cam.Init()  # Initialize camera
 
-                self.apply_camera_settings(cam, i)
+                self.apply_camera_settings(cam)
 
+            for i, cam in enumerate(self.cam_list):
                 # Begin acquiring images
                 cam.BeginAcquisition()
 
@@ -358,9 +212,9 @@ class FlirBlackflyS:
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
 
-    def apply_camera_settings(self, cam, i):
-        CAM_EXPOSURE = 100
-        FRAMERATE = 158
+    def apply_camera_settings(self, cam):
+
+        # TODO: Also set GAIN
 
         # Set Acquisition Mode to Continuous
         if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
@@ -403,6 +257,15 @@ class FlirBlackflyS:
             print('PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
         else:
             print("PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
+
+        # node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
+        # node_width.SetValue(800)
+        # if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
+        #     width_to_set = node_width.GetMax()
+        #     node_width.SetValue(width_to_set)
+        #     print('Width set to %i' % node_width.GetValue())
+        # else:
+        #     print('Width not available')
 
         # # Set acquisition mode to continuous
         # node_acquisition_mode = PySpin.CEnumerationPtr(cam.GetNodeMap().GetNode('AcquisitionMode'))
@@ -462,12 +325,12 @@ class FlirBlackflyS:
         return result
 
     def get_camera_frames(self):
-        with self.read_lock:
-            if self.new_frames_available:
+        if self.new_frames_available:
+            with self.read_lock:
                 self.new_frames_available = False
                 return self.newest_frames, self.matrices
-            else:
-                return [], []
+        else:
+            return [], []
 
 
 if __name__ == '__main__':

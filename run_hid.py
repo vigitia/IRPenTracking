@@ -1,9 +1,12 @@
+# sudo chmod +0666 /dev/uinput
+
 import sys
 import cv2
 import datetime
 
 import numpy as np
 
+from flir_blackfly_s import FlirBlackflyS
 from realsense_d435 import RealsenseD435Camera
 from ir_pen import IRPen, State
 
@@ -34,9 +37,12 @@ class Run:
 
         self.input_device = InputSimulator(WINDOW_WIDTH, WINDOW_HEIGHT)
 
-        self.realsense_d435_camera = RealsenseD435Camera()
-        self.realsense_d435_camera.init_video_capture()
-        self.realsense_d435_camera.start()
+        # self.realsense_d435_camera = RealsenseD435Camera()
+        # self.realsense_d435_camera.init_video_capture()
+        # self.realsense_d435_camera.start()
+
+        self.flir_blackfly_s = FlirBlackflyS()
+        self.flir_blackfly_s.start()
 
         self.loop()
 
@@ -45,10 +51,10 @@ class Run:
             self.process_frames()
 
     def process_frames(self):
-        left_ir_image_1, left_ir_image_2, matrix1, matrix2 = self.realsense_d435_camera.get_camera_frames()
+        new_frames, matrices = self.flir_blackfly_s.get_camera_frames()
 
-        if left_ir_image_1 is not None and left_ir_image_2 is not None:
-            active_pen_events, stored_lines, _, _, added_frames = self.ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
+        if len(new_frames) > 0:
+            active_pen_events, stored_lines, _, _, debug_distances = self.ir_pen.get_ir_pen_events_multicam(new_frames, matrices)
 
             state = 'hover'
             x = 0
@@ -60,7 +66,7 @@ class Run:
                     state = 'draw'
 
             print(x, y)
-            self.input_device.input_event(x, y, state)
+            self.input_device.input_event(int(x), int(y), state)
 
     # def process_frame(self):
     #     ir_image_table = self.realsense_d435_camera.get_ir_image()
