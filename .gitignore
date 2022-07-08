@@ -133,8 +133,10 @@ dmypy.json
 *.swo
 
 out2/
+out3/
 
 .idea/
 
-.output_images/
-.additional_training_images/
+output_images/
+
+additional_training_images/

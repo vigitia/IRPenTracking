@@ -1,21 +1,40 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import datetime
 import sys
 import threading
 
 import PySpin
 import cv2
+import numpy as np
 
 from surface_selector import SurfaceSelector
 from table_extraction_service import TableExtractionService
 
 
 DEBUG_MODE = False
+EXTRACT_PROJECTION_AREA = False
+SHOW_DEBUG_STACKED_FRAMES = False
+
 CALIBRATION_MODE = False
 
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1200
+
+
+def timeit(prefix):
+    def timeit_decorator(func):
+        def wrapper(*args, **kwargs):
+            start_time = datetime.datetime.now()
+            # print("I " + prefix + "> " + str(start_time))
+            retval = func(*args, **kwargs)
+            end_time = datetime.datetime.now()
+            run_time = (end_time - start_time).microseconds / 1000.0
+            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
+            print(prefix + "> " + str(run_time) + " ms", flush=True)
+            return retval
+        return wrapper
+    return timeit_decorator
 
 
 class FlirBlackflyS:
@@ -30,6 +49,9 @@ class FlirBlackflyS:
     def __init__(self):
         self.surface_selector = SurfaceSelector()
         self.table_extractor = TableExtractionService()
+
+        self.started = False
+        self.read_lock = threading.Lock()
 
         self.init_cameras()
 
@@ -68,6 +90,7 @@ class FlirBlackflyS:
         # Release system instance
         self.system.ReleaseInstance()
 
+    @timeit('Flir Blackfly S')
     def process_frames(self):
 
         newest_frames = []
@@ -78,12 +101,12 @@ class FlirBlackflyS:
 
         for i, cam in enumerate(self.cam_list):
             try:
-                # Retrieve next received image and ensure image completion
+                # grabTimeout=1000
                 image_result = cam.GetNextImage(1000)
 
                 #  Ensure image completion
                 if image_result.IsIncomplete():
-                    print('Image incomplete with image status %d ...' % image_result.GetImageStatus())
+                    print('Image incomplete with image status %d' % image_result.GetImageStatus())
                 else:
                     # Getting the image data as a numpy array
                     image_data = image_result.GetNDArray()
@@ -103,12 +126,7 @@ class FlirBlackflyS:
 
                     # print(image_data.shape)
 
-                    if DEBUG_MODE:
-                        cv2.imshow('Flir Camera {}'.format(i), image_data)
-
-
-                # Release image
-                image_result.Release()
+                image_result.Release()  # Release image
 
             except PySpin.SpinnakerException as ex:
                 print('Error: %s' % ex)
@@ -116,6 +134,26 @@ class FlirBlackflyS:
         with self.read_lock:
             self.newest_frames = newest_frames
             self.new_frames_available = True
+
+        if DEBUG_MODE:
+
+            extracted_frames = []
+
+            for i, frame in enumerate(newest_frames):
+                cv2.imshow('Flir Camera {}'.format(i), frame)
+
+                if EXTRACT_PROJECTION_AREA:
+                    extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
+                    extracted_frames.append(extracted_frame)
+                    cv2.imshow('Flir Camera {} extracted'.format(i), frame)
+
+            if SHOW_DEBUG_STACKED_FRAMES and len(extracted_frames) == 2:
+                zeroes = np.zeros(extracted_frames[0].shape, 'uint8')
+                fake_color = np.dstack((extracted_frames[0], extracted_frames[1], zeroes))
+
+                cv2.namedWindow('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN)
+                cv2.setWindowProperty('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                cv2.imshow('Flir Camera Frames combined', fake_color)
 
         if CALIBRATION_MODE:
             # print(self.left_ir_image.shape)
@@ -130,10 +168,9 @@ class FlirBlackflyS:
         if DEBUG_MODE or CALIBRATION_MODE:
             key = cv2.waitKey(1)
             if key == 27:  # ESC
-                continue_recording = False
+                self.started = False
                 cv2.destroyAllWindows()
                 sys.exit(0)
-
 
     def configure_custom_image_settings(self, nodemap):
         """
@@ -281,77 +318,110 @@ class FlirBlackflyS:
             # Release system instance
             self.system.ReleaseInstance()
 
-            print('Not enough cameras!')
-            input('Done! Press Enter to exit...')
+            print('No camera found')
             return False
 
         try:
-            # Retrieve transport layer nodemaps and print device information for
-            # each camera
-            # *** NOTES ***
-            # This example retrieves information from the transport layer nodemap
-            # twice: once to print device information and once to grab the device
-            # serial number. Rather than caching the nodem#ap, each nodemap is
-            # retrieved both times as needed.
-            print('*** DEVICE INFORMATION ***\n')
+            # Retrieve transport layer nodemaps and print device information for each camera
+            print('DEVICE INFORMATION\n')
 
             for i, cam in enumerate(self.cam_list):
                 # Retrieve TL device nodemap
                 nodemap_tldevice = cam.GetTLDeviceNodeMap()
 
                 # Print device information
-                # result &= self.print_device_info(nodemap_tldevice, i)
+                # self.print_device_info(nodemap_tldevice, i)
 
-                node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
-                if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
-                    width_to_set = node_width.GetMax()
-                    node_width.SetValue(width_to_set)
-                    print('Width set to %i...' % node_width.GetValue())
-                else:
-                    print('Width not available...')
-
+                # node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
+                # node_width.SetValue(800)
+                # if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
+                #     width_to_set = node_width.GetMax()
+                #     node_width.SetValue(width_to_set)
+                #     print('Width set to %i' % node_width.GetValue())
+                # else:
+                #     print('Width not available')
 
             # Initialize each camera
 
             # *** LATER ***
-            # Each camera needs to be deinitialized once all images have been
-            # acquired.
+            # Each camera needs to be deinitialized once all images have been acquired.
             for i, cam in enumerate(self.cam_list):
-                # Initialize camera
-                cam.Init()
+                cam.Init()  # Initialize camera
 
-                # Set acquisition mode to continuous
-                node_acquisition_mode = PySpin.CEnumerationPtr(cam.GetNodeMap().GetNode('AcquisitionMode'))
-                if not PySpin.IsAvailable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
-                    print(
-                        'Unable to set acquisition mode to continuous (node retrieval; camera %d). Aborting... \n' % i)
-                    return False
-
-                node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
-                if not PySpin.IsAvailable(node_acquisition_mode_continuous) or not PySpin.IsReadable(
-                        node_acquisition_mode_continuous):
-                    print('Unable to set acquisition mode to continuous (entry \'continuous\' retrieval %d). \
-                            Aborting... \n' % i)
-                    return False
-
-                acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
-
-                node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
-
-                print('Camera %d acquisition mode set to continuous...' % i)
+                self.apply_camera_settings(cam, i)
 
                 # Begin acquiring images
                 cam.BeginAcquisition()
 
-                print('Camera %d started acquiring images...' % i)
-
-                print()
+                print('Camera %d started acquiring images\n' % i)
 
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
 
-        self.started = False
-        self.read_lock = threading.Lock()
+    def apply_camera_settings(self, cam, i):
+        CAM_EXPOSURE = 100
+        FRAMERATE = 158
+
+        # Set Acquisition Mode to Continuous
+        if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
+            cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
+            print("PySpin:Camera:AcquistionMode: {}".format(cam.AcquisitionMode.GetValue()))
+        else:
+            print("PySpin:Camera:AcquisionMode: no access")
+
+        # Set Autoexposure off
+        if cam.ExposureAuto.GetAccessMode() == PySpin.RW:
+            cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+            print("PySpin:Camera:ExposureAuto: {}".format(cam.ExposureAuto.GetValue()))
+        else:
+            print("PySpin:Camera:Failed to set Autoexposure to off")
+
+        # Check if Autoexposure is off and exposure mode is set to "Timed" (needed for manually setting exposure)
+        if cam.ExposureMode.GetValue() != PySpin.ExposureMode_Timed:
+            print("PySpin:Camera:Can not set exposure! Exposure Mode needs to be Timed")
+        if cam.ExposureAuto.GetValue() != PySpin.ExposureAuto_Off:
+            print("PySpin:Camera:Can not set exposure! Exposure is Auto")
+
+        # Set Exposure Time
+        if cam.ExposureTime.GetAccessMode() == PySpin.RW:
+            cam.ExposureTime.SetValue(
+                max(cam.ExposureTime.GetMin(), min(cam.ExposureTime.GetMax(), float(CAM_EXPOSURE))))
+            print("PySpin:Camera:Exposure:{}".format(cam.ExposureTime.GetValue()))
+        else:
+            print("PySpin:Camera:Failed to set expsosure to:{}".format(CAM_EXPOSURE))
+
+        # Set Acquisiton Frame Rate Enable = True
+        if cam.AcquisitionFrameRateEnable.GetAccessMode() == PySpin.RW:
+            cam.AcquisitionFrameRateEnable.SetValue(True)
+            print("PySpin:Camera:AcquisionFrameRateEnable: {}".format(cam.AcquisitionFrameRateEnable.GetValue()))
+        else:
+            print("PySpin:Camera:AcquisionFrameRateEnable: no access")
+
+        # Set Camera Acquisition Framerate
+        if cam.AcquisitionFrameRate.GetAccessMode() == PySpin.RW:
+            cam.AcquisitionFrameRate.SetValue(min(cam.AcquisitionFrameRate.GetMax(), FRAMERATE))
+            print('PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
+        else:
+            print("PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
+
+        # # Set acquisition mode to continuous
+        # node_acquisition_mode = PySpin.CEnumerationPtr(cam.GetNodeMap().GetNode('AcquisitionMode'))
+        # if not PySpin.IsAvailable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
+        #     print('Unable to set acquisition mode to continuous (node retrieval; camera %d). Aborting... \n' % i)
+        #     return False
+        #
+        # node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
+        # if not PySpin.IsAvailable(node_acquisition_mode_continuous) or not PySpin.IsReadable(
+        #         node_acquisition_mode_continuous):
+        #     print('Unable to set acquisition mode to continuous (entry \'continuous\' retrieval %d). \
+        #             Aborting... \n' % i)
+        #     return False
+        #
+        # acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
+        #
+        # node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
+        #
+        # print('Camera %d acquisition mode set to continuous' % i)
 
     def print_device_info(self, nodemap, cam_num):
         """
