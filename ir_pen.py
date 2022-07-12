@@ -6,13 +6,16 @@ from tensorflow import keras
 from tflite import LiteModel
 import datetime
 from scipy.spatial import distance
+from skimage.feature import peak_local_max
 
 from cv2 import cv2
 
 # TODO: Relative Path
-#MODEL_PATH = 'evaluation/hover_predictor_stereo_twochannel_3'  #
-#MODEL_PATH = 'evaluation/hover_predictor_stereo_both_sides_close_1'
-MODEL_PATH = 'evaluation/hover_predictor_flir_2'
+
+# Aktuell bestes model:
+# MODEL_PATH = 'evaluation/hover_predictor_flir_2'
+
+MODEL_PATH = 'evaluation/hover_predictor_flir_4'
 
 CROP_IMAGE_SIZE = 48
 
@@ -29,7 +32,7 @@ CLICK_THRESH_MS = 10
 # Hover will be selected over Draw if Hover Event is within the last X event states
 KERNEL_SIZE_HOVER_WINS = 3
 
-MIN_BRIGHTNESS_FOR_PREDICTION = 60
+MIN_BRIGHTNESS_FOR_PREDICTION = 50
 
 
 DEBUG_MODE = False
@@ -37,17 +40,13 @@ DEBUG_MODE = False
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
 
-# CAMERA_WIDTH = 848
-# CAMERA_HEIGHT = 480
+CAMERA_WIDTH = 1920  # 848
+CAMERA_HEIGHT = 1200  # 480
 
-CAMERA_WIDTH = 1920
-CAMERA_HEIGHT = 1200
-
-# TODO: Change these states
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far'
+TRAIN_STATE = 'draw_fast_500'
 TRAIN_PATH = 'out3/2022-07-08'
 TRAIN_IMAGE_COUNT = 3000
 
@@ -132,12 +131,15 @@ class IRPen:
         if self.saved_image_counter / 10 >= TRAIN_IMAGE_COUNT:
             sys.exit(0)
 
-    # Achtung Baustelle
-    def transform_point(self, point, M):
-        point.append(1)
-        transformed = M.dot(np.array(point))
-        transformed /= transformed[2]
-        return transformed
+    def transform_coords_to_output_res(self, x, y, transform_matrice):
+        coords = [x, y, 1]
+        coords = np.array(coords)
+
+        transformed_coords = transform_matrice.dot(coords)
+        # Normalize coordinates by dividing by z
+        transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
+                              int(transformed_coords[1] / transformed_coords[2]))
+        return transformed_coords
 
     # @timeit('Pen Events')
     def get_ir_pen_events_multicam(self, camera_frames, transform_matrices):
@@ -146,28 +148,23 @@ class IRPen:
         self.new_lines = []
         self.pen_events_to_remove = []
 
-        # projection_area_frames = []
-        threshold_frames = []
         brightness_values = []
-
-        added_frames = None
 
         predictions = []
         rois = []
         roi_coords = []
         subpixel_coords = []
 
-        #for t in [[127, 141], [669, 86], [127, 421], [691, 464], [363, 274]]:
-        #    print(t, self.transform_point(t, transform_matrices[1]))
-        #print(, transform_matrices[0].dot(np.array([669, 86, 1])))
-        #print(, transform_matrices[0].dot(np.array([127, 421, 1])))
-        #print(, transform_matrices[0].dot(np.array([691, 464, 1])))
-
         debug_distances = [0, (0, 0)]
 
         # 8 ms
         for i, frame in enumerate(camera_frames):
             # TODO: Get here all spots and not just one
+
+            rois_new = self.get_all_rois(frame)
+            # print(len(rois_new))
+            for roi_new in rois_new:
+                print(roi_new.shape)
 
             # crop 1: 0.5 ms
             # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
@@ -180,39 +177,17 @@ class IRPen:
             if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
                 rois.append(pen_event_roi)
 
-                coords = [x, y, 1]
-                coords = np.array(coords)
-
-                transformed_coords = transform_matrices[i].dot(coords)
-                # print(transformed_coords)
-
-                normalized_coords = (int(transformed_coords[0] / transformed_coords[2]), int(transformed_coords[1] / transformed_coords[2]))
-                roi_coords.append(normalized_coords)
-                # print((int(transformed_coords[0] / transformed_coords[2]), int(transformed_coords[1] / transformed_coords[2])))
+                transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
+                roi_coords.append(transformed_coords)
 
                 brightness_values.append(brightest)
 
-                (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, normalized_coords)
-
-
+                (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
 
                 subpixel_coords.append((x, y))
                 debug_distances.append(subpixel_coords)
 
-
-                #projection_area_frame = self.crop_extended_frame(frame, crop_coordinates)
-                #projection_area_frames.append(projection_area_frame)
-
-
-
-                    #value_offset = 0.5
-                    #_, thresh = cv2.threshold(projection_area_frames, brightest * value_offset, 255, cv2.THRESH_BINARY)
-
-                    #threshold_frames.append(thresh)
-
-        final_prediction = None
-
-        # If we see two points:
+        # If we see only one point:
         if len(subpixel_coords) == 1:
             prediction, confidence = self.predict(rois[0])
             if prediction == 'draw':
@@ -229,7 +204,8 @@ class IRPen:
             else:
                 print('Unknown state')
 
-        if len(subpixel_coords) == 2:
+        # If we see two points
+        elif len(subpixel_coords) == 2:
             distance_between_points = distance.euclidean(subpixel_coords[0],
                                                          subpixel_coords[1])
 
@@ -275,159 +251,46 @@ class IRPen:
                 else:
                     print('Unknown state')
 
-
-        # 4-8 ms
-        # cropped: 0.5 ms
-        # If no predictions are there, we can skip the rest
-
-        # if len(predictions) > 0:
-        #     brightest_image_index = brightness_values.index(max(brightness_values))
-        #
-        #     if all(x == predictions[0] for x in predictions):
-        #         # The predictions for all cameras are the same
-        #         final_prediction = predictions[0]
-        #     else:
-        #         # There is a disagreement
-        #         # Currently we then use the prediction of the brightest point in all camera frames
-        #         final_prediction = predictions[brightest_image_index]
-        #
-        #     # TODO: This should also work with more than two cameras
-        #     # Check if we have white pixels when overlapping both camera frames ->
-        #     if len(threshold_frames) == 2:
-        #         added_frames = cv2.bitwise_and(threshold_frames[0], threshold_frames[1], mask=None)
-        #         max_and = np.max(added_frames)
-        #         # max_thresh_1 = np.max(threshold_frames[0])
-        #         # max_thresh_2 = np.max(threshold_frames[1])
-        #
-        #         if max_and > 0:
-        #             added_frames_crop, brightest, (x, y) = self.crop_image(added_frames)
-        #             if brightest > MIN_BRIGHTNESS_FOR_PREDICTION:
-        #                 # We have an overlap in the AND image -> Use the overlap region to calculate the pos of the event
-        #                 # print('Two cameras -> Hover close or draw')
-        #                 #(x, y), radius = self.find_pen_position_subpixel(added_frames)
-        #                 (x, y), radius = self.find_pen_position_subpixel_crop(added_frames_crop, (x, y))
-        #         else:
-        #             # print('Hover far')
-        #             final_prediction = 'hover'
-        #             #(x, y), radius = self.find_pen_position_subpixel(projection_area_frames[brightest_image_index])
-        #             (x, y), radius = self.find_pen_position_subpixel_crop(rois[brightest_image_index], roi_coords[brightest_image_index])
-        #     else:
-        #         #(x, y), radius = self.find_pen_position_subpixel(projection_area_frames[brightest_image_index])
-        #         (x, y), radius = self.find_pen_position_subpixel_crop(rois[brightest_image_index], roi_coords[brightest_image_index])
-        #         # (x, y) = roi_coords[brightest_image_index]
-        #         # x = int((x / CAMERA_WIDTH) * WINDOW_WIDTH)
-        #         # y = int((y / CAMERA_HEIGHT) * WINDOW_HEIGHT)
-        #
-        #     if final_prediction == 'draw':
-        #         # print('Status: Touch')
-        #         new_ir_pen_event = PenEvent(x, y)
-        #         new_ir_pen_event.state = State.DRAG
-        #         new_pen_events.append(new_ir_pen_event)
-        #
-        #     elif final_prediction == 'hover':
-        #         # print('Status: Hover')
-        #         new_ir_pen_event = PenEvent(x, y)
-        #         new_ir_pen_event.state = State.HOVER
-        #         new_pen_events.append(new_ir_pen_event)
-        #     else:
-        #         print('Unknown state')
-
         # This function needs to be called even if there are no new pen events to update all existing events
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
         return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, debug_distances
 
+    # Calculate the center point between two given points
     def get_center(self, p1, p2):
         (x1, y1) = p1
         (x2, y2) = p2
 
         xdist = abs(x1 - x2) / 2
         ydist = abs(y1 - y2) / 2
-        return (min(x1, x2) + xdist, min(y1, y2) + ydist)
+        return min(x1, x2) + xdist, min(y1, y2) + ydist
 
-    # Pass a frame that shows more than the projection area into this function to get just the projection area back
-    def crop_extended_frame(self, frame, crop_coordinates):
-        frame = frame[crop_coordinates[1]: crop_coordinates[3], crop_coordinates[0]: crop_coordinates[2]]
-        return cv2.resize(frame, (CAMERA_WIDTH, CAMERA_HEIGHT))
+    # # Pass a frame that shows more than the projection area into this function to get just the projection area back
+    # def crop_extended_frame(self, frame, crop_coordinates):
+    #     frame = frame[crop_coordinates[1]: crop_coordinates[3], crop_coordinates[0]: crop_coordinates[2]]
+    #     return cv2.resize(frame, (CAMERA_WIDTH, CAMERA_HEIGHT))
+    #
+    # def convert_coordinate_to_target_resolution(self, x, y, current_res_x, current_res_y, target_x, target_y):
+    #     x_new = int((x / current_res_x) * target_x)
+    #     y_new = int((y / current_res_y) * target_y)
+    #
+    #     return x_new, y_new
 
-    # @timeit('Pen Events')
-    # def get_ir_pen_events(self, ir_frame):
-    #
-    #     new_pen_events = []
-    #
-    #     self.new_lines = []
-    #     self.pen_events_to_remove = []
-    #
-    #     # TODO: Get here all spots and not just one
-    #     img_cropped, brightest, (x, y) = self.crop_image(ir_frame)
-    #     #print(np.std(img_cropped), flush=True)
-    #     #print(min_radius, flush=True)
-    #
-    #     #if img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
-    #     #    cv2.imshow('crop', cv2.resize(img_cropped, (848, 848), interpolation=cv2.INTER_LINEAR))
-    #
-    #     # if DEBUG_MODE:
-    #     #     preview = cv2.cvtColor(ir_frame, cv2.COLOR_GRAY2BGR)
-    #
-    #     data = {}
-    #
-    #     # TODO: for loop here to iterate over all detected bright spots in the image
-    #
-    #     if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
-    #     # if brightest > MIN_BRIGHTNESS and img_cropped.shape == (CROP_IMAGE_SIZE, CROP_IMAGE_SIZE):
-    #         prediction, confidence = self.predict(img_cropped)
-    #         #print(confidence, flush=True)
-    #
-    #         #min_radius, coords = self.find_pen_position(ir_frame)
-    #         #y_left, y_right = self.find_pen_orientation(ir_frame)
-    #         #color = (0, 0, 0)
-    #
-    #         #(x, y) = self.convert_coordinate_to_target_resolution(coords[0], coords[1], ir_frame.shape[1], ir_frame.shape[0], WINDOW_WIDTH, WINDOW_HEIGHT)
-    #         #print('old', (x, y))
-    #         (x, y), radius = self.find_pen_position_subpixel(ir_frame)
-    #         #print('new', (x, y))
-    #
-    #         if prediction == 'draw':
-    #             # print('Status: Touch')
-    #             new_ir_pen_event = PenEvent(x, y)
-    #             new_ir_pen_event.state = State.DRAG
-    #             new_pen_events.append(new_ir_pen_event)
-    #
-    #             color = (0, 255, 0)
-    #         elif prediction == 'hover':
-    #             # print('Status: Hover')
-    #             new_ir_pen_event = PenEvent(x, y)
-    #             new_ir_pen_event.state = State.HOVER
-    #             new_pen_events.append(new_ir_pen_event)
-    #             color = (0, 0, 255)
-    #             #if y_left > -1 and y_right > -1:
-    #             #    preview = cv2.line(preview, (ir_frame.shape[1]-1,y_right),(0,y_left),(0,255,0),1)
-    #         else:
-    #             print('Unknown state')
-    #
-    #         #if DEBUG_MODE:
-    #             #preview = cv2.circle(preview, coords, 10, color, -1)
-    #             #preview = cv2.rectangle(preview, (coords[0] - 24, coords[1] - 24), (coords[0] + 24, coords[1] + 24), color, 1)
-    #
-    #     # if DEBUG_MODE:
-    #     #     cv2.imshow('preview', preview)
-    #     #     cv2.waitKey(1)
-    #
-    #         data = {
-    #             'x': x,
-    #             'y': y,
-    #             'radius': radius
-    #         }
-    #
-    #     self.active_pen_events = self.merge_pen_events(new_pen_events)
-    #
-    #     return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, data
+    def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
+        peaks = peak_local_max(img, min_distance=10, threshold_abs=50)
 
-    def convert_coordinate_to_target_resolution(self, x, y, current_res_x, current_res_y, target_x, target_y):
-        x_new = int((x / current_res_x) * target_x)
-        y_new = int((y / current_res_y) * target_y)
+        rois = []
+        margin = int(size / 2)
 
-        return x_new, y_new
+        for point in peaks:
+            x = point[1]
+            y = point[0]
+            roi = img[y - margin: y + margin, x - margin: x + margin]
+            if roi.shape[0] != size or roi.shape[1] != size:
+                print('WRONG SHAPE')
+            rois.append(roi)
+
+        return rois
 
     def crop_image(self, img, size=CROP_IMAGE_SIZE):
         if len(img.shape) == 3:
@@ -553,10 +416,8 @@ class IRPen:
                 smallest_contour = contour
 
         M = cv2.moments(smallest_contour)
-
         # calculate x,y coordinate of center
         cX = int(M["m10"] / M["m00"])
-
         cY = int(M["m01"] / M["m00"])
 
         position = (int(top_left_scaled[0] + cX), int(top_left_scaled[1] + cY))
@@ -653,10 +514,8 @@ class IRPen:
         y_right = int(((cols-x)*vy/vx)+y)
         return y_left, y_right
 
-
     def merge_pen_events(self, new_pen_events):
-        # Get current timestamp
-        now = round(time.time() * 1000)
+        now = round(time.time() * 1000)  # Get current timestamp
 
         for new_pen_event in new_pen_events:
             new_pen_event.state_history = [new_pen_event.state]

@@ -12,6 +12,7 @@ import numpy as np
 from surface_selector import SurfaceSelector
 from table_extraction_service import TableExtractionService
 
+# CONSTANTS and Camera Settings
 
 DEBUG_MODE = False
 EXTRACT_PROJECTION_AREA = False
@@ -22,7 +23,7 @@ CALIBRATION_MODE = False
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1200
 
-CAM_EXPOSURE = 1000
+CAM_EXPOSURE = 500
 FRAMERATE = 158
 
 def timeit(prefix):
@@ -70,20 +71,13 @@ class FlirBlackflyS:
         while self.started:
             self.process_frames()
 
-        # *** NOTES ***
-        # Again, each camera must be deinitialized separately by first
-        # selecting the camera and then deinitializing it.
         for cam in self.cam_list:
-            # End acquisition
-            cam.EndAcquisition()
+            cam.EndAcquisition()  # End acquisition
 
             # Deinitialize camera. Each camera needs to be deinitialized once all images have been acquired.
             cam.DeInit()
 
-        # Release reference to camera
-        # NOTE: Unlike the C++ examples, we cannot rely on pointer objects being automatically
-        # cleaned up when going out of scope.
-        # The usage of del is preferred to assigning the variable to None.
+        # Release reference to camera. The usage of del is preferred to assigning the variable to None.
         del cam
 
         self.cam_list.Clear()
@@ -92,8 +86,6 @@ class FlirBlackflyS:
         self.system.ReleaseInstance()
 
     # @timeit('Flir Blackfly S')
-    # With 2 cameras: min: 9.082ms max: 25.83ms  mean: 10.33ms
-    # Target: 6.25 ms
     def process_frames(self):
 
         newest_frames = []
@@ -146,7 +138,6 @@ class FlirBlackflyS:
                 cv2.imshow('Flir Camera Frames combined', fake_color)
 
         if CALIBRATION_MODE:
-            # print(self.left_ir_image.shape)
 
             for i, cam in enumerate(self.cam_list):
 
@@ -178,11 +169,8 @@ class FlirBlackflyS:
 
         # Finish if there are no cameras
         if num_cameras == 0:
-            # Clear camera list before releasing system
-            self.cam_list.Clear()
-
-            # Release system instance
-            self.system.ReleaseInstance()
+            self.cam_list.Clear()  # Clear camera list before releasing system
+            self.system.ReleaseInstance()  # Release system instance
 
             print('No camera found')
             return False
@@ -191,22 +179,16 @@ class FlirBlackflyS:
             if DEBUG_MODE:
                 # Retrieve transport layer nodemaps and print device information for each camera
                 for i, cam in enumerate(self.cam_list):
-                    # Retrieve TL device nodemap
-                    nodemap_tldevice = cam.GetTLDeviceNodeMap()
-
-                    # Print device information
-                    self.print_device_info(nodemap_tldevice, i)
+                    nodemap_tldevice = cam.GetTLDeviceNodeMap()  # Retrieve Transport layer device nodemap
+                    self.print_device_info(nodemap_tldevice, i)  # Print device information
 
             # Initialize each camera
             for i, cam in enumerate(self.cam_list):
                 cam.Init()  # Initialize camera
-
                 self.apply_camera_settings(cam)
 
             for i, cam in enumerate(self.cam_list):
-                # Begin acquiring images
-                cam.BeginAcquisition()
-
+                cam.BeginAcquisition()  # Begin acquiring images
                 print('Camera %d started acquiring images\n' % i)
 
         except PySpin.SpinnakerException as ex:
@@ -214,7 +196,7 @@ class FlirBlackflyS:
 
     def apply_camera_settings(self, cam):
 
-        # TODO: Also set GAIN
+        # TODO: Also set GAIN, WIDTH AND HEIGHT
 
         # Set Acquisition Mode to Continuous
         if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
@@ -287,18 +269,6 @@ class FlirBlackflyS:
         # print('Camera %d acquisition mode set to continuous' % i)
 
     def print_device_info(self, nodemap, cam_num):
-        """
-        This function prints the device information of the camera from the transport
-        layer; please see NodeMapInfo example for more in-depth comments on printing
-        device information from the nodemap.
-
-        :param nodemap: Transport layer device nodemap.
-        :param cam_num: Camera number.
-        :type nodemap: INodeMap
-        :type cam_num: int
-        :returns: True if successful, False otherwise.
-        :rtype: bool
-        """
 
         print('Printing device information for camera %d... \n' % cam_num)
 
@@ -310,10 +280,8 @@ class FlirBlackflyS:
                 features = node_device_information.GetFeatures()
                 for feature in features:
                     node_feature = PySpin.CValuePtr(feature)
-                    print('%s: %s' % (node_feature.GetName(),
-                                      node_feature.ToString() if PySpin.IsReadable(
+                    print('%s: %s' % (node_feature.GetName(), node_feature.ToString() if PySpin.IsReadable(
                                           node_feature) else 'Node not readable'))
-
             else:
                 print('Device control information not available.')
             print()
@@ -334,6 +302,7 @@ class FlirBlackflyS:
 
 
 if __name__ == '__main__':
+    # If this script is started as main, the debug mode is activated by default:
     DEBUG_MODE = True
     flir_blackfly_s = FlirBlackflyS()
     flir_blackfly_s.start()

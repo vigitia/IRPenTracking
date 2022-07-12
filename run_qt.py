@@ -707,7 +707,6 @@ class GLWidget(QOpenGLWidget):
         painter = QPainter()
         painter.begin(self)
 
-
         #painter.setRenderHint(QPainter.Antialiasing)
 
         #painter.fillRect(event.rect(), self.background)
@@ -715,13 +714,11 @@ class GLWidget(QOpenGLWidget):
 
         painter.setPen(self.pen)
 
-
         global last_time
         global current_debug_distances
         painter.setFont(self.font)
         painter.drawText(current_debug_distances[1][0], current_debug_distances[1][1], str(current_debug_distances[0]))
         # painter.drawText(100, 500, str(last_time) + ' ms')
-
 
         polygons_to_draw = []
 
@@ -761,6 +758,8 @@ class GLWidget(QOpenGLWidget):
                     background_painter.drawPolyline(QPolygon(polygon))
             self.last_stored_lines_length = len(self.stored_lines)
 
+            background_painter.end()
+
         for polygon in polygons_to_draw:
             # painter.drawPolygon(QPolygon(polygon))
             painter.drawPolyline(QPolygon(polygon))
@@ -773,9 +772,7 @@ class Window(QMainWindow):
         super().__init__()
 
         self.showFullScreen()
-
         self.openGL = GLWidget(self)
-
         self.setCentralWidget(self.openGL)
 
         self.thread = ApplicationLoopThread(self)
@@ -783,31 +780,17 @@ class Window(QMainWindow):
 
     def draw_all_points(self, active_pen_events, stored_lines):
         self.openGL.update_data(active_pen_events, stored_lines)
-
         self.openGL.update()
 
-        # Handle Key-press events
-
+    # Handle Key-press events
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            # df = pd.DataFrame(self.stored_data)
-            # df.to_csv('stored_data_hover.csv')
-
             # self.save_screenshot()
 
             self.close()
             sys.exit(0)
         # elif event.key() == Qt.Key_Space:
         #     self.save_screenshot()
-        #
-        #     if PHRASES_MODE:
-        #         self.num_phrases_written += 1
-        #         if self.num_phrases_written == 10:
-        #             print('10 Phrases have been written')
-        #             self.close()
-        #             sys.exit()
-        #
-        #     self.reset_image()
 
 
 if __name__ == '__main__':
