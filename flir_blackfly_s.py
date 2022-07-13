@@ -138,10 +138,9 @@ class FlirBlackflyS:
                 cv2.imshow('Flir Camera Frames combined', fake_color)
 
         if CALIBRATION_MODE:
-
             for i, cam in enumerate(self.cam_list):
 
-                calibration_finished = self.surface_selector.select_surface(newest_frames, 'Flir Camera {}'.format(i))
+                calibration_finished = self.surface_selector.select_surface(newest_frames[i], 'Flir Camera {}'.format(i))
 
                 if calibration_finished:
                     print("[Surface Selector Node]: Calibration Finished for camera {}".format(i))
@@ -304,5 +303,8 @@ class FlirBlackflyS:
 if __name__ == '__main__':
     # If this script is started as main, the debug mode is activated by default:
     DEBUG_MODE = True
+    if CALIBRATION_MODE:
+        DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
+        CAM_EXPOSURE = 80000  # Increase Brightness to better see the corners
     flir_blackfly_s = FlirBlackflyS()
     flir_blackfly_s.start()

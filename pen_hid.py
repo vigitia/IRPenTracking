@@ -32,6 +32,29 @@ class InputSimulator:
         self.device.syn()
         time.sleep(0.01)
 
+    def move_event(self, x, y):
+        self.device.write(e.EV_ABS, e.ABS_X, x)
+        self.device.write(e.EV_ABS, e.ABS_Y, y)
+        self.device.syn()
+        time.sleep(0.01)
+
+    def click_event(self, btn, state):
+        if btn == 'left':
+            button = e.BTN_LEFT
+        else:
+            button = e.BTN_RIGHT
+
+        if state == 'draw':
+            self.device.write(e.EV_KEY, button, 1)
+            self.was_pressed = True
+        else:
+            if self.was_pressed == True:
+                self.device.write(e.EV_KEY, button, 0)
+                self.was_pressed = False
+
+        self.device.syn()
+        time.sleep(0.01)
+
     def close(self):
         time.sleep(0.1)
         self.device.close()
