@@ -34,6 +34,8 @@ KERNEL_SIZE_HOVER_WINS = 3
 
 MIN_BRIGHTNESS_FOR_PREDICTION = 50
 
+MAX_DISTANCE_DRAW = 50
+
 
 DEBUG_MODE = False
 
@@ -157,39 +159,73 @@ class IRPen:
 
         debug_distances = [0, (0, 0)]
 
-        # 8 ms
         for i, frame in enumerate(camera_frames):
-            # TODO: Get here all spots and not just one
+            predictions.append([])
+            rois.append([])
+            roi_coords.append([])
+            brightness_values.append([])
+            subpixel_coords.append([])
 
-            rois_new = self.get_all_rois(frame)
-            # print(len(rois_new))
-            for roi_new in rois_new:
-                print(roi_new.shape)
+            rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
 
-            # crop 1: 0.5 ms
-            # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
-            pen_event_roi, brightest, (x, y) = self.crop_image(frame)
+            # if TRAINING_DATA_COLLECTION_MODE:
+            #     self.save_training_image(pen_event_roi, (x, y))
+            #     continue
 
-            if TRAINING_DATA_COLLECTION_MODE:
-                self.save_training_image(pen_event_roi, (x, y))
-                continue
+            for j, pen_event_roi in enumerate(rois_new):
 
-            if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
-                rois.append(pen_event_roi)
+                prediction, confidence = self.predict(pen_event_roi)
 
-                transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
-                roi_coords.append(transformed_coords)
+                predictions[i].append(prediction)
+                rois[i].append(pen_event_roi)
 
-                brightness_values.append(brightest)
+                transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1], transform_matrices[i])
+                roi_coords[i].append(transformed_coords)
+
+                brightness_values[i].append(max_brightness_values[j])
 
                 (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
 
-                subpixel_coords.append((x, y))
-                debug_distances.append(subpixel_coords)
+                subpixel_coords[i].append((x, y))
+
+        # print(brightness_values)
+
+        new_pen_events = self.find_corresponding_spots(subpixel_coords, predictions, brightness_values)
+
+        # This function needs to be called even if there are no new pen events to update all existing events
+        self.active_pen_events = self.merge_pen_events(new_pen_events)
+
+        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, debug_distances
+
+        # # 8 ms
+        # for i, frame in enumerate(camera_frames):
+        #     # TODO: Get here all spots and not just one
+        #
+        #     # crop 1: 0.5 ms
+        #     # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
+        #     pen_event_roi, brightest, (x, y) = self.crop_image(frame)
+        #
+        #     if TRAINING_DATA_COLLECTION_MODE:
+        #         self.save_training_image(pen_event_roi, (x, y))
+        #         continue
+        #
+        #     if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
+        #         rois.append(pen_event_roi)
+        #
+        #         transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
+        #         roi_coords.append(transformed_coords)
+        #
+        #         brightness_values.append(brightest)
+        #
+        #         (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
+        #
+        #         subpixel_coords.append((x, y))
+        #         debug_distances.append(subpixel_coords)
 
         # If we see only one point:
         if len(subpixel_coords) == 1:
             prediction, confidence = self.predict(rois[0])
+            print(prediction)
             if prediction == 'draw':
                 # print('Status: Touch')
                 new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1])
@@ -215,7 +251,6 @@ class IRPen:
 
             # print(distance_between_points, center_x, center_y)
 
-            MAX_DISTANCE_DRAW = 50
             if distance_between_points > MAX_DISTANCE_DRAW:
                 # Calculate center between the two points
 
@@ -256,6 +291,109 @@ class IRPen:
 
         return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, debug_distances
 
+    def find_corresponding_spots(self, subpixel_coords, predictions, brightness_values):
+
+        new_pen_events = []
+
+        zeros = np.zeros((2160, 3840, 3), 'uint8')
+        for i, point_left_cam in enumerate(subpixel_coords[0]):
+            if predictions[0][i] == 'draw':
+                cv2.circle(zeros, point_left_cam, 20, (255, 0, 0), 1)
+            else:
+                cv2.circle(zeros, point_left_cam, 20, (255, 0, 0), -1)
+
+        for i, point_right_cam in enumerate(subpixel_coords[1]):
+            if predictions[1][i] == 'draw':
+                cv2.circle(zeros, point_right_cam, 20, (0, 0, 255), 1)
+            else:
+                cv2.circle(zeros, point_right_cam, 20, (0, 0, 255), -1)
+
+        print(' ')
+        print(subpixel_coords)
+
+        # Deal with single points first
+        if len(subpixel_coords[0]) == 0 and len(subpixel_coords[1]) > 0 or len(subpixel_coords[0]) > 0 and len(subpixel_coords[1]) == 0:
+            for i, point in enumerate(subpixel_coords[0]):
+                print('Single point at', point)
+                new_pen_events.append(self.generate_new_pen_event(predictions[0][i], point[0], point[1]))
+            for i, point in enumerate(subpixel_coords[1]):
+                print('Single point at', point)
+                new_pen_events.append(self.generate_new_pen_event(predictions[1][i], point[0], point[1]))
+
+        elif len(subpixel_coords[0]) > 0 and len(subpixel_coords[1]) > 0:
+            shortest_distance_point_pairs = self.calculate_distances_between_all_points(subpixel_coords[0],
+                                                                                        subpixel_coords[1],
+                                                                                        as_objects=False)
+
+            used_left = []
+            used_right = []
+            for entry in shortest_distance_point_pairs:
+                if entry[0] not in used_left and entry[1] not in used_right:
+                    y1 = subpixel_coords[0][entry[0]][1]
+                    y2 = subpixel_coords[1][entry[1]][1]
+                    if abs(y1 - y2) < MAX_DISTANCE_DRAW:
+                        if predictions[0][entry[0]] == 'draw' or predictions[1][entry[1]] == 'draw':
+                            dist = entry[2]
+                            if dist > 50:
+                                continue
+
+                        (center_x, center_y) = self.get_center(subpixel_coords[0][entry[0]], subpixel_coords[1][entry[1]])
+                        cv2.line(zeros, subpixel_coords[0][entry[0]], subpixel_coords[1][entry[1]], (255, 255, 255), 3)
+                        used_left.append(entry[0])
+                        used_right.append(entry[1])
+
+                        # TODO: Compare brightness and use the prediction of the brighter point
+                        prediction_a = predictions[0][entry[0]]
+                        prediction_b = predictions[1][entry[1]]
+
+                        new_pen_events.append(self.generate_new_pen_event(prediction_a, center_x,center_y))
+
+
+            for i in range(len(subpixel_coords[0])):
+                if i not in used_left:
+                    print('Point {} on cam 0 remains'.format(i))
+                    new_pen_events.append(self.generate_new_pen_event(predictions[0][i], subpixel_coords[0][i][0], subpixel_coords[0][i][1]))
+
+            for i in range(len(subpixel_coords[1])):
+                if i not in used_right:
+                    print('Point {} on cam 1 remains'.format(i))
+                    new_pen_events.append(self.generate_new_pen_event(predictions[1][i], subpixel_coords[1][i][0],
+                                                                      subpixel_coords[1][i][1]))
+
+
+
+            #print(shortest_distance_point_pairs)
+        print(new_pen_events)
+
+        # for point_left_cam in subpixel_coords[0]:
+        #     for point_right_cam in subpixel_coords[1]:
+        #         dist_between_y = int(abs(point_left_cam[1] - point_right_cam[1]))
+        #         distance_between_points = int(distance.euclidean(point_left_cam, point_right_cam))
+        #
+        #         print(distance_between_points, dist_between_y)
+
+        # cv2.imshow('preview', zeros)
+
+        return new_pen_events
+
+    def generate_new_pen_event(self, prediction, x, y):
+        if prediction == 'draw':
+            # print('Status: Touch')
+            new_ir_pen_event = PenEvent(x, y)
+            new_ir_pen_event.state = State.DRAG
+            return new_ir_pen_event
+
+        elif prediction == 'hover':
+            # print('Status: Hover')
+            new_ir_pen_event = PenEvent(x, y)
+            new_ir_pen_event.state = State.HOVER
+            return new_ir_pen_event
+        else:
+            print('Unknown state')
+            sys.exit(1)
+
+
+
     # Calculate the center point between two given points
     def get_center(self, p1, p2):
         (x1, y1) = p1
@@ -276,21 +414,80 @@ class IRPen:
     #
     #     return x_new, y_new
 
-    def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
+
+
+    # @timeit('All ROIs')
+    # TOO SLOW :(
+    def get_all_rois_bad(self, img, size=CROP_IMAGE_SIZE):
+        start_time = datetime.datetime.now()
+        _, img = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
+
+        end_time = datetime.datetime.now()
+        run_time = (end_time - start_time).microseconds / 1000.0
+        print('RUN TIME:', run_time)
         peaks = peak_local_max(img, min_distance=10, threshold_abs=50)
 
         rois = []
+        roi_coords = []
         margin = int(size / 2)
+        max_brightness_values = []
 
         for point in peaks:
             x = point[1]
             y = point[0]
+
+            # Dead pixel fix
+            if x == 46 and y == 565:
+                # TODO: Find solution for dead pixel
+                continue
+
             roi = img[y - margin: y + margin, x - margin: x + margin]
             if roi.shape[0] != size or roi.shape[1] != size:
                 print('WRONG SHAPE')
+                # TODO: FIX THIS
+                return rois, roi_coords, max_brightness_values
             rois.append(roi)
+            roi_coords.append((x, y))
+            _, brightest, _, _ = cv2.minMaxLoc(roi)
+            max_brightness_values.append(int(brightest))
 
-        return rois
+        return rois, roi_coords, max_brightness_values
+
+    def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
+
+        rois = []
+        roi_coords = []
+        max_brightness_values = []
+
+        for i in range(10):
+            margin = int(size / 2)
+            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
+
+            # Dead pixel fix
+            if max_x == 46 and max_y == 565:
+                # TODO: Find solution for dead pixel
+                continue
+
+            if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
+                break
+
+            img_cropped = img[max_y - margin: max_y + margin, max_x - margin: max_x + margin].copy()
+
+            # print('Shape in crop 1:', img_cropped.shape, max_x, max_y)
+
+            if img_cropped.shape == (size, size):
+                rois.append(img_cropped)
+                roi_coords.append((max_x, max_y))
+                max_brightness_values.append(int(brightest))
+            else:
+                print('TODO: WRONG SHAPE')
+
+            img.setflags(write=True)
+            img[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = 0
+            img.setflags(write=False)
+
+        return rois, roi_coords, max_brightness_values
+
 
     def crop_image(self, img, size=CROP_IMAGE_SIZE):
         if len(img.shape) == 3:
@@ -536,7 +733,7 @@ class IRPen:
                 self.process_click_events(active_pen_event)
 
         # Compare all new_pen_events and active_pen_events and pair them by shortest distance to each other
-        shortest_distance_point_pairs = self.calculate_distances_between_all_points(new_pen_events)
+        shortest_distance_point_pairs = self.calculate_distances_between_all_points(self.active_pen_events, new_pen_events, as_objects=True)
 
         for entry in shortest_distance_point_pairs:
             last_pen_event = self.active_pen_events[entry[0]]
@@ -694,13 +891,17 @@ class IRPen:
         self.pen_events_to_remove.append(active_pen_event)
         self.active_pen_events.remove(active_pen_event)
 
-    def calculate_distances_between_all_points(self, new_pen_events):
+    def calculate_distances_between_all_points(self, point_list_one, point_list_two, as_objects=False):
         distances = []
 
-        for i in range(len(self.active_pen_events)):
-            for j in range(len(new_pen_events)):
-                distance_between_points = distance.euclidean(self.active_pen_events[i].get_coordinates(),
-                                                             new_pen_events[j].get_coordinates())
+        for i in range(len(point_list_one)):
+            for j in range(len(point_list_two)):
+                if as_objects:
+                    distance_between_points = distance.euclidean(point_list_one[i].get_coordinates(),
+                                                                 point_list_two[j].get_coordinates())
+                else:
+                    distance_between_points = distance.euclidean(point_list_one[i],
+                                                                 point_list_two[j])
                 distances.append([i, j, distance_between_points])
 
         # Sort list of lists by third element, in this case the distance between the points
