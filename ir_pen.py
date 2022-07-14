@@ -20,7 +20,7 @@ MODEL_PATH = 'evaluation/hover_predictor_flir_4'
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 1  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.8  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
@@ -30,7 +30,7 @@ TIME_POINT_MISSING_THRESHOLD_MS = 22
 CLICK_THRESH_MS = 10
 
 # Hover will be selected over Draw if Hover Event is within the last X event states
-KERNEL_SIZE_HOVER_WINS = 3
+KERNEL_SIZE_HOVER_WINS = 2
 
 MIN_BRIGHTNESS_FOR_PREDICTION = 50
 
@@ -159,73 +159,76 @@ class IRPen:
 
         debug_distances = [0, (0, 0)]
 
-        for i, frame in enumerate(camera_frames):
-            predictions.append([])
-            rois.append([])
-            roi_coords.append([])
-            brightness_values.append([])
-            subpixel_coords.append([])
-
-            rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
-
-            # if TRAINING_DATA_COLLECTION_MODE:
-            #     self.save_training_image(pen_event_roi, (x, y))
-            #     continue
-
-            for j, pen_event_roi in enumerate(rois_new):
-
-                prediction, confidence = self.predict(pen_event_roi)
-
-                predictions[i].append(prediction)
-                rois[i].append(pen_event_roi)
-
-                transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1], transform_matrices[i])
-                roi_coords[i].append(transformed_coords)
-
-                brightness_values[i].append(max_brightness_values[j])
-
-                (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
-
-                subpixel_coords[i].append((x, y))
-
-        # print(brightness_values)
-
-        new_pen_events = self.find_corresponding_spots(subpixel_coords, predictions, brightness_values)
-
-        # This function needs to be called even if there are no new pen events to update all existing events
-        self.active_pen_events = self.merge_pen_events(new_pen_events)
-
-        return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, debug_distances
-
-        # # 8 ms
+        # WIP new approach for multiple pens
         # for i, frame in enumerate(camera_frames):
-        #     # TODO: Get here all spots and not just one
+        #     predictions.append([])
+        #     rois.append([])
+        #     roi_coords.append([])
+        #     brightness_values.append([])
+        #     subpixel_coords.append([])
         #
-        #     # crop 1: 0.5 ms
-        #     # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
-        #     pen_event_roi, brightest, (x, y) = self.crop_image(frame)
+        #     rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
         #
-        #     if TRAINING_DATA_COLLECTION_MODE:
-        #         self.save_training_image(pen_event_roi, (x, y))
-        #         continue
+        #     # if TRAINING_DATA_COLLECTION_MODE:
+        #     #     self.save_training_image(pen_event_roi, (x, y))
+        #     #     continue
         #
-        #     if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
-        #         rois.append(pen_event_roi)
+        #     for j, pen_event_roi in enumerate(rois_new):
         #
-        #         transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
-        #         roi_coords.append(transformed_coords)
+        #         prediction, confidence = self.predict(pen_event_roi)
         #
-        #         brightness_values.append(brightest)
+        #         predictions[i].append(prediction)
+        #         rois[i].append(pen_event_roi)
+        #
+        #         transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1], transform_matrices[i])
+        #         roi_coords[i].append(transformed_coords)
+        #
+        #         brightness_values[i].append(max_brightness_values[j])
         #
         #         (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
         #
-        #         subpixel_coords.append((x, y))
-        #         debug_distances.append(subpixel_coords)
+        #         subpixel_coords[i].append((x, y))
+
+        # print(brightness_values)
+
+        # new_pen_events = self.find_corresponding_spots(subpixel_coords, predictions, brightness_values)
+        #
+        # # This function needs to be called even if there are no new pen events to update all existing events
+        # self.active_pen_events = self.merge_pen_events(new_pen_events)
+        #
+        # print(self.active_pen_events)
+        #
+        # return self.active_pen_events, self.stored_lines, self.new_lines, self.pen_events_to_remove, debug_distances
+
+        # 8 ms
+        for i, frame in enumerate(camera_frames):
+            # TODO: Get here all spots and not just one
+
+            # crop 1: 0.5 ms
+            # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
+            pen_event_roi, brightest, (x, y) = self.crop_image(frame)
+
+            if TRAINING_DATA_COLLECTION_MODE:
+                self.save_training_image(pen_event_roi, (x, y))
+                continue
+
+            if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
+                rois.append(pen_event_roi)
+
+                transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
+                roi_coords.append(transformed_coords)
+
+                brightness_values.append(brightest)
+
+                (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
+
+                subpixel_coords.append((x, y))
+                debug_distances.append(subpixel_coords)
 
         # If we see only one point:
         if len(subpixel_coords) == 1:
             prediction, confidence = self.predict(rois[0])
-            print(prediction)
+            # print(prediction)
             if prediction == 'draw':
                 # print('Status: Touch')
                 new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1])
@@ -309,7 +312,7 @@ class IRPen:
                 cv2.circle(zeros, point_right_cam, 20, (0, 0, 255), -1)
 
         print(' ')
-        print(subpixel_coords)
+        # print(subpixel_coords)
 
         # Deal with single points first
         if len(subpixel_coords[0]) == 0 and len(subpixel_coords[1]) > 0 or len(subpixel_coords[0]) > 0 and len(subpixel_coords[1]) == 0:
@@ -348,7 +351,6 @@ class IRPen:
 
                         new_pen_events.append(self.generate_new_pen_event(prediction_a, center_x,center_y))
 
-
             for i in range(len(subpixel_coords[0])):
                 if i not in used_left:
                     print('Point {} on cam 0 remains'.format(i))
@@ -363,7 +365,7 @@ class IRPen:
 
 
             #print(shortest_distance_point_pairs)
-        print(new_pen_events)
+        # print(new_pen_events)
 
         # for point_left_cam in subpixel_coords[0]:
         #     for point_right_cam in subpixel_coords[1]:
@@ -738,6 +740,9 @@ class IRPen:
         for entry in shortest_distance_point_pairs:
             last_pen_event = self.active_pen_events[entry[0]]
             new_pen_event = new_pen_events[entry[1]]
+
+            if last_pen_event.id == -1:
+                continue
 
             if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
                 # print('TOUCH EVENT turned into HOVER EVENT')
