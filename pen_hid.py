@@ -45,10 +45,12 @@ class InputSimulator:
             button = e.BTN_RIGHT
 
         if state == 'draw':
+            print(btn + ' click')
             self.device.write(e.EV_KEY, button, 1)
             self.was_pressed = True
         else:
             if self.was_pressed == True:
+                print(btn + ' release')
                 self.device.write(e.EV_KEY, button, 0)
                 self.was_pressed = False
 
@@ -59,7 +61,8 @@ class InputSimulator:
         time.sleep(0.1)
         self.device.close()
 
+
 if __name__ == '__main__':
     input_device = InputSimulator(1920, 1080)
     input_device.input_event(1, 0, 'draw')
-    close()
+    input_device.close()
