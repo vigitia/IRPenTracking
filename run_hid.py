@@ -126,7 +126,8 @@ class Run:
                             # print(now, self.draw_start_timestamp, now - self.draw_start_timestamp)
                             if now - self.draw_start_timestamp >= LONG_CLICK_TIME:
                                 self.current_click_type = 'right'
-                                print('RIGHT CLICK')
+                                draw_just_started = True
+                                # print('RIGHT CLICK')
 
                                 self.logging_draw_events = False
                                 self.last_draw_coords = []

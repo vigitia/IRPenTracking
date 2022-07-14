@@ -3,6 +3,10 @@ from evdev import UInput, ecodes as e, AbsInfo, InputDevice
 import time
 
 class InputSimulator:
+
+    left_pressed = False
+    right_pressed = False
+
     def __init__(self, w, h):
         # specify capabilities for our virtual input device
         self.capabilities = {
@@ -40,14 +44,30 @@ class InputSimulator:
 
     def click_event(self, btn, state):
         if btn == 'left':
+            if self.right_pressed:
+                print('right release')
+                self.device.write(e.EV_KEY, e.BTN_RIGHT, 0)
+                self.was_pressed = False
+                self.right_pressed = False
+
             button = e.BTN_LEFT
         else:
+            if self.left_pressed:
+                print('left release')
+                self.device.write(e.EV_KEY, e.BTN_LEFT, 0)
+                self.was_pressed = False
+                self.left_pressed = False
+
             button = e.BTN_RIGHT
 
         if state == 'draw':
-            print(btn + ' click')
+            # print(btn + ' click')
             self.device.write(e.EV_KEY, button, 1)
             self.was_pressed = True
+            if btn == 'left':
+                self.left_pressed = True
+            elif btn == 'right':
+                self.right_pressed = True
         else:
             if self.was_pressed == True:
                 print(btn + ' release')
