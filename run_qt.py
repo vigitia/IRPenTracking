@@ -714,10 +714,10 @@ class GLWidget(QOpenGLWidget):
 
         painter.setPen(self.pen)
 
-        global last_time
-        global current_debug_distances
-        painter.setFont(self.font)
-        painter.drawText(current_debug_distances[1][0], current_debug_distances[1][1], str(current_debug_distances[0]))
+        # global last_time
+        # global current_debug_distances
+        # painter.setFont(self.font)
+        # painter.drawText(current_debug_distances[1][0], current_debug_distances[1][1], str(current_debug_distances[0]))
         # painter.drawText(100, 500, str(last_time) + ' ms')
 
         polygons_to_draw = []
