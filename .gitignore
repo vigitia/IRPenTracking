@@ -137,6 +137,7 @@ out3/
 
 .idea/
 
+calibration_images/
 output_images/
 
 additional_training_images/
