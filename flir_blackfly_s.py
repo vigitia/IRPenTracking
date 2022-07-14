@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import datetime
+import os
 import sys
 import threading
 
@@ -17,6 +18,8 @@ from table_extraction_service import TableExtractionService
 DEBUG_MODE = False
 EXTRACT_PROJECTION_AREA = False
 SHOW_DEBUG_STACKED_FRAMES = False
+
+CALIBRATION_DATA_PATH = ''
 
 CALIBRATION_MODE = False
 
@@ -41,6 +44,9 @@ def timeit(prefix):
 
 class FlirBlackflyS:
 
+    camera_matrices = []
+    dist_matrices = []
+
     system = None
     cam_list = []
 
@@ -48,7 +54,12 @@ class FlirBlackflyS:
     matrices = []
     new_frames_available = False
 
-    def __init__(self):
+    def __init__(self, cam_exposure=CAM_EXPOSURE, framerate=FRAMERATE):
+        global CAM_EXPOSURE
+        global FRAMERATE
+        CAM_EXPOSURE = cam_exposure
+        FRAMERATE = framerate
+
         self.surface_selector = SurfaceSelector()
         self.table_extractor = TableExtractionService()
 
@@ -114,6 +125,10 @@ class FlirBlackflyS:
             except PySpin.SpinnakerException as ex:
                 print('Error: %s' % ex)
 
+        # for i, frame in enumerate(newest_frames):
+        #     if self.camera_matrices[i] is not None and self.dist_matrices[i] is not None:
+        #         newest_frames[i] = cv2.undistort(frame, self.camera_matrices[i], self.dist_matrices[i], None, None)
+
         with self.read_lock:
             self.newest_frames = newest_frames
             self.new_frames_available = True
@@ -166,6 +181,8 @@ class FlirBlackflyS:
         num_cameras = self.cam_list.GetSize()
         print('Number of cameras detected: %d' % num_cameras)
 
+        # self.load_camera_calibration_data(num_cameras)
+
         # Finish if there are no cameras
         if num_cameras == 0:
             self.cam_list.Clear()  # Clear camera list before releasing system
@@ -192,6 +209,22 @@ class FlirBlackflyS:
 
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
+
+    def load_camera_calibration_data(self, num_cameras):
+        print('load calibration data')
+
+        for i in range(num_cameras):
+            self.camera_matrices.append([None])
+            self.dist_matrices.append([None])
+            try:
+                # TODO: Change path
+                cv_file = cv2.FileStorage(os.path.join(CALIBRATION_DATA_PATH, 'FlirBlackflyS {}.yml'.format(i)),
+                                          cv2.FILE_STORAGE_READ)
+                self.camera_matrices[i] = cv_file.getNode('K').mat()
+                self.dist_matrices[i] = cv_file.getNode('D').mat()
+                cv_file.release()
+            except:
+                print('Cant load calibration data for FlirBlackflyS {}.yml'.format(i))
 
     def apply_camera_settings(self, cam):
 
@@ -303,8 +336,13 @@ class FlirBlackflyS:
 if __name__ == '__main__':
     # If this script is started as main, the debug mode is activated by default:
     DEBUG_MODE = True
+    cam_exposure = CAM_EXPOSURE
+    framerate = FRAMERATE
+
+    cam_exposure = 80000
+
     if CALIBRATION_MODE:
         DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
-        CAM_EXPOSURE = 80000  # Increase Brightness to better see the corners
-    flir_blackfly_s = FlirBlackflyS()
+        cam_exposure = 200000  # Increase Brightness to better see the corners
+    flir_blackfly_s = FlirBlackflyS(cam_exposure=cam_exposure, framerate=framerate)
     flir_blackfly_s.start()
