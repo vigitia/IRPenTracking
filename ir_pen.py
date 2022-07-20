@@ -13,7 +13,7 @@ from cv2 import cv2
 # Aktuell bestes model:
 # MODEL_PATH = 'evaluation/hover_predictor_flir_2'
 
-MODEL_PATH = 'evaluation/hover_predictor_flir_8'
+MODEL_PATH = 'evaluation/hover_predictor_flir_6'
 
 CROP_IMAGE_SIZE = 48
 
@@ -35,7 +35,7 @@ MIN_BRIGHTNESS_FOR_PREDICTION = 50
 MAX_DISTANCE_DRAW = 50
 
 # Removes all points that are not within the screen coordinates (e.g. 3840x2160)
-REMOVE_EVENTS_OUTSIDE_BORDER = True # TODO!
+REMOVE_EVENTS_OUTSIDE_BORDER = True  # TODO!
 
 
 DEBUG_MODE = False
@@ -52,6 +52,8 @@ TRAINING_DATA_COLLECTION_MODE = False
 TRAIN_STATE = 'hover_close_2_500'
 TRAIN_PATH = 'out3/2022-07-15'
 TRAIN_IMAGE_COUNT = 3000
+
+MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES = 800
 
 
 def timeit(prefix):
@@ -109,7 +111,7 @@ class IRPen:
     active_pen_events = []
     new_pen_events = []
 
-    highest_id = 1  # Assign each new pen event a new id. This variable keeps track of the highest number.
+    highest_id = 0  # Assign each new pen event a new id. This variable keeps track of the highest number.
 
     # If a pen event is over, it will be deleted. But its points will be stored here to keep track of all drawn lines.
     stored_lines = []
@@ -732,7 +734,7 @@ class IRPen:
 
             # TODO: Rework this check
             if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
-                print('TOUCH EVENT turned into HOVER EVENT')
+                print('Pen Event {} turned from State.DRAG into State.HOVER'.format(last_pen_event.id))
                 # new_pen_event.state_history.append(new_pen_event.state)
                 # We now want to assign a new ID
                 # TODO: Check why this event is called more than once
@@ -747,19 +749,21 @@ class IRPen:
             # touch final_pen_event
             if State.HOVER in new_pen_event.state_history[-4:-2] and not State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:  #  last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
                 pass
-                # print('HOVER EVENT turned into TOUCH EVENT')
+                # print('Pen Event {} turned from State.HOVER into State.DRAG'.format(last_pen_event.id))
 
             # Overwrite the current state to hover
-            if State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
-                print('Hover wins')
+            if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
+                print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
                 new_pen_event.state = State.HOVER
             else:
-                print('Turning {} into a Drag event'.format(new_pen_event.state))
+                # print('Turning {} into a Drag event'.format(new_pen_event.state))
                 # if State.HOVER in new_pen_event.state_history[-4:-2]:
                 #     new_pen_event.state = State.NEW
                 # else:
                 # TODO: CHANGE this to allow for different types of drag events
-                new_pen_event.state = State.DRAG  # last_pen_event.state
+                # new_pen_event.state = State.DRAG  # last_pen_event.state
+                if new_pen_event.state != State.DRAG:
+                    pass
 
             # elif new_pen_event.state != State.HOVER:   # last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
             #     print('HOVER EVENT turned into TOUCH EVENT')
@@ -817,13 +821,13 @@ class IRPen:
                     new_pen_events.append(active_pen_event)
                 elif active_pen_event.state == State.DRAG:
                     # End of a drag event
-                    print('DRAG END')
+                    print('DRAG Event ended for Pen Event {}'.format(active_pen_event.id))
                     self.pen_events_to_remove.append(active_pen_event)
                     self.stored_lines.append(np.array(active_pen_event.history))
                     self.new_pen_events.append(active_pen_event.history)
                 elif active_pen_event.state == State.HOVER:
                     # End of a Hover event
-                    print('HOVER EVENT END')
+                    print('HOVER Event ended for Pen Event {}'.format(active_pen_event.id))
                     self.pen_events_to_remove.append(active_pen_event)
 
         # Now we have al list of new events that need their own unique ID. Those are assigned now
@@ -840,7 +844,7 @@ class IRPen:
             if final_pen_event.state != State.CLICK and final_pen_event.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
                 if final_pen_event.state == State.NEW:
                     # Start of a drag event
-                    print('DRAG START')
+                    print('DRAG Event started for Pen Event {}'.format(final_pen_event.id))
                     final_pen_event.state = State.DRAG
                 # elif final_pen_event.state == State.HOVER:
                 #     print('DETECTED Hover EVENT!')
@@ -901,6 +905,10 @@ class IRPen:
                 else:
                     distance_between_points = distance.euclidean(point_list_one[i],
                                                                  point_list_two[j])
+
+                if distance_between_points > MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES:
+                    print('DISTANCE {} TOO LARGE'.format(distance_between_points))
+                    continue
                 distances.append([i, j, distance_between_points])
 
         # Sort list of lists by third element, in this case the distance between the points
