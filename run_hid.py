@@ -6,8 +6,6 @@
 import datetime
 import time
 
-import cv2
-
 from ir_pen import IRPen, State
 from pen_hid import InputSimulator
 
@@ -18,6 +16,8 @@ from realsense_d435 import RealsenseD435Camera
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
 
+MAX_MOVEMENT_PX = 5
+LONG_CLICK_TIME = 1.75  # 0.35
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -65,7 +65,6 @@ class Run:
     # current_click_type = 'right'
     current_click_type = 'left'
 
-
     def process_frames(self):
         # ir_image_table = self.realsense_d435_camera.get_ir_image()
         # if ir_image_table is not None:
@@ -103,9 +102,6 @@ class Run:
                     draw_just_ended = True
                     self.current_click_type = 'left'
 
-                MAX_MOVEMENT_PX = 10
-                LONG_CLICK_TIME = 0.75  # 0.35
-
                 if self.logging_draw_events:
                     if state == 'draw':
                         self.last_draw_coords.append((x, y))
@@ -140,8 +136,9 @@ class Run:
             self.last_state = state
 
             # Check if the event happens within the projection area
-            if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
-                # print(x, y)
+            # if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
+            if 0 < x <= WINDOW_WIDTH - 300 and 0 < y <= WINDOW_HEIGHT:
+                print(x, y)
 
                 self.input_device.move_event(int(x), int(y))
 

@@ -140,4 +140,12 @@ out3/
 calibration_images/
 output_images/
 
+ROS2/build
+ROS2/install
+ROS2/log
+ROS2/config.ini
+
+
+
+
 additional_training_images/

@@ -15,7 +15,7 @@ from cv2 import cv2
 # Aktuell bestes model:
 # MODEL_PATH = 'evaluation/hover_predictor_flir_2'
 
-MODEL_PATH = 'evaluation/hover_predictor_flir_4'
+MODEL_PATH = 'evaluation/hover_predictor_flir_8'
 
 CROP_IMAGE_SIZE = 48
 
@@ -36,6 +36,9 @@ MIN_BRIGHTNESS_FOR_PREDICTION = 50
 
 MAX_DISTANCE_DRAW = 50
 
+# Removes all points that are not within the screen coordinates (e.g. 3840x2160)
+REMOVE_EVENTS_OUTSIDE_BORDER = True # TODO!
+
 
 DEBUG_MODE = False
 
@@ -48,8 +51,8 @@ CAMERA_HEIGHT = 1200  # 480
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'draw_fast_500'
-TRAIN_PATH = 'out3/2022-07-08'
+TRAIN_STATE = 'hover_close_2_500'
+TRAIN_PATH = 'out3/2022-07-15'
 TRAIN_IMAGE_COUNT = 3000
 
 def timeit(prefix):
@@ -914,3 +917,20 @@ class IRPen:
         distances.sort(key=lambda x: x[2])
 
         return distances
+
+
+if __name__ == '__main__':
+    from flir_blackfly_s import FlirBlackflyS
+    flir_blackfly_s = FlirBlackflyS()
+    flir_blackfly_s.start()
+
+    ir_pen = IRPen()
+
+    while True:
+        new_frames, matrices = flir_blackfly_s.get_camera_frames()
+
+        if len(new_frames) > 0:
+            active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(new_frames,
+                                                                                                       matrices)
+
+            print(active_pen_events)
