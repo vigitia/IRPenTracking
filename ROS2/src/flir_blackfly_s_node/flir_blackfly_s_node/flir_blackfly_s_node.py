@@ -19,9 +19,13 @@ class FLirBlackflySNode(Node):
     def __init__(self):
         super().__init__('flir_blackfly_s_node')
 
-        param_desc_topic = ParameterDescriptor(type=ParameterType.PARAMETER_STRING,
+        param_desc_flir_blackfly_s_0 = ParameterDescriptor(type=ParameterType.PARAMETER_STRING,
                                                description='name of publishing topic')
-        self.declare_parameter('topic', '/vigitia/flir_blackfly_s', param_desc_topic)
+        self.declare_parameter('flir_blackfly_s_0', '/vigitia/flir_blackfly_s_0', param_desc_flir_blackfly_s_0)
+
+        param_desc_flir_blackfly_s_1 = ParameterDescriptor(type=ParameterType.PARAMETER_STRING,
+                                                           description='name of publishing topic')
+        self.declare_parameter('flir_blackfly_s_1', '/vigitia/flir_blackfly_s_1', param_desc_flir_blackfly_s_1)
 
         param_desc_queue_length = ParameterDescriptor(type=ParameterType.PARAMETER_INTEGER,
                                                       description='length of the queue')
@@ -29,10 +33,17 @@ class FLirBlackflySNode(Node):
 
         self.cv_bridge = CvBridge()
 
-        self.publisher = self.create_publisher(msg_type=Image,
-                                               topic=self.get_parameter("topic").get_parameter_value().string_value,
-                                               qos_profile=self.get_parameter("queue_length").get_parameter_value().
-                                               integer_value)
+        self.publisher_flir_blackfly_s_0 = self.create_publisher(msg_type=Image,
+                                                                 topic=self.get_parameter(
+                                                                     'flir_blackfly_s_0').get_parameter_value().string_value,
+                                                                 qos_profile=self.get_parameter(
+                                                                     "queue_length").get_parameter_value().
+                                                                 integer_value)
+
+        self.publisher_flir_blackfly_s_1 = self.create_publisher(msg_type=Image,
+                                                                 topic=self.get_parameter('flir_blackfly_s_1').get_parameter_value().string_value,
+                                                                 qos_profile=self.get_parameter("queue_length").get_parameter_value().
+                                                                 integer_value)
 
         flir_blackfly_s = FlirBlackflyS(ros2_node=self)
         flir_blackfly_s.start()

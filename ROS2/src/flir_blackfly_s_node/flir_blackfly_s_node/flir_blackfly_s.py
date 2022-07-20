@@ -134,7 +134,9 @@ class FlirBlackflyS:
         #         newest_frames[i] = cv2.undistort(frame, self.camera_matrices[i], self.dist_matrices[i], None, None)
 
         if self.ros2_node is not None:
-            self.ros2_node.publisher.publish(self.ros2_node.cv_bridge.cv2_to_imgmsg(newest_frames[0], "passthrough"))
+            self.ros2_node.publisher_flir_blackfly_s_0.publish(self.ros2_node.cv_bridge.cv2_to_imgmsg(newest_frames[0], "passthrough"))
+            if len(newest_frames) >= 2:
+                self.ros2_node.publisher_flir_blackfly_s_1.publish(self.ros2_node.cv_bridge.cv2_to_imgmsg(newest_frames[1], "passthrough"))
         else:
             with self.read_lock:
                 self.newest_frames = newest_frames
