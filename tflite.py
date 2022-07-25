@@ -44,7 +44,7 @@ class LiteModel:
         self.output_dtype = output_det["dtype"]
         self.working = False
 
-    @timeit('Predict tflite')
+    # @timeit('Predict tflite')
     def predict(self, inp):
         while self.working:
             pass
