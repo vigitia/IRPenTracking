@@ -1,20 +1,22 @@
 
 import sys
 import datetime
+import time
 
 import cv2
+import numpy as np
 from PyQt5.QtCore import Qt, QPoint, QThread
 from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QSurfaceFormat, QPolygon, QFont, QImage)
 from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
 
-from realsense_d435 import RealsenseD435Camera
+# from realsense_d435 import RealsenseD435Camera
 from flir_blackfly_s import FlirBlackflyS
 from ir_pen import IRPen
 
 # from draw_shape import ShapeCreator
 
-WINDOW_WIDTH = 3840
-WINDOW_HEIGHT = 2160
+WINDOW_WIDTH = 3840  # 1920
+WINDOW_HEIGHT = 2160  # 1080
 
 LINE_THICKNESS = 1
 PEN_COLOR = QColor(255, 255, 255, 255)
@@ -57,7 +59,7 @@ def timeit(prefix):
             # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
             # if run_time > 0.1:
             last_time = prefix + ' ' + f'{run_time:.3f}'
-            #print(f'{prefix} > {last_time}  ms', flush=True)
+            print(f'{prefix} > {last_time}  ms', flush=True)
             return retval
         return wrapper
     return timeit_decorator
@@ -72,6 +74,9 @@ class ApplicationLoopThread(QThread):
     color_index = 0
     current_color = QColor(255, 255, 255, 255)
 
+    start_time = time.time()
+    frame_counter = 0
+
     def get_next_color(self):
         if self.color_index == len(self.colors):
             self.color_index = 0
@@ -81,16 +86,20 @@ class ApplicationLoopThread(QThread):
 
     def __init__(self, painting_widget):
         QThread.__init__(self)
-
         self.painting_widget = painting_widget
-        # self.ir_pen = IRPen()
 
     def __del__(self):
         self.wait()
 
     def run(self):
         while True:
+
             self.process_frames()
+
+            # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+            #     print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+            #     self.frame_counter = 0
+            #     self.start_time = time.time()
 
     # @timeit("Process frames")
     def process_frames(self):
@@ -100,9 +109,18 @@ class ApplicationLoopThread(QThread):
         # left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
 
         new_frames, matrices = flir_blackfly_s.get_camera_frames()
-        # if left_ir_image_1 is not None and left_ir_image_2 is not None:
 
         if len(new_frames) > 0:
+            # self.frame_counter += 1
+
+            # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(new_frames[0])
+            # if brightest > 100:
+            #     # print('Bright!')
+            #     self.painting_widget.fill_screen_white()
+            # else:
+            #     self.painting_widget.fill_screen_black()
+            #
+            # return
 
             # old: 12 - 15 ms
             # crop: 9 - 10 ms
@@ -119,6 +137,8 @@ class ApplicationLoopThread(QThread):
 
             # active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
             active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(new_frames, matrices)
+
+            # active_pen_events, stored_lines, _, _, debug_distances = [], [], [], [], []
             global current_debug_distances
             current_debug_distances = debug_distances
             # end_time = time.time()
@@ -144,6 +164,15 @@ class ApplicationLoopThread(QThread):
             # img_pen_roi = cv2.resize(img_pen_roi, (1024, 1024))
 
             self.painting_widget.draw_all_points(active_pen_events, stored_lines) # 1.2 ms
+        else:
+            # We need this sleep. Otherwise we will overload the camera script with too many requests for new frames.
+            # TODO: Find a better solution
+            time.sleep(0.0001)
+
+            # end_time = time.time()
+            # run_time = (end_time - self.start_time) * 1000
+            # print(run_time, flush=True)
+            # self.start_time = time.time()
 
             # self.painting_widget.preview_images_on_canvas(
             #     [current_ir_image_table_1, current_ir_image_table_2, ir_image_fake_color, img_pen_roi],
@@ -673,6 +702,8 @@ class GLWidget(QOpenGLWidget):
     active_pen_events = []
     stored_lines = []
 
+    fill_screen_white = False
+
     def __init__(self, parent):
         super(GLWidget, self).__init__(parent)
 
@@ -694,9 +725,17 @@ class GLWidget(QOpenGLWidget):
         self.color = QColor(255, 255, 255, 255)
         self.color_hover = QColor(255, 255, 255, 40)
 
-        self.setAutoFillBackground(False)
+        #self.setAutoFillBackground(False)
 
         self.last_stored_lines_length = 0
+
+    def mousePressEvent(self, QMouseEvent):
+        self.fill_screen_white = True
+        self.update()
+
+    def mouseReleaseEvent(self, QMouseEvent):
+        self.fill_screen_white = False
+        self.update()
 
     def update_data(self, active_pen_events, stored_lines):
         self.active_pen_events = active_pen_events
@@ -719,6 +758,15 @@ class GLWidget(QOpenGLWidget):
         # painter.setFont(self.font)
         # painter.drawText(current_debug_distances[1][0], current_debug_distances[1][1], str(current_debug_distances[0]))
         # painter.drawText(100, 500, str(last_time) + ' ms')
+
+        if self.fill_screen_white:
+            painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
+            painter.drawRect(600, 0, 1900, 1000)
+            #painter.drawRect(0, 0, 500, 500)
+
+            painter.end()
+            return
+
 
         polygons_to_draw = []
 
@@ -782,6 +830,17 @@ class Window(QMainWindow):
         self.openGL.update_data(active_pen_events, stored_lines)
         self.openGL.update()
 
+    def fill_screen_white(self):
+        # For latency measurements
+        self.openGL.fill_screen_white = True
+        self.openGL.update()
+
+    def fill_screen_black(self):
+        # For latency measurements
+        self.openGL.fill_screen_white = False
+        self.openGL.update()
+
+
     # Handle Key-press events
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
@@ -797,9 +856,9 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
 
-    fmt = QSurfaceFormat()
-    fmt.setSamples(4)
-    QSurfaceFormat.setDefaultFormat(fmt)
+    # fmt = QSurfaceFormat()
+    # fmt.setSamples(4)
+    # QSurfaceFormat.setDefaultFormat(fmt)
 
     window = Window()
     window.show()
