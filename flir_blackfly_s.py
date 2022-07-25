@@ -5,6 +5,7 @@ import datetime
 import os
 import sys
 import threading
+import time
 
 import PySpin
 import cv2
@@ -26,7 +27,7 @@ CALIBRATION_MODE = False
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1200
 
-CAM_EXPOSURE = 500
+CAM_EXPOSURE = 300
 FRAMERATE = 158
 
 def timeit(prefix):
@@ -46,6 +47,7 @@ class FlirBlackflyS:
 
     camera_matrices = []
     dist_matrices = []
+    rectify_maps = []
 
     system = None
     cam_list = []
@@ -53,6 +55,9 @@ class FlirBlackflyS:
     newest_frames = []
     matrices = []
     new_frames_available = False
+
+    start_time = time.time()
+    frame_counter = 0
 
     def __init__(self, cam_exposure=CAM_EXPOSURE, framerate=FRAMERATE):
         global CAM_EXPOSURE
@@ -82,6 +87,14 @@ class FlirBlackflyS:
         while self.started:
             self.process_frames()
 
+            if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+                if DEBUG_MODE:
+                    print("FPS: %s (Warning: DEBUG_MODE might reduce FPS)" % round(self.frame_counter / (time.time() - self.start_time), 1))
+                else:
+                    print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+                self.frame_counter = 0
+                self.start_time = time.time()
+
         for cam in self.cam_list:
             cam.EndAcquisition()  # End acquisition
 
@@ -101,6 +114,8 @@ class FlirBlackflyS:
 
         newest_frames = []
 
+        self.frame_counter += 1
+
         if len(self.matrices) == 0:
             for i, cam in enumerate(self.cam_list):
                 self.matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Camera {}'.format(i)))
@@ -119,15 +134,20 @@ class FlirBlackflyS:
                     # Convert image to mono 8
                     # image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
 
+                #  Images retrieved directly from the camera need to be released in order to keep from filling the
+                #  buffer.
                 image_result.Release()  # Release image
                 #end = datetime.datetime.now()
                 #print('GetNextImage', (end - start).microseconds / 1000.0)
             except PySpin.SpinnakerException as ex:
                 print('Error: %s' % ex)
 
-        # for i, frame in enumerate(newest_frames):
-        #     if self.camera_matrices[i] is not None and self.dist_matrices[i] is not None:
-        #         newest_frames[i] = cv2.undistort(frame, self.camera_matrices[i], self.dist_matrices[i], None, None)
+        for i, frame in enumerate(newest_frames):
+            if self.camera_matrices[i] is not None and self.dist_matrices[i] is not None:
+                newest_frames[i] = cv2.remap(frame, self.rectify_maps[i][0], self.rectify_maps[i][1],
+                                             interpolation=cv2.INTER_LINEAR)
+
+                # newest_frames[i] = cv2.undistort(frame, self.camera_matrices[i], self.dist_matrices[i], None, None)
 
         with self.read_lock:
             self.newest_frames = newest_frames
@@ -142,7 +162,7 @@ class FlirBlackflyS:
                 if EXTRACT_PROJECTION_AREA:
                     extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
                     extracted_frames.append(extracted_frame)
-                    cv2.imshow('Flir Camera {} extracted'.format(i), frame)
+                    cv2.imshow('Flir Camera {} extracted'.format(i), extracted_frame)
 
             if SHOW_DEBUG_STACKED_FRAMES and len(extracted_frames) == 2:
                 zeroes = np.zeros(extracted_frames[0].shape, 'uint8')
@@ -181,7 +201,7 @@ class FlirBlackflyS:
         num_cameras = self.cam_list.GetSize()
         print('Number of cameras detected: %d' % num_cameras)
 
-        # self.load_camera_calibration_data(num_cameras)
+        self.load_camera_calibration_data(num_cameras)
 
         # Finish if there are no cameras
         if num_cameras == 0:
@@ -222,6 +242,13 @@ class FlirBlackflyS:
                                           cv2.FILE_STORAGE_READ)
                 self.camera_matrices[i] = cv_file.getNode('K').mat()
                 self.dist_matrices[i] = cv_file.getNode('D').mat()
+
+                map1, map2 = cv2.initUndistortRectifyMap(self.camera_matrices[i], self.dist_matrices[i], None, None,
+                                                         (FRAME_WIDTH, FRAME_HEIGHT), cv2.CV_32FC1)
+
+                self.rectify_maps.append([])
+                self.rectify_maps[i] = [map1, map2]
+
                 cv_file.release()
             except:
                 print('Cant load calibration data for FlirBlackflyS {}.yml'.format(i))
@@ -325,24 +352,39 @@ class FlirBlackflyS:
         return result
 
     def get_camera_frames(self):
+
         if self.new_frames_available:
+            # self.frame_counter += 1
             with self.read_lock:
+
                 self.new_frames_available = False
+
+                # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+                #     print("FPS1: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+                #     self.frame_counter = 0
+                #     self.start_time = time.time()
+
                 return self.newest_frames, self.matrices
         else:
+            # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+            #     print("FPS2: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+            #     self.frame_counter = 0
+            #     self.start_time = time.time()
+
             return [], []
 
 
 if __name__ == '__main__':
     # If this script is started as main, the debug mode is activated by default:
     DEBUG_MODE = True
+    EXTRACT_PROJECTION_AREA = False
     cam_exposure = CAM_EXPOSURE
     framerate = FRAMERATE
 
-    cam_exposure = 80000
+    #cam_exposure = 80000
 
     if CALIBRATION_MODE:
         DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
-        cam_exposure = 200000  # Increase Brightness to better see the corners
+        cam_exposure = 100000  # Increase Brightness to better see the corners
     flir_blackfly_s = FlirBlackflyS(cam_exposure=cam_exposure, framerate=framerate)
     flir_blackfly_s.start()
