@@ -88,14 +88,14 @@ class IRPenNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     ir_pen_node = IRPenNode()
-    executor = MultiThreadedExecutor()
-    ir_pen_node.get_logger().info("Shutting down")
-    ir_pen_node.destroy_node()
-    executor.shutdown()
-
-    # rclpy.spin(ir_pen_node)
+    # executor = MultiThreadedExecutor()
+    # ir_pen_node.get_logger().info("Shutting down")
     # ir_pen_node.destroy_node()
-    # rclpy.shutdown()
+    # executor.shutdown()
+
+    rclpy.spin(ir_pen_node)
+    ir_pen_node.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':

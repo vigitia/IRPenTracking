@@ -7,11 +7,34 @@ from PyQt5.QtCore import Qt, QPoint, QThread
 from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QSurfaceFormat, QPolygon, QFont, QImage)
 from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
 
+import rclpy
+from rclpy.node import Node
+from rcl_interfaces.msg import ParameterType, ParameterDescriptor
+
+from vigitia_interfaces.msg import IRPenEvents
 
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
 
 LINE_THICKNESS = 1
+
+
+class ApplicationLoopThread(QThread):
+
+    def __init__(self):
+        QThread.__init__(self)
+
+        rclpy.init()
+        self.pen_drawing_node = PenDrawingNode()
+
+    def __del__(self):
+        self.wait()
+        self.pen_drawing_node.destroy_node()
+        rclpy.shutdown()
+
+    def run(self):
+        while True:
+            rclpy.spin_once(self.pen_drawing_node)
 
 
 class PenDrawingNode(Node):
@@ -22,8 +45,21 @@ class PenDrawingNode(Node):
         self.init_subscription()
 
     def init_subscription(self):
-        pass
+        topic_parameter_ir_pen_events = ParameterDescriptor(type=ParameterType.PARAMETER_STRING, description='TODO')
+        self.declare_parameter('topic_parameter_pen_events', '/vigitia/ir_pen_events',
+                               topic_parameter_ir_pen_events)
 
+        queue_length = ParameterDescriptor(type=ParameterType.PARAMETER_INTEGER, description='Length of the queue')
+        self.declare_parameter('queue_length', 10, queue_length)
+
+        self.subscription = self.create_subscription(
+            IRPenEvents,  # Datentyp
+            self.get_parameter("topic_parameter_ir_pen_events").get_parameter_value().string_value,
+            self.listener_callback,
+            self.get_parameter("queue_length").get_parameter_value().integer_value)
+
+    def listener_callback(self, data):
+        print(data)
 
 class GLWidget(QOpenGLWidget):
 
