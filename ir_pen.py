@@ -11,14 +11,12 @@ from skimage.feature import peak_local_max
 from cv2 import cv2
 
 # Aktuell bestes model:
-# MODEL_PATH = 'evaluation/hover_predictor_flir_2'
-
-MODEL_PATH = 'evaluation/hover_predictor_flir_6'
+MODEL_PATH = 'evaluation/hover_predictor_flir_9'
 
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.8  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
@@ -40,8 +38,8 @@ REMOVE_EVENTS_OUTSIDE_BORDER = True  # TODO!
 
 DEBUG_MODE = False
 
-WINDOW_WIDTH = 3840
-WINDOW_HEIGHT = 2160
+WINDOW_WIDTH = 3840  # 1920
+WINDOW_HEIGHT = 2160  # 1080
 
 CAMERA_WIDTH = 1920  # 848
 CAMERA_HEIGHT = 1200  # 480
@@ -49,8 +47,8 @@ CAMERA_HEIGHT = 1200  # 480
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_close_2_500'
-TRAIN_PATH = 'out3/2022-07-15'
+TRAIN_STATE = 'hover_far_0_300'
+TRAIN_PATH = 'out3/2022-07-25'
 TRAIN_IMAGE_COUNT = 3000
 
 MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES = 800
@@ -297,6 +295,12 @@ class IRPen:
         # This function needs to be called even if there are no new pen events to update all existing events
         self.active_pen_events = self.merge_pen_events(new_pen_events)
 
+        # for event in self.active_pen_events:
+        #     print(str(vars(event)))
+
+        if len(self.active_pen_events) > 0:
+            print(self.active_pen_events)
+
         return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances
 
     def generate_new_pen_events(self, subpixel_coords, predictions, brightness_values):
@@ -502,7 +506,7 @@ class IRPen:
         return img_cropped, brightest, (max_x, max_y)
 
     def crop_image_2(self, img, size=CROP_IMAGE_SIZE):
-        print('using crop_image_2() function')
+        # print('using crop_image_2() function')
         margin = int(size / 2)
         brightest = int(np.max(img))
         _, thresh = cv2.threshold(img, brightest - 1, 255, cv2.THRESH_BINARY)
@@ -607,8 +611,13 @@ class IRPen:
         # Find the center of the contour using OpenCV Moments
         M = cv2.moments(smallest_contour)
         # calculate x,y coordinate of center
-        cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
+        try:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+        except:
+            print('Error in find_pen_position_subpixel_crop()')
+            cX = 0
+            cY = 0
 
         position = (int(top_left_scaled[0] + cX), int(top_left_scaled[1] + cY))
 
@@ -823,12 +832,21 @@ class IRPen:
                     # End of a drag event
                     print('DRAG Event ended for Pen Event {}'.format(active_pen_event.id))
                     self.pen_events_to_remove.append(active_pen_event)
+                    print('Adding {} points of Event {} to the stored_lines list'.format(len(active_pen_event.history),
+                                                                                         active_pen_event.id))
                     self.stored_lines.append(np.array(active_pen_event.history))
-                    self.new_pen_events.append(active_pen_event.history)
+                    # self.new_pen_events.append(active_pen_event.history)
                 elif active_pen_event.state == State.HOVER:
                     # End of a Hover event
                     print('HOVER Event ended for Pen Event {}'.format(active_pen_event.id))
                     self.pen_events_to_remove.append(active_pen_event)
+
+                    if len(active_pen_event.history) > 0:
+                        print('Adding {} points of Event {} to the stored_lines list'.format(
+                            len(active_pen_event.history),
+                            active_pen_event.id))
+                        self.stored_lines.append(np.array(active_pen_event.history))
+
 
         # Now we have al list of new events that need their own unique ID. Those are assigned now
         final_pen_events = self.assign_new_ids(new_pen_events)
@@ -925,6 +943,8 @@ if __name__ == '__main__':
 
     ir_pen = IRPen()
 
+    DEBUG_MODE = True
+
     while True:
         new_frames, matrices = flir_blackfly_s.get_camera_frames()
 
@@ -932,4 +952,9 @@ if __name__ == '__main__':
             active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(new_frames,
                                                                                                        matrices)
 
-            print(active_pen_events)
+            if len(active_pen_events) > 0:
+                print(active_pen_events)
+        else:
+            # We need this sleep. Otherwise we will overload the camera script with too many requests for new frames.
+            # TODO: Find a better solution
+            time.sleep(0.0001)
