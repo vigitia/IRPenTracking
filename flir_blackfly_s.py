@@ -30,6 +30,7 @@ FRAME_HEIGHT = 1200
 CAM_EXPOSURE = 300
 FRAMERATE = 158
 
+
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
@@ -43,6 +44,64 @@ def timeit(prefix):
     return timeit_decorator
 
 
+class EventType:
+    """
+    'Enum' for choosing whether to register a event specifically for exposure end events
+    or universally for all events.
+    """
+    GENERIC = 0
+    SPECIFIC = 1
+
+CHOSEN_EVENT = EventType.SPECIFIC
+
+
+class DeviceEventHandler(PySpin.DeviceEventHandler):
+    """
+    This class defines the properties, parameters, and the event handler itself. Take a
+    moment to notice what parts of the class are mandatory, and what have been
+    added for demonstration purposes. First, any class used to define device
+    events must inherit from DeviceEventHandler. Second, the method signature of
+    OnDeviceEvent() must also be consistent. Everything else - including the
+    constructor, destructor, properties, and body of OnDeviceEvent() - are
+    particular to the example.
+    """
+    def __init__(self, eventname, cam_id):
+        """
+        This constructor registers an event name to be used on device events.
+
+        :param eventname: Name of event to register.
+        :type eventname: str
+        :rtype: None
+        """
+        super(DeviceEventHandler, self).__init__()
+        self.event_name = eventname
+        self.count = 0
+        self.cam_id = cam_id
+
+    def OnDeviceEvent(self, eventname):
+        """
+        Callback function when a device event occurs.
+        Note eventname is a wrapped gcstring, not a Python string, but basic operations such as printing and comparing
+        with Python strings are supported.
+
+        :param eventname: gcstring representing the name of the occurred event.
+        :type eventname: gcstring
+        :rtype: None
+        """
+        if eventname == self.event_name:
+            self.count += 1
+
+            # Print information on specified device event
+            print('\tDevice Event "{}" ({}) from camera {}; {}'.format(eventname, self.GetDeviceEventId(), self.cam_id,
+                                                                     self.count))
+            # print('\tDevice event %s (%i) from camera number %i...' % (eventname,
+            #                                                    self.GetDeviceEventId(),
+            #                                                    self.count))
+        else:
+            # Print no information on non-specified event
+            print('\tDevice event occurred; not %s; ignoring...' % self.event_name)
+
+
 class FlirBlackflyS:
 
     camera_matrices = []
@@ -51,6 +110,8 @@ class FlirBlackflyS:
 
     system = None
     cam_list = []
+
+    device_event_handlers = []
 
     newest_frames = []
     matrices = []
@@ -95,8 +156,11 @@ class FlirBlackflyS:
                 self.frame_counter = 0
                 self.start_time = time.time()
 
-        for cam in self.cam_list:
+        for i, cam in enumerate(self.cam_list):
             cam.EndAcquisition()  # End acquisition
+
+            cam.UnregisterEventHandler(self.device_event_handlers[i])
+            print('Device event handler unregistered...\n')
 
             # Deinitialize camera. Each camera needs to be deinitialized once all images have been acquired.
             cam.DeInit()
@@ -149,9 +213,9 @@ class FlirBlackflyS:
 
                 # newest_frames[i] = cv2.undistort(frame, self.camera_matrices[i], self.dist_matrices[i], None, None)
 
-        with self.read_lock:
-            self.newest_frames = newest_frames
-            self.new_frames_available = True
+        # with self.read_lock:
+        #     self.newest_frames = newest_frames
+        #     self.new_frames_available = True
 
         if DEBUG_MODE:
             extracted_frames = []
@@ -220,7 +284,22 @@ class FlirBlackflyS:
 
             # Initialize each camera
             for i, cam in enumerate(self.cam_list):
+
+                device_serial_number = -1
+
+                # Retrieve device serial number for filename
+                node_device_serial_number = PySpin.CStringPtr(cam.GetTLDeviceNodeMap().GetNode('DeviceSerialNumber'))
+                if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
+                    device_serial_number = node_device_serial_number.GetValue()
+                    print('Camera %d serial number: %s' % (i, device_serial_number))
+
                 cam.Init()  # Initialize camera
+
+                success, device_event_handler = self.configure_device_events(cam, device_serial_number)
+                if not success:
+                    print('error in configure_device_events()')
+                self.device_event_handlers.append(device_event_handler)
+
                 self.apply_camera_settings(cam)
 
             for i, cam in enumerate(self.cam_list):
@@ -255,7 +334,7 @@ class FlirBlackflyS:
 
     def apply_camera_settings(self, cam):
 
-        # TODO: Also set GAIN, WIDTH AND HEIGHT
+        # TODO: Also set GAIN, WIDTH AND HEIGHT, X_OFFSET, Y_OFFSET
 
         # Set Acquisition Mode to Continuous
         if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
@@ -299,6 +378,60 @@ class FlirBlackflyS:
         else:
             print("PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
 
+        # Retrieve Stream Parameters device nodemap
+        s_node_map = cam.GetTLStreamNodeMap()
+
+        # Retrieve Buffer Handling Mode Information
+        handling_mode = PySpin.CEnumerationPtr(s_node_map.GetNode('StreamBufferHandlingMode'))
+        if not PySpin.IsAvailable(handling_mode) or not PySpin.IsWritable(handling_mode):
+            print('Unable to set Buffer Handling mode (node retrieval). Aborting...\n')
+            return False
+
+        handling_mode_entry = PySpin.CEnumEntryPtr(handling_mode.GetCurrentEntry())
+        if not PySpin.IsAvailable(handling_mode_entry) or not PySpin.IsReadable(handling_mode_entry):
+            print('Unable to set Buffer Handling mode (Entry retrieval). Aborting...\n')
+            return False
+
+        # Set stream buffer Count Mode to manual
+        stream_buffer_count_mode = PySpin.CEnumerationPtr(s_node_map.GetNode('StreamBufferCountMode'))
+        if not PySpin.IsAvailable(stream_buffer_count_mode) or not PySpin.IsWritable(stream_buffer_count_mode):
+            print('Unable to set Buffer Count Mode (node retrieval). Aborting...\n')
+            return False
+
+        stream_buffer_count_mode_manual = PySpin.CEnumEntryPtr(stream_buffer_count_mode.GetEntryByName('Manual'))
+        if not PySpin.IsAvailable(stream_buffer_count_mode_manual) or not PySpin.IsReadable(
+                stream_buffer_count_mode_manual):
+            print('Unable to set Buffer Count Mode entry (Entry retrieval). Aborting...\n')
+            return False
+
+        stream_buffer_count_mode.SetIntValue(stream_buffer_count_mode_manual.GetValue())
+        print('Stream Buffer Count Mode set to manual...')
+
+        # Retrieve and modify Stream Buffer Count
+        buffer_count = PySpin.CIntegerPtr(s_node_map.GetNode('StreamBufferCountManual'))
+        if not PySpin.IsAvailable(buffer_count) or not PySpin.IsWritable(buffer_count):
+            print('Unable to set Buffer Count (Integer node retrieval). Aborting...\n')
+            return False
+
+        # Display Buffer Info
+        print('\nDefault Buffer Handling Mode: %s' % handling_mode_entry.GetDisplayName())
+        print('Default Buffer Count: %d' % buffer_count.GetValue())
+        print('Maximum Buffer Count: %d' % buffer_count.GetMax())
+
+        NUM_BUFFERS = 1
+
+        buffer_count.SetValue(NUM_BUFFERS)
+
+        print('Buffer count set to: %d' % buffer_count.GetValue())
+
+        # handling_mode_entry = handling_mode.GetEntryByName('NewestFirst')
+        handling_mode_entry = handling_mode.GetEntryByName('NewestOnly')
+        # handling_mode_entry = handling_mode.GetEntryByName('OldestFirst')
+        # handling_mode_entry = handling_mode.GetEntryByName('OldestFirstOverwrite')
+
+        handling_mode.SetIntValue(handling_mode_entry.GetValue())
+        print('Buffer Handling Mode has been set to %s' % handling_mode_entry.GetDisplayName())
+
         # node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
         # node_width.SetValue(800)
         # if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
@@ -326,6 +459,9 @@ class FlirBlackflyS:
         # node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
         #
         # print('Camera %d acquisition mode set to continuous' % i)
+
+    # def set_camera_buffer(self):
+
 
     def print_device_info(self, nodemap, cam_num):
 
@@ -373,15 +509,137 @@ class FlirBlackflyS:
 
             return [], []
 
+    def configure_device_events(self, cam, cam_id):
+        """
+        This function configures the example to execute device events by enabling all
+        types of device events, and then creating and registering a device event handler that
+        only concerns itself with an end of exposure event.
+
+        :param INodeMap nodemap: Device nodemap.
+        :param CameraPtr cam: Pointer to camera.
+        :returns: tuple (result, device_event_handler)
+            WHERE
+            result is True if successful, False otherwise
+            device_event_handler is the event handler
+        :rtype: (bool, DeviceEventHandler)
+        """
+        print('\n*** CONFIGURING DEVICE EVENTS ***\n')
+
+        try:
+            success = True
+
+            # Retrieve GenICam nodemap
+            nodemap = cam.GetNodeMap()
+
+            #  Retrieve device event selector
+            #
+            #  *** NOTES ***
+            #  Each type of device event must be enabled individually. This is done
+            #  by retrieving "EventSelector" (an enumeration node) and then enabling
+            #  the device event on "EventNotification" (another enumeration node).
+            #
+            #  This example only deals with exposure end events. However, instead of
+            #  only enabling exposure end events with a simpler device event function,
+            #  all device events are enabled while the device event handler deals with
+            #  ensuring that only exposure end events are considered. A more standard
+            #  use-case might be to enable only the events of interest.
+            node_event_selector = PySpin.CEnumerationPtr(nodemap.GetNode('EventSelector'))
+            if not PySpin.IsAvailable(node_event_selector) or not PySpin.IsReadable(node_event_selector):
+                print('Unable to retrieve event selector entries. Aborting...')
+                return False
+
+            # TODO: Only listen for Exposure End Event
+            entries = node_event_selector.GetEntries()
+            print('Enabling event selector entries...')
+
+            # Enable device events
+            #
+            # *** NOTES ***
+            # In order to enable a device event, the event selector and event
+            # notification nodes (both of type enumeration) must work in unison.
+            # The desired event must first be selected on the event selector node
+            # and then enabled on the event notification node.
+            for entry in entries:
+
+                # Select entry on selector node
+                node_entry = PySpin.CEnumEntryPtr(entry)
+                if not PySpin.IsAvailable(node_entry) or not PySpin.IsReadable(node_entry):
+                    # Skip if node fails
+                    success = False
+                    continue
+
+                node_event_selector.SetIntValue(node_entry.GetValue())
+
+                # Retrieve event notification node (an enumeration node)
+                node_event_notification = PySpin.CEnumerationPtr(nodemap.GetNode('EventNotification'))
+                if not PySpin.IsAvailable(node_event_notification) or not PySpin.IsWritable(node_event_notification):
+                    # Skip if node fails
+                    success = False
+                    continue
+
+                # Retrieve entry node to enable device event
+                node_event_notification_on = PySpin.CEnumEntryPtr(node_event_notification.GetEntryByName('On'))
+                if not PySpin.IsAvailable(node_event_notification_on) or not PySpin.IsReadable(
+                        node_event_notification_on):
+                    # Skip if node fails
+                    success = False
+                    continue
+
+                node_event_notification.SetIntValue(node_event_notification_on.GetValue())
+
+                print('\t%s: enabled...' % node_entry.GetDisplayName())
+
+            # Create device event handler
+            #
+            # *** NOTES ***
+            # The class has been designed to take in the name of an event. If all
+            # events are registered generically, all event types will trigger a
+            # device event; on the other hand, if an event handler is registered
+            # specifically, only that event will trigger an event.
+            device_event_handler = DeviceEventHandler('EventExposureEnd', cam_id)
+
+            # Register device event handler
+            #
+            # *** NOTES ***
+            # Device event handlers are registered to cameras. If there are multiple
+            # cameras, each camera must have any device event handlers registered to it
+            # separately. Note that multiple device event handlers may be registered to a
+            # single camera.
+            #
+            # *** LATER ***
+            # Device event handlers must be unregistered manually. This must be done prior
+            # to releasing the system and while the device event handlers are still in
+            # scope.
+            if CHOSEN_EVENT == EventType.GENERIC:
+
+                # Device event handlers registered generally will be triggered by any device events.
+                cam.RegisterEventHandler(device_event_handler)
+
+                print('Device event handler registered generally...')
+
+            elif CHOSEN_EVENT == EventType.SPECIFIC:
+
+                # Device event handlers registered to a specified event will only
+                # be triggered by the type of event is it registered to.
+                cam.RegisterEventHandler(device_event_handler, 'EventExposureEnd')
+
+                print('Device event handler registered specifically to EventExposureEnd events...')
+
+        except PySpin.SpinnakerException as ex:
+            print('Error: %s' % ex)
+            success = False
+
+        return success, device_event_handler
+
 
 if __name__ == '__main__':
     # If this script is started as main, the debug mode is activated by default:
-    DEBUG_MODE = True
+    DEBUG_MODE = False
     EXTRACT_PROJECTION_AREA = False
     cam_exposure = CAM_EXPOSURE
     framerate = FRAMERATE
 
-    #cam_exposure = 80000
+    # cam_exposure = 80000
 
     if CALIBRATION_MODE:
         DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
