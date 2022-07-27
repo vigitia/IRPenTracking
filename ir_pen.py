@@ -20,12 +20,13 @@ SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the 
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
-TIME_POINT_MISSING_THRESHOLD_MS = 22
+TIME_POINT_MISSING_THRESHOLD_MS = 12
 
 # Point needs to appear and disappear within this timeframe in ms to count as a click (vs. a drag event)
 CLICK_THRESH_MS = 10
 
 # Hover will be selected over Draw if Hover Event is within the last X event states
+HOVER_WINS = False
 KERNEL_SIZE_HOVER_WINS = 2
 
 MIN_BRIGHTNESS_FOR_PREDICTION = 50
@@ -741,13 +742,17 @@ class IRPen:
             if last_pen_event.id == -1:
                 continue
 
+            if new_pen_event.state == State.HOVER and len(last_pen_event.history) > 0 and State.DRAG not in last_pen_event.state_history[:-3]:
+                print('No State.DRAG for at least 3 frames')
+
             # TODO: Rework this check
             if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
                 print('Pen Event {} turned from State.DRAG into State.HOVER'.format(last_pen_event.id))
                 # new_pen_event.state_history.append(new_pen_event.state)
                 # We now want to assign a new ID
                 # TODO: Check why this event is called more than once
-                continue
+                # Maybe set state of old event to missing?
+                # continue
 
             new_pen_event.state_history = last_pen_event.state_history
             new_pen_event.state_history.append(new_pen_event.state)
@@ -760,19 +765,20 @@ class IRPen:
                 pass
                 # print('Pen Event {} turned from State.HOVER into State.DRAG'.format(last_pen_event.id))
 
-            # Overwrite the current state to hover
-            if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
-                print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
-                new_pen_event.state = State.HOVER
-            else:
-                # print('Turning {} into a Drag event'.format(new_pen_event.state))
-                # if State.HOVER in new_pen_event.state_history[-4:-2]:
-                #     new_pen_event.state = State.NEW
-                # else:
-                # TODO: CHANGE this to allow for different types of drag events
-                # new_pen_event.state = State.DRAG  # last_pen_event.state
-                if new_pen_event.state != State.DRAG:
-                    pass
+            if HOVER_WINS:
+                # Overwrite the current state to hover
+                if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
+                    print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
+                    new_pen_event.state = State.HOVER
+                else:
+                    # print('Turning {} into a Drag event'.format(new_pen_event.state))
+                    # if State.HOVER in new_pen_event.state_history[-4:-2]:
+                    #     new_pen_event.state = State.NEW
+                    # else:
+                    # TODO: CHANGE this to allow for different types of drag events
+                    # new_pen_event.state = State.DRAG  # last_pen_event.state
+                    if new_pen_event.state != State.DRAG:
+                        pass
 
             # elif new_pen_event.state != State.HOVER:   # last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
             #     print('HOVER EVENT turned into TOUCH EVENT')
