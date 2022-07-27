@@ -27,8 +27,9 @@ CALIBRATION_MODE = False
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1200
 
-CAM_EXPOSURE = 300
-FRAMERATE = 158
+EXPOSURE_TIME_MICROSECONDS = 300  # μs -> must be lower than the frame time (FRAMERATE / 1000)
+GAIN = 0  # Controls the amplification of the video signal in dB. TODO: SET GAIN
+FRAMERATE = 158  # Target number of Frames per Second
 
 SERIAL_NUMBER_MASTER = str(22260470)
 SERIAL_NUMBER_SLAVE = str(22260466)
@@ -125,10 +126,10 @@ class FlirBlackflyS:
     start_time = time.time()
     frame_counter = 0
 
-    def __init__(self, cam_exposure=CAM_EXPOSURE, framerate=FRAMERATE):
-        global CAM_EXPOSURE
+    def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, framerate=FRAMERATE):
+        global EXPOSURE_TIME_MICROSECONDS
         global FRAMERATE
-        CAM_EXPOSURE = cam_exposure
+        EXPOSURE_TIME_MICROSECONDS = cam_exposure
         FRAMERATE = framerate
 
         self.surface_selector = SurfaceSelector()
@@ -307,21 +308,44 @@ class FlirBlackflyS:
                 cam.Init()  # Initialize camera
 
 
-
                 if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
                     print('Set Master')
-
+                    cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+                    cam.TriggerSource.SetValue(PySpin.TriggerSource_Software)
+                    cam.LineSelector.SetValue(PySpin.LineSelector_Line1)
+                    cam.LineMode.SetValue(PySpin.LineMode_Output)
                     cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
                     cam.V3_3Enable.SetValue(True)
+
                 elif device_serial_number == SERIAL_NUMBER_SLAVE:
-                    # Set up secondary camera trigger
                     print('Set Slave')
                     cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
                     cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
                     cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+                    # Set TriggerActivation Falling Edge TODO: better Rising Edge? ...
+                    cam.TriggerActivation.SetValue(PySpin.TriggerActivation_FallingEdge)
                     cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
                 else:
                     print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
+
+
+                # if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
+                #     print('Set Master')
+                #
+                #     cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
+                #     # cam.LineMode.SetValue(PySpin.LineMode_Output)
+                #     cam.V3_3Enable.SetValue(True)
+                #     # TODO: TriggerType Software für Master
+                # elif device_serial_number == SERIAL_NUMBER_SLAVE:
+                #     # Set up secondary camera trigger
+                #     print('Set Slave')
+                #     cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+                #     cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+                #     cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+                #     cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
+                #     # TODO: TriggerType Hardware für Slave
+                # else:
+                #     print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
 
 
 
@@ -330,7 +354,10 @@ class FlirBlackflyS:
                     print('error in configure_device_events()')
                 self.device_event_handlers.append(device_event_handler)
 
-                self.apply_camera_settings(cam)
+                success = self.apply_camera_settings(cam)
+                if not success:
+                    print('Errors while applying settings to the cameras')
+                    time.sleep(10)
 
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
@@ -373,12 +400,13 @@ class FlirBlackflyS:
 
         # TODO: Also set GAIN, WIDTH AND HEIGHT, X_OFFSET, Y_OFFSET
 
-        # Set Acquisition Mode to Continuous
+        # Set Acquisition Mode to Continuous: acquires images continuously
         if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
             cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
             print("PySpin:Camera:AcquistionMode: {}".format(cam.AcquisitionMode.GetValue()))
         else:
             print("PySpin:Camera:AcquisionMode: no access")
+            return False
 
         # Set Autoexposure off
         if cam.ExposureAuto.GetAccessMode() == PySpin.RW:
@@ -386,27 +414,54 @@ class FlirBlackflyS:
             print("PySpin:Camera:ExposureAuto: {}".format(cam.ExposureAuto.GetValue()))
         else:
             print("PySpin:Camera:Failed to set Autoexposure to off")
+            return False
 
         # Check if Autoexposure is off and exposure mode is set to "Timed" (needed for manually setting exposure)
         if cam.ExposureMode.GetValue() != PySpin.ExposureMode_Timed:
             print("PySpin:Camera:Can not set exposure! Exposure Mode needs to be Timed")
+            return False
         if cam.ExposureAuto.GetValue() != PySpin.ExposureAuto_Off:
             print("PySpin:Camera:Can not set exposure! Exposure is Auto")
+            return False
 
-        # Set Exposure Time
+        # Set Exposure Time (in microseconds).
+        # Exposure time should not be greater than frame time, this would reduce the resulting framerare
         if cam.ExposureTime.GetAccessMode() == PySpin.RW:
             cam.ExposureTime.SetValue(
-                max(cam.ExposureTime.GetMin(), min(cam.ExposureTime.GetMax(), float(CAM_EXPOSURE))))
+                max(cam.ExposureTime.GetMin(), min(cam.ExposureTime.GetMax(), float(EXPOSURE_TIME_MICROSECONDS))))
             print("PySpin:Camera:Exposure:{}".format(cam.ExposureTime.GetValue()))
         else:
-            print("PySpin:Camera:Failed to set expsosure to:{}".format(CAM_EXPOSURE))
+            print("PySpin:Camera:Failed to set exposure to:{}".format(EXPOSURE_TIME_MICROSECONDS))
+            return False
 
-        # Set Acquisiton Frame Rate Enable = True
+        # Set GainAuto to off.
+        # if cam.GainAuto.GetAccessMode() == PySpin.RW:
+        #     cam.GainAuto.SetValue(PySpin.GainAuto_Off)
+        #     print("PySpin:Camera:GainAuto: {}".format(cam.GainAuto.GetValue()))
+        # else:
+        #     print("PySpin:Camera:Failed to set GainAuto to off")
+        #     return False
+
+        # Set Gain. Controls the amplification of the video signal in dB.
+        # if cam.Gain.GetAccessMode() == PySpin.RW:
+        #     cam.Gain.SetValue(
+        #         max(cam.Gain.GetMin(), min(cam.Gain.GetMax(), float(GAIN))))
+        #     print("PySpin:Camera:Gain:{}".format(cam.Gain.GetValue()))
+        # else:
+        #     print("PySpin:Camera:Failed to set Gain to:{}".format(GAIN))
+        #     return False
+
+
+        # TODO: Check if manually setting the Black Level has any impact on our output frames
+
+
+        # Set Acquisiton Frame Rate Enable = True to be able to manually set the framerate
         if cam.AcquisitionFrameRateEnable.GetAccessMode() == PySpin.RW:
             cam.AcquisitionFrameRateEnable.SetValue(True)
             print("PySpin:Camera:AcquisionFrameRateEnable: {}".format(cam.AcquisitionFrameRateEnable.GetValue()))
         else:
             print("PySpin:Camera:AcquisionFrameRateEnable: no access")
+            return False
 
         # Set Camera Acquisition Framerate
         if cam.AcquisitionFrameRate.GetAccessMode() == PySpin.RW:
@@ -414,6 +469,7 @@ class FlirBlackflyS:
             print('PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
         else:
             print("PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
+            return False
 
         # Retrieve Stream Parameters device nodemap
         s_node_map = cam.GetTLStreamNodeMap()
@@ -478,24 +534,7 @@ class FlirBlackflyS:
         # else:
         #     print('Width not available')
 
-        # # Set acquisition mode to continuous
-        # node_acquisition_mode = PySpin.CEnumerationPtr(cam.GetNodeMap().GetNode('AcquisitionMode'))
-        # if not PySpin.IsAvailable(node_acquisition_mode) or not PySpin.IsWritable(node_acquisition_mode):
-        #     print('Unable to set acquisition mode to continuous (node retrieval; camera %d). Aborting... \n' % i)
-        #     return False
-        #
-        # node_acquisition_mode_continuous = node_acquisition_mode.GetEntryByName('Continuous')
-        # if not PySpin.IsAvailable(node_acquisition_mode_continuous) or not PySpin.IsReadable(
-        #         node_acquisition_mode_continuous):
-        #     print('Unable to set acquisition mode to continuous (entry \'continuous\' retrieval %d). \
-        #             Aborting... \n' % i)
-        #     return False
-        #
-        # acquisition_mode_continuous = node_acquisition_mode_continuous.GetValue()
-        #
-        # node_acquisition_mode.SetIntValue(acquisition_mode_continuous)
-        #
-        # print('Camera %d acquisition mode set to continuous' % i)
+        return True
 
     # def set_camera_buffer(self):
 
@@ -673,7 +712,7 @@ if __name__ == '__main__':
     # If this script is started as main, the debug mode is activated by default:
     DEBUG_MODE = False
     EXTRACT_PROJECTION_AREA = False
-    cam_exposure = CAM_EXPOSURE
+    cam_exposure = EXPOSURE_TIME_MICROSECONDS
     framerate = FRAMERATE
 
     # cam_exposure = 80000
