@@ -30,6 +30,9 @@ FRAME_HEIGHT = 1200
 CAM_EXPOSURE = 300
 FRAMERATE = 158
 
+SERIAL_NUMBER_MASTER = str(22260470)
+SERIAL_NUMBER_SLAVE = str(22260466)
+
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -113,6 +116,8 @@ class FlirBlackflyS:
 
     device_event_handlers = []
 
+    device_serial_numbers = []
+
     newest_frames = []
     matrices = []
     new_frames_available = False
@@ -186,8 +191,11 @@ class FlirBlackflyS:
 
         for cam in self.cam_list:
             try:
+
                 #start = datetime.datetime.now()
                 image_result = cam.GetNextImage(1000)  # grabTimeout=1000
+
+                print(image_result.GetTimeStamp() / 1e9, image_result.GetFrameID(), image_result.GetBitsPerPixel())
 
                 if image_result.IsIncomplete():  # Ensure image completion
                     print('Image incomplete with image status %d' % image_result.GetImageStatus())
@@ -221,12 +229,13 @@ class FlirBlackflyS:
             extracted_frames = []
 
             for i, frame in enumerate(newest_frames):
-                cv2.imshow('Flir Camera {}'.format(i), frame)
+                cv2.imshow('Flir Camera {} (ID: {})'.format(i, self.device_serial_numbers[i]), frame)
 
                 if EXTRACT_PROJECTION_AREA:
                     extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
                     extracted_frames.append(extracted_frame)
-                    cv2.imshow('Flir Camera {} extracted'.format(i), extracted_frame)
+                    cv2.imshow('Flir Camera {} (ID: {}) extracted'.format(i, self.device_serial_numbers[i]),
+                               extracted_frame)
 
             if SHOW_DEBUG_STACKED_FRAMES and len(extracted_frames) == 2:
                 zeroes = np.zeros(extracted_frames[0].shape, 'uint8')
@@ -293,7 +302,28 @@ class FlirBlackflyS:
                     device_serial_number = node_device_serial_number.GetValue()
                     print('Camera %d serial number: %s' % (i, device_serial_number))
 
+                self.device_serial_numbers.append(device_serial_number)
+
                 cam.Init()  # Initialize camera
+
+
+
+                if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
+                    print('Set Master')
+
+                    cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
+                    cam.V3_3Enable.SetValue(True)
+                elif device_serial_number == SERIAL_NUMBER_SLAVE:
+                    # Set up secondary camera trigger
+                    print('Set Slave')
+                    cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+                    cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+                    cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+                    cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
+                else:
+                    print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
+
+
 
                 success, device_event_handler = self.configure_device_events(cam, device_serial_number)
                 if not success:
@@ -302,9 +332,16 @@ class FlirBlackflyS:
 
                 self.apply_camera_settings(cam)
 
-            for i, cam in enumerate(self.cam_list):
-                cam.BeginAcquisition()  # Begin acquiring images
-                print('Camera %d started acquiring images\n' % i)
+            cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
+            cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
+
+            cam_slave.BeginAcquisition()  # Begin acquiring images
+            cam_master.BeginAcquisition()  # Begin acquiring images
+
+            # for i, cam in enumerate(self.cam_list):
+            #
+            #     cam.BeginAcquisition()  # Begin acquiring images
+            #     print('Camera %d started acquiring images\n' % i)
 
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
