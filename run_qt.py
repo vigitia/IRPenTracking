@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
 
 # from realsense_d435 import RealsenseD435Camera
 from flir_blackfly_s import FlirBlackflyS
-from ir_pen import IRPen
+# from ir_pen import IRPen
 
 # from draw_shape import ShapeCreator
 
@@ -26,10 +26,10 @@ LINE_COLOR = (255, 255, 255)
 # realsense_d435_camera.init_video_capture()
 # realsense_d435_camera.start()
 
-flir_blackfly_s = FlirBlackflyS()
-flir_blackfly_s.start()
+# flir_blackfly_s = FlirBlackflyS()
+#flir_blackfly_s.start()q
 
-ir_pen = IRPen()
+# ir_pen = IRPen()
 
 # To test the continuity of lines, enable this flag to cycle through different colors every time a new pen event ID
 # is detected
@@ -40,8 +40,9 @@ PHRASES_MODE = False
 
 PARTICIPANT_ID = 7
 
+# STEREO_MODE = False
 
-STEREO_MODE = False
+DEBUG_MODE = True
 
 last_time = 0
 current_debug_distances = [0, (0, 0)]
@@ -93,7 +94,6 @@ class ApplicationLoopThread(QThread):
 
     def run(self):
         while True:
-
             self.process_frames()
 
             # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
@@ -105,22 +105,22 @@ class ApplicationLoopThread(QThread):
     def process_frames(self):
         # global realsense_d435_camera
         global flir_blackfly_s
-        global ir_pen
+        # global ir_pen
         # left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
 
         new_frames, matrices = flir_blackfly_s.get_camera_frames()
 
         if len(new_frames) > 0:
-            # self.frame_counter += 1
+            self.frame_counter += 1
 
-            # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(new_frames[0])
-            # if brightest > 100:
-            #     # print('Bright!')
-            #     self.painting_widget.fill_screen_white()
-            # else:
-            #     self.painting_widget.fill_screen_black()
-            #
-            # return
+            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(new_frames[0])
+            if brightest > 100:
+                # print('Bright!')
+                self.painting_widget.fill_screen_white()
+            else:
+                self.painting_widget.fill_screen_black()
+
+            return
 
             # old: 12 - 15 ms
             # crop: 9 - 10 ms
@@ -816,6 +816,10 @@ class GLWidget(QOpenGLWidget):
 
 
 class Window(QMainWindow):
+
+    start_time = time.time()
+    frame_counter = 0
+
     def __init__(self):
         super().__init__()
 
@@ -823,8 +827,31 @@ class Window(QMainWindow):
         self.openGL = GLWidget(self)
         self.setCentralWidget(self.openGL)
 
-        self.thread = ApplicationLoopThread(self)
-        self.thread.start()
+        #self.thread = ApplicationLoopThread(self)
+        #self.thread.start()
+
+        self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
+
+    def on_new_frame_group(self, frames, matrices):
+
+        if len(frames) > 0:
+            self.frame_counter += 1
+            # print('Received {} new frames from Flir Blackfly S'.format(len(frames)))
+            # print(frames[0].shape)
+
+            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
+            if brightest > 100:
+                self.fill_screen_white()
+            else:
+                self.fill_screen_black()
+
+            # active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(frames,
+            #                                                                                            matrices)
+
+        if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+            print("FPS in run_qt.py(): %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+            self.frame_counter = 0
+            self.start_time = time.time()
 
     def draw_all_points(self, active_pen_events, stored_lines):
         self.openGL.update_data(active_pen_events, stored_lines)
@@ -840,13 +867,13 @@ class Window(QMainWindow):
         self.openGL.fill_screen_white = False
         self.openGL.update()
 
-
     # Handle Key-press events
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             # self.save_screenshot()
 
             self.close()
+            self.flir_blackfly_s.end_camera_capture()
             sys.exit(0)
         # elif event.key() == Qt.Key_Space:
         #     self.save_screenshot()
