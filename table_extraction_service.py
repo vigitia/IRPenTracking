@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 
 import cv2
 import numpy as np
@@ -29,7 +30,8 @@ class TableExtractionService:
                 for key, value in config.items(section):
                     self.config[section][key] = eval(value)
         else:
-            print('[TableExtractionService]: Could not find calibration info')
+            print('[TableExtractionService]: Could not find calibration info. Set camera to calibration mode and try again')
+            sys.exit(1)
 
     # TODO: Check differences between camera and table aspect ratio
     # Based on: https://www.youtube.com/watch?v=PtCQH93GucA

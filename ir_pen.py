@@ -34,7 +34,7 @@ MIN_BRIGHTNESS_FOR_PREDICTION = 50
 MAX_DISTANCE_DRAW = 50
 
 # Removes all points that are not within the screen coordinates (e.g. 3840x2160)
-REMOVE_EVENTS_OUTSIDE_BORDER = True  # TODO!
+REMOVE_EVENTS_OUTSIDE_BORDER = False  # TODO!
 
 
 DEBUG_MODE = False
@@ -47,9 +47,9 @@ CAMERA_HEIGHT = 1200  # 480
 
 STATES = ['draw', 'hover', 'undefined']
 
-TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far_0_300'
-TRAIN_PATH = 'out3/2022-07-25'
+TRAINING_DATA_COLLECTION_MODE = True
+TRAIN_STATE = 'draw_1_300'
+TRAIN_PATH = 'out3/2022-07-29'
 TRAIN_IMAGE_COUNT = 3000
 
 MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES = 800
@@ -137,16 +137,24 @@ class IRPen:
             print(f'saving frame {int(self.saved_image_counter / 10)}/{TRAIN_IMAGE_COUNT}')
 
         if self.saved_image_counter / 10 >= TRAIN_IMAGE_COUNT:
+            print('FINISHED COLLECTING TRAINING IMAGES')
+            time.sleep(3)
             sys.exit(0)
 
     def transform_coords_to_output_res(self, x, y, transform_matrix):
-        coords = np.array([x, y, 1])
+        try:
+            coords = np.array([x, y, 1])
 
-        transformed_coords = transform_matrix.dot(coords)
-        # Normalize coordinates by dividing by z
-        transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
-                              int(transformed_coords[1] / transformed_coords[2]))
-        return transformed_coords
+            transformed_coords = transform_matrix.dot(coords)
+            # Normalize coordinates by dividing by z
+            transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
+                                  int(transformed_coords[1] / transformed_coords[2]))
+            return transformed_coords
+        except Exception as e:
+            print(e)
+            print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
+            time.sleep(5)
+            sys.exit(1)
 
     # @timeit('Pen Events')
     def get_ir_pen_events_multicam(self, camera_frames, transform_matrices):
@@ -212,19 +220,30 @@ class IRPen:
             # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
             pen_event_roi, brightest, (x, y) = self.crop_image(frame)
 
+            # print('PIXEL', x,y)
+            # TODO: Remove
+            if (x,y) == (46, 565) or (x,y) == (681, 597):
+                # print('Dead pixel')
+                brightest = 0
+
             if TRAINING_DATA_COLLECTION_MODE:
                 self.save_training_image(pen_event_roi, (x, y))
                 continue
+
+            # print(transform_matrices)
 
             if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
                 rois.append(pen_event_roi)
 
                 transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
+
                 roi_coords.append(transformed_coords)
 
                 brightness_values.append(brightest)
 
                 (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
+
+                # print('2', (x, y), radius)
 
                 subpixel_coords.append((x, y))
                 debug_distances.append(subpixel_coords)
@@ -615,7 +634,8 @@ class IRPen:
         try:
             cX = int(M["m10"] / M["m00"])
             cY = int(M["m01"] / M["m00"])
-        except:
+        except Exception as e:
+            print(e)
             print('Error in find_pen_position_subpixel_crop()')
             cX = 0
             cY = 0

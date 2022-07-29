@@ -27,7 +27,7 @@ FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
 EXPOSURE_TIME_MICROSECONDS = 300  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 0  # Controls the amplification of the video signal in dB. TODO: SET GAIN
-FRAMERATE = 59  # 158  # Target number of Frames per Second
+FRAMERATE = 158  # Target number of Frames per Second (Min: 1, Max: 158)
 NUM_BUFFERS = 1  # Number of image buffers per camera
 
 # Set the Serial Numbers of the primary and secondary cameras. Needed for the hardware trigger
@@ -89,7 +89,6 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
                 if self.cam_id == SERIAL_NUMBER_MASTER:
                     global cam_image_master
                     cam_image_master = image_result.GetNDArray()
-                    print(cam_image_master.shape)
                 elif self.cam_id == SERIAL_NUMBER_SLAVE:
                     global cam_image_slave
                     cam_image_slave = image_result.GetNDArray()
@@ -159,8 +158,8 @@ class FlirBlackflyS:
         EXPOSURE_TIME_MICROSECONDS = cam_exposure
         FRAMERATE = framerate
 
-        # if not CALIBRATION_MODE:
-        #     self.table_extractor = TableExtractionService()
+        if not CALIBRATION_MODE:
+            self.table_extractor = TableExtractionService()
 
         self.init_cameras(subscriber)
 
@@ -205,7 +204,7 @@ class FlirBlackflyS:
 
                 if not CALIBRATION_MODE:
                     global matrices
-                    # matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
+                    matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
 
                 cam.Init()  # Initialize camera
 
@@ -290,7 +289,8 @@ class FlirBlackflyS:
                 self.rectify_maps[i] = [map1, map2]
 
                 cv_file.release()
-            except:
+            except Exception as e:
+                print(e)
                 print('Cant load calibration data for FlirBlackflyS {}.yml'.format(i))
 
     def apply_camera_settings(self, cam, serial_number):
@@ -608,30 +608,28 @@ class FlirBlackflyS:
         # Release system instance
         self.system.ReleaseInstance()
 
+
 class CameraTester:
 
-    frame = None
+    frame_master = None
+    frame_slave = None
 
     def __init__(self):
+        global DEBUG_MODE
+        DEBUG_MODE = True
+
         # If this script is started as main, the debug mode is activated by default:
-        DEBUG_MODE = False
-        EXTRACT_PROJECTION_AREA = False
         cam_exposure = EXPOSURE_TIME_MICROSECONDS
         framerate = FRAMERATE
+        # cam_exposure = 10000
 
-        cam_exposure = 10000
-
-        # cv2.namedWindow('Flir Blackfly S 22260470', cv2.WINDOW_NORMAL)
-        # cv2.namedWindow('Flir Blackfly S 22260466', cv2.WINDOW_NORMAL)
-        #
-        # thread = threading.Thread(target=self.debug_mode_thread)
-        # thread.start()
+        thread = threading.Thread(target=self.debug_mode_thread)
+        thread.start()
         # thread.join()
-
 
         if CALIBRATION_MODE:
             DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
-            # cam_exposure = 100000  # Increase Brightness to better see the corners
+            cam_exposure = 100000  # Increase Brightness to better see the corners
             self.surface_selector = SurfaceSelector()
 
         flir_blackfly_s = FlirBlackflyS(cam_exposure=cam_exposure, framerate=framerate, subscriber=self)
@@ -642,61 +640,48 @@ class CameraTester:
         flir_blackfly_s.end_camera_capture()
 
     def debug_mode_thread(self):
+
+        cv2.namedWindow('Flir Blackfly S 22260470', cv2.WINDOW_NORMAL)
+        cv2.namedWindow('Flir Blackfly S 22260466', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Flir Blackfly S 22260470', FRAME_WIDTH, FRAME_HEIGHT)
+        cv2.resizeWindow('Flir Blackfly S 22260466', FRAME_WIDTH, FRAME_HEIGHT)
+
         while True:
-            print('a')
-            if self.frame is not None:
-                print('-------')
-                cv2.imshow('Flir Blackfly S 22260470', self.frame)
-                # cv2.imshow('Flir Blackfly S 22260466', frame)
-                self.frame = None
+            if self.frame_master is not None and self.frame_slave is not None:
+                if DEBUG_MODE:
+                    cv2.imshow('Flir Blackfly S 22260470', self.frame_master)
+                    cv2.imshow('Flir Blackfly S 22260466', self.frame_slave)
+
+                    # if EXTRACT_PROJECTION_AREA:
+                    #     extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
+                    #     extracted_frames.append(extracted_frame)
+                    #     cv2.imshow('Flir Camera {} (ID: {}) extracted'.format(i, camera_serial_numbers[i]),
+                    #                extracted_frame)
+
+                if CALIBRATION_MODE:
+                        calibration_finished_master = self.surface_selector.select_surface(self.frame_master,
+                                                                                           'Flir Blackfly S 22260470')
+                        calibration_finished_slave = self.surface_selector.select_surface(self.frame_slave,
+                                                                                          'Flir Blackfly S 22260466')
+
+                        if calibration_finished_master:
+                            print("[Surface Selector Node]: Calibration Finished for Flir Blackfly S 22260470")
+
+                        if calibration_finished_slave:
+                            print("[Surface Selector Node]: Calibration Finished for Flir Blackfly S 22260466")
+
+                self.frame_master = None
+                self.frame_slave = None
 
             key = cv2.waitKey(1)
             if key == 27:  # ESC
                 cv2.destroyAllWindows()
                 sys.exit(0)
-            # cv2.destroyAllWindows()
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
-        # print('GOT new frames')
 
-
-        # return
-
-        if DEBUG_MODE:
-            extracted_frames = []
-
-            for i, frame in enumerate(frames):
-                print('Shape', frame.shape)
-                self.frame = frame
-                # cv2.imshow('Flir Blackfly S {}'.format(camera_serial_numbers[i]), frame)
-
-                # if EXTRACT_PROJECTION_AREA:
-                #     extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
-                #     extracted_frames.append(extracted_frame)
-                #     cv2.imshow('Flir Camera {} (ID: {}) extracted'.format(i, camera_serial_numbers[i]),
-                #                extracted_frame)
-
-            # if SHOW_DEBUG_STACKED_FRAMES and len(extracted_frames) == 2:
-            #     zeroes = np.zeros(extracted_frames[0].shape, 'uint8')
-            #     fake_color = np.dstack((extracted_frames[0], extracted_frames[1], zeroes))
-            #
-            #     cv2.namedWindow('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN)
-            #     cv2.setWindowProperty('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-            #     cv2.imshow('Flir Camera Frames combined', fake_color)
-
-        if CALIBRATION_MODE:
-            for i, frame in enumerate(frames):
-
-                calibration_finished = self.surface_selector.select_surface(frames[i], 'Flir Blackfly S {}'.format(camera_serial_numbers[i]))
-
-                if calibration_finished:
-                    print("[Surface Selector Node]: Calibration Finished for Flir Blackfly S {}".format(camera_serial_numbers[i]))
-
-        # if DEBUG_MODE or CALIBRATION_MODE:
-        #     key = cv2.waitKey(1)
-        #     if key == 27:  # ESC
-        #         cv2.destroyAllWindows()
-        #         sys.exit(0)
+        self.frame_master = frames[0]
+        self.frame_slave = frames[1]
 
 
 if __name__ == '__main__':
