@@ -28,7 +28,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DetectedObjectsList.msg"
   "msg/Page.msg"
   "msg/PageList.msg"
-  "msg/IRPenEvents.msg"
   DEPENDENCIES std_msgs geometry_msgs
   ADD_LINTER_TESTS
  )

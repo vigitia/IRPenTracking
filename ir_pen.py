@@ -11,7 +11,7 @@ from skimage.feature import peak_local_max
 from cv2 import cv2
 
 # Aktuell bestes model:
-MODEL_PATH = 'evaluation/hover_predictor_flir_9'
+MODEL_PATH = 'evaluation/model_new_projector_1'
 
 CROP_IMAGE_SIZE = 48
 
@@ -47,7 +47,7 @@ CAMERA_HEIGHT = 1200  # 480
 
 STATES = ['draw', 'hover', 'undefined']
 
-TRAINING_DATA_COLLECTION_MODE = True
+TRAINING_DATA_COLLECTION_MODE = False
 TRAIN_STATE = 'draw_1_300'
 TRAIN_PATH = 'out3/2022-07-29'
 TRAIN_IMAGE_COUNT = 3000

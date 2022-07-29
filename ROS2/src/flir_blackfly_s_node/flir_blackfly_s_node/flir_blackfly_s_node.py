@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import time
 
 from .flir_blackfly_s import FlirBlackflyS
 
@@ -9,6 +9,7 @@ from rclpy.node import Node
 from rcl_interfaces.msg import ParameterType, ParameterDescriptor
 
 from sensor_msgs.msg import Image
+from std_msgs.msg import String
 
 
 from cv_bridge import CvBridge
@@ -33,20 +34,27 @@ class FLirBlackflySNode(Node):
 
         self.cv_bridge = CvBridge()
 
-        self.publisher_flir_blackfly_s_0 = self.create_publisher(msg_type=Image,
+        self.publisher_flir_blackfly_s_0 = self.create_publisher(msg_type=String,
                                                                  topic=self.get_parameter(
                                                                      'flir_blackfly_s_0').get_parameter_value().string_value,
                                                                  qos_profile=self.get_parameter(
                                                                      "queue_length").get_parameter_value().
                                                                  integer_value)
 
-        self.publisher_flir_blackfly_s_1 = self.create_publisher(msg_type=Image,
+        self.publisher_flir_blackfly_s_1 = self.create_publisher(msg_type=String,
                                                                  topic=self.get_parameter('flir_blackfly_s_1').get_parameter_value().string_value,
                                                                  qos_profile=self.get_parameter("queue_length").get_parameter_value().
                                                                  integer_value)
 
         flir_blackfly_s = FlirBlackflyS(ros2_node=self)
-        flir_blackfly_s.start()
+
+        self.loop()
+
+    def loop(self):
+        print('start')
+        while True:
+            print('Alive')
+            time.sleep(1)
 
 
 

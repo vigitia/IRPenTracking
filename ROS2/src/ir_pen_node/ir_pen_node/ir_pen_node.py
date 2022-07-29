@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-
+import cv2
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterType, ParameterDescriptor
@@ -15,8 +14,14 @@ from rclpy.executors import MultiThreadedExecutor
 
 from cv_bridge import CvBridge
 
-from .ir_pen import IRPen
+# from .ir_pen import IRPen
+from .pen_hid import InputSimulator
 
+from std_msgs.msg import String
+
+
+WINDOW_WIDTH = 3840
+WINDOW_HEIGHT = 2160
 
 class IRPenNode(Node):
 
@@ -26,7 +31,8 @@ class IRPenNode(Node):
         self.init_subscription()
         self.init_publisher()
 
-        self.ir_pen = IRPen()
+        # self.ir_pen = IRPen()
+        self.input_device = InputSimulator(WINDOW_WIDTH, WINDOW_HEIGHT)
 
     def init_subscription(self):
         topic_parameter_flir_blackfly_s_0 = ParameterDescriptor(type=ParameterType.PARAMETER_STRING, description='TODO')
@@ -39,28 +45,28 @@ class IRPenNode(Node):
         queue_length = ParameterDescriptor(type=ParameterType.PARAMETER_INTEGER, description='Length of the queue')
         self.declare_parameter('queue_length', 10, queue_length)
 
-        # self.subscription = self.create_subscription(
-        #     Image,  # Datentyp
-        #     self.get_parameter("topic_parameter_flir_blackfly_s").get_parameter_value().string_value,
-        #     self.listener_callback,
-        #     self.get_parameter("queue_length").get_parameter_value().integer_value)
+        self.subscription = self.create_subscription(
+            String,  # Datentyp
+            self.get_parameter("topic_parameter_flir_blackfly_s_0").get_parameter_value().string_value,
+            self.listener_callback,
+            self.get_parameter("queue_length").get_parameter_value().integer_value)
 
-        # Create the Subscribers
-        self.subscription_flir_blackfly_s_0 = Subscriber(
-            self,
-            Image,  # Datentyp
-            self.get_parameter("topic_parameter_flir_blackfly_s_0").get_parameter_value().string_value,  # Name des Topics
-            qos_profile=self.get_parameter("queue_length").get_parameter_value().integer_value)
-
-        self.subscription_flir_blackfly_s_1 = Subscriber(
-            self,
-            Image,  # Datentyp
-            self.get_parameter("topic_parameter_flir_blackfly_s_1").get_parameter_value().string_value,  # Name des Topics
-            qos_profile=self.get_parameter("queue_length").get_parameter_value().integer_value)
-
-        self.synchronizer = TimeSynchronizer([self.subscription_flir_blackfly_s_0, self.subscription_flir_blackfly_s_1],
-                                             self.get_parameter("queue_length").get_parameter_value().integer_value)
-        self.synchronizer.registerCallback(self.sychronized_callback)
+        # # Create the Subscribers
+        # self.subscription_flir_blackfly_s_0 = Subscriber(
+        #     self,
+        #     String,  # Datentyp
+        #     self.get_parameter("topic_parameter_flir_blackfly_s_0").get_parameter_value().string_value,  # Name des Topics
+        #     qos_profile=self.get_parameter("queue_length").get_parameter_value().integer_value)
+        #
+        # self.subscription_flir_blackfly_s_1 = Subscriber(
+        #     self,
+        #     String,  # Datentyp
+        #     self.get_parameter("topic_parameter_flir_blackfly_s_1").get_parameter_value().string_value,  # Name des Topics
+        #     qos_profile=self.get_parameter("queue_length").get_parameter_value().integer_value)
+        #
+        # self.synchronizer = TimeSynchronizer([self.subscription_flir_blackfly_s_0, self.subscription_flir_blackfly_s_1],
+        #                                      self.get_parameter("queue_length").get_parameter_value().integer_value)
+        # self.synchronizer.registerCallback(self.sychronized_callback)
 
 
     def init_publisher(self):
@@ -75,11 +81,28 @@ class IRPenNode(Node):
                                                qos_profile=self.get_parameter("queue_length").get_parameter_value().
                                                integer_value)
 
-    def sychronized_callback(self, flir_blackfly_s_0, flir_blackfly_s_1):
-        frame_0 = self.cv_bridge.imgmsg_to_cv2(flir_blackfly_s_0)
-        frame_1 = self.cv_bridge.imgmsg_to_cv2(flir_blackfly_s_1)
+    def listener_callback(self, flir_blackfly_s_0):
+        #frame_0 = self.cv_bridge.imgmsg_to_cv2(flir_blackfly_s_0)
+        #frame_1 = self.cv_bridge.imgmsg_to_cv2(flir_blackfly_s_1)
 
-        print(frame_0.shape, frame_1.shape)
+        # print(frame_0.shape, frame_1.shape)
+        # self.get_logger().info('I heard: "%s"' % flir_blackfly_s_0.data)
+
+        value = float(flir_blackfly_s_0.data)
+        if value > 100.0:
+            print('draw')
+            self.input_device.click_event('left', 'draw')
+        else:
+            print('hover')
+            self.input_device.click_event('left', 'hover')
+
+        # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frame_0)
+        # if brightest > 100:
+        #     print('draw')
+        #     self.input_device.click_event('left', 'draw')
+        # else:
+        #     print('hover')
+        #     self.input_device.click_event('left', 'hover')
 
         # active_pen_events, stored_lines, _, _, debug_distances = self.ir_pen.get_ir_pen_events_multicam([frame_0, frame_1], matrices)
 
