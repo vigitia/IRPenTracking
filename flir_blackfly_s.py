@@ -24,13 +24,13 @@ CALIBRATION_DATA_PATH = ''
 
 CALIBRATION_MODE = False
 
-FRAME_WIDTH = 1920
-FRAME_HEIGHT = 1200
+FRAME_WIDTH = 1920  # 800  # 1920
+FRAME_HEIGHT = 1200  # 600  # 1200
 
 EXPOSURE_TIME_MICROSECONDS = 300  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 0  # Controls the amplification of the video signal in dB. TODO: SET GAIN
-FRAMERATE = 158  # Target number of Frames per Second
-NUM_BUFFERS = 2  # Number of image buffers per camera
+FRAMERATE = 59  # 158  # Target number of Frames per Second
+NUM_BUFFERS = 1  # Number of image buffers per camera
 
 SERIAL_NUMBER_MASTER = str(22260470)
 SERIAL_NUMBER_SLAVE = str(22260466)
@@ -81,16 +81,16 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
     start_time = time.time()
     frame_counter = 0
 
-    def __init__(self, eventname, cam_id, cam, subscriber):
+    def __init__(self, event_name, cam_id, cam, subscriber):
         """
         This constructor registers an event name to be used on device events.
 
-        :param eventname: Name of event to register.
-        :type eventname: str
+        :param event_name: Name of event to register.
+        :type event_name: str
         :rtype: None
         """
         super(DeviceEventHandler, self).__init__()
-        self.event_name = eventname
+        self.event_name = event_name
         self.count = 0
         self.cam_id = cam_id
         self.cam = cam
@@ -99,7 +99,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
     def OnDeviceEvent(self, eventname):
         """
         Callback function when a device event occurs.
-        Note eventname is a wrapped gcstring, not a Python string, but basic operations such as printing and comparing
+        Note event_name is a wrapped gcstring, not a Python string, but basic operations such as printing and comparing
         with Python strings are supported.
 
         :param eventname: gcstring representing the name of the occurred event.
@@ -115,16 +115,21 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             self.count += 1
 
             # Print information on specified device event
-            # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(eventname, self.GetDeviceEventId(), self.cam_id,
+            # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.cam_id,
             #                                                            self.count))
 
+            # start_time = datetime.datetime.now()
             image_result = self.cam.GetNextImage(1000)
+
+            # print(image_result.GetTimeStamp() / 1e9)
+
             if image_result.IsIncomplete():  # Ensure image completion
                 print('Image incomplete with image status %d' % image_result.GetImageStatus())
             else:
                 if self.cam_id == SERIAL_NUMBER_MASTER:
                     global cam_image_master
                     cam_image_master = image_result.GetNDArray()
+                    print(cam_image_master.shape)
                 elif self.cam_id == SERIAL_NUMBER_SLAVE:
                     global cam_image_slave
                     cam_image_slave = image_result.GetNDArray()
@@ -132,37 +137,40 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
             image_result.Release()
 
+            # end_time = datetime.datetime.now()
+            # run_time = (end_time - start_time).microseconds / 1000.0
+            # print('Time for self.cam.GetNextImage(1000)', run_time, self.cam_id)
+
             self.check_both_frames_available()
+
         else:
             # Print no information on non-specified event
             print('\tDevice event occurred; not %s; ignoring...' % self.event_name)
 
     def check_both_frames_available(self):
-        self.lock.acquire()
         global cam_image_master
         global cam_image_slave
 
         if cam_image_master is not None and cam_image_slave is not None:
-            self.frame_counter += 1
+            # self.frame_counter += 1
 
             # print('Got both frames')
             if self.subscriber is not None:
                 global matrices
-                self.subscriber.on_new_frame_group([cam_image_master, cam_image_slave], matrices)
+                camera_serial_numbers = [SERIAL_NUMBER_MASTER, SERIAL_NUMBER_SLAVE]
+                self.subscriber.on_new_frame_group([cam_image_master, cam_image_slave], camera_serial_numbers, matrices)
 
+            # Reset variables
             cam_image_master = None
             cam_image_slave = None
 
-            if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-                if DEBUG_MODE:
-                    print("FPS: %s (Warning: DEBUG_MODE might reduce FPS)" % round(self.frame_counter / (time.time() - self.start_time), 1))
-                else:
-                    print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-                self.frame_counter = 0
-                self.start_time = time.time()
-
-
-
+            # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+            #     if DEBUG_MODE:
+            #         print("FPS: %s (Warning: DEBUG_MODE might reduce FPS)" % round(self.frame_counter / (time.time() - self.start_time), 1))
+            #     else:
+            #         print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+            #     self.frame_counter = 0
+            #     self.start_time = time.time()
 
 
 class FlirBlackflyS:
@@ -191,8 +199,8 @@ class FlirBlackflyS:
         EXPOSURE_TIME_MICROSECONDS = cam_exposure
         FRAMERATE = framerate
 
-        self.surface_selector = SurfaceSelector()
-        self.table_extractor = TableExtractionService()
+        # if not CALIBRATION_MODE:
+        #     self.table_extractor = TableExtractionService()
 
         #self.started = False
         #self.read_lock = threading.Lock()
@@ -367,9 +375,9 @@ class FlirBlackflyS:
 
                 self.device_serial_numbers.append(device_serial_number)
 
-                global matrices
-                # TODO: use Camera IDs here!
-                matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Camera {}'.format(i)))
+                if not CALIBRATION_MODE:
+                    global matrices
+                    # matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
 
                 cam.Init()  # Initialize camera
 
@@ -520,7 +528,6 @@ class FlirBlackflyS:
         #     print("PySpin:Camera:Failed to set Gain to:{}".format(GAIN))
         #     return False
 
-
         # TODO: Check if manually setting the Black Level has any impact on our output frames
 
         # Set Acquisiton Frame Rate only for Master camera
@@ -593,6 +600,20 @@ class FlirBlackflyS:
         handling_mode.SetIntValue(handling_mode_entry.GetValue())
         print('Buffer Handling Mode has been set to %s' % handling_mode_entry.GetDisplayName())
 
+        # if cam.Width.GetAccessMode() == PySpin.RW:
+        #     cam.Width.SetValue(1920)
+        #     print("PySpin:Camera:Width:{}".format(cam.Width.GetValue()))
+        # else:
+        #     print("PySpin:Camera:Failed to set Width to:{}".format(1920))
+        #     return False
+        #
+        # if cam.Height.GetAccessMode() == PySpin.RW:
+        #     cam.Height.SetValue(1200)
+        #     print("PySpin:Camera:Height:{}".format(cam.Height.GetValue()))
+        # else:
+        #     print("PySpin:Camera:Failed to set Height to:{}".format(1200))
+        #     return False
+
         # node_width = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
         # node_width.SetValue(800)
         # if PySpin.IsAvailable(node_width) and PySpin.IsWritable(node_width):
@@ -601,6 +622,15 @@ class FlirBlackflyS:
         #     print('Width set to %i' % node_width.GetValue())
         # else:
         #     print('Width not available')
+        #
+        # node_height = PySpin.CIntegerPtr(nodemap_tldevice.GetNode('Width'))
+        # node_height.SetValue(600)
+        # if PySpin.IsAvailable(node_height) and PySpin.IsWritable(node_height):
+        #     height_to_set = node_height.GetMax()
+        #     node_height.SetValue(height_to_set)
+        #     print('Height set to %i' % node_height.GetValue())
+        # else:
+        #     print('Height not available')
 
         return True
 
@@ -775,22 +805,101 @@ class FlirBlackflyS:
         return success, device_event_handler
 
 
+
+class CameraTester:
+
+    frame = None
+
+    def __init__(self):
+        # If this script is started as main, the debug mode is activated by default:
+        DEBUG_MODE = False
+        EXTRACT_PROJECTION_AREA = False
+        cam_exposure = EXPOSURE_TIME_MICROSECONDS
+        framerate = FRAMERATE
+
+        cam_exposure = 10000
+
+        # cv2.namedWindow('Flir Blackfly S 22260470', cv2.WINDOW_NORMAL)
+        # cv2.namedWindow('Flir Blackfly S 22260466', cv2.WINDOW_NORMAL)
+        #
+        # thread = threading.Thread(target=self.debug_mode_thread)
+        # thread.start()
+        # thread.join()
+
+
+        if CALIBRATION_MODE:
+            DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
+            # cam_exposure = 100000  # Increase Brightness to better see the corners
+            self.surface_selector = SurfaceSelector()
+
+        flir_blackfly_s = FlirBlackflyS(cam_exposure=cam_exposure, framerate=framerate, subscriber=self)
+
+        # TODO: Improve
+        time.sleep(100000)  # Wait before it stops
+        print('ENDING CAMERA TESTING')
+        flir_blackfly_s.end_camera_capture()
+
+    def debug_mode_thread(self):
+        while True:
+            print('a')
+            if self.frame is not None:
+                print('-------')
+                cv2.imshow('Flir Blackfly S 22260470', self.frame)
+                # cv2.imshow('Flir Blackfly S 22260466', frame)
+                self.frame = None
+
+            key = cv2.waitKey(1)
+            if key == 27:  # ESC
+                cv2.destroyAllWindows()
+                sys.exit(0)
+            # cv2.destroyAllWindows()
+
+    def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
+        # print('GOT new frames')
+
+
+        # return
+
+        if DEBUG_MODE:
+            extracted_frames = []
+
+            for i, frame in enumerate(frames):
+                print('Shape', frame.shape)
+                self.frame = frame
+                # cv2.imshow('Flir Blackfly S {}'.format(camera_serial_numbers[i]), frame)
+
+                # if EXTRACT_PROJECTION_AREA:
+                #     extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
+                #     extracted_frames.append(extracted_frame)
+                #     cv2.imshow('Flir Camera {} (ID: {}) extracted'.format(i, camera_serial_numbers[i]),
+                #                extracted_frame)
+
+            # if SHOW_DEBUG_STACKED_FRAMES and len(extracted_frames) == 2:
+            #     zeroes = np.zeros(extracted_frames[0].shape, 'uint8')
+            #     fake_color = np.dstack((extracted_frames[0], extracted_frames[1], zeroes))
+            #
+            #     cv2.namedWindow('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN)
+            #     cv2.setWindowProperty('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+            #     cv2.imshow('Flir Camera Frames combined', fake_color)
+
+        if CALIBRATION_MODE:
+            for i, frame in enumerate(frames):
+
+                calibration_finished = self.surface_selector.select_surface(frames[i], 'Flir Blackfly S {}'.format(camera_serial_numbers[i]))
+
+                if calibration_finished:
+                    print("[Surface Selector Node]: Calibration Finished for Flir Blackfly S {}".format(camera_serial_numbers[i]))
+
+        # if DEBUG_MODE or CALIBRATION_MODE:
+        #     key = cv2.waitKey(1)
+        #     if key == 27:  # ESC
+        #         cv2.destroyAllWindows()
+        #         sys.exit(0)
+
+
 if __name__ == '__main__':
-    # If this script is started as main, the debug mode is activated by default:
-    DEBUG_MODE = False
-    EXTRACT_PROJECTION_AREA = False
-    cam_exposure = EXPOSURE_TIME_MICROSECONDS
-    framerate = FRAMERATE
+    CameraTester()
 
-    # cam_exposure = 80000
 
-    if CALIBRATION_MODE:
-        DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
-        cam_exposure = 100000  # Increase Brightness to better see the corners
-    flir_blackfly_s = FlirBlackflyS(cam_exposure=cam_exposure, framerate=framerate)
-    # flir_blackfly_s.start()
 
-    # TODO: Improve
-    time.sleep(100000)  # Wait before it stops
-    print('ENDING CAMERA TESTING')
-    flir_blackfly_s.end_camera_capture()
+
