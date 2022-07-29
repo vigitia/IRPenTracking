@@ -17,21 +17,20 @@ from table_extraction_service import TableExtractionService
 # CONSTANTS and Camera Settings
 
 DEBUG_MODE = False
+CALIBRATION_MODE = False
 EXTRACT_PROJECTION_AREA = False
 SHOW_DEBUG_STACKED_FRAMES = False
 
 CALIBRATION_DATA_PATH = ''
 
-CALIBRATION_MODE = False
-
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
-
 EXPOSURE_TIME_MICROSECONDS = 300  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 0  # Controls the amplification of the video signal in dB. TODO: SET GAIN
 FRAMERATE = 59  # 158  # Target number of Frames per Second
 NUM_BUFFERS = 1  # Number of image buffers per camera
 
+# Set the Serial Numbers of the primary and secondary cameras. Needed for the hardware trigger
 SERIAL_NUMBER_MASTER = str(22260470)
 SERIAL_NUMBER_SLAVE = str(22260466)
 
@@ -43,52 +42,16 @@ all_cameras_ready = False
 
 matrices = []
 
-def timeit(prefix):
-    def timeit_decorator(func):
-        def wrapper(*args, **kwargs):
-            start_time = datetime.datetime.now()
-            retval = func(*args, **kwargs)
-            end_time = datetime.datetime.now()
-            run_time = (end_time - start_time).microseconds / 1000.0
-            print(prefix + "> " + str(run_time) + " ms", flush=True)
-            return retval
-        return wrapper
-    return timeit_decorator
-
-
-class EventType:
-    """
-    'Enum' for choosing whether to register a event specifically for exposure end events
-    or universally for all events.
-    """
-    GENERIC = 0
-    SPECIFIC = 1
-
-CHOSEN_EVENT = EventType.SPECIFIC
-
 
 class DeviceEventHandler(PySpin.DeviceEventHandler):
     """
-    This class defines the properties, parameters, and the event handler itself. Take a
-    moment to notice what parts of the class are mandatory, and what have been
-    added for demonstration purposes. First, any class used to define device
-    events must inherit from DeviceEventHandler. Second, the method signature of
-    OnDeviceEvent() must also be consistent. Everything else - including the
-    constructor, destructor, properties, and body of OnDeviceEvent() - are
-    particular to the example.
+    This class defines the properties, parameters, and the event handler itself.
     """
 
     start_time = time.time()
     frame_counter = 0
 
     def __init__(self, event_name, cam_id, cam, subscriber):
-        """
-        This constructor registers an event name to be used on device events.
-
-        :param event_name: Name of event to register.
-        :type event_name: str
-        :rtype: None
-        """
         super(DeviceEventHandler, self).__init__()
         self.event_name = event_name
         self.count = 0
@@ -96,22 +59,19 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         self.cam = cam
         self.subscriber = subscriber
 
-    def OnDeviceEvent(self, eventname):
+    def OnDeviceEvent(self, event_name):
         """
         Callback function when a device event occurs.
         Note event_name is a wrapped gcstring, not a Python string, but basic operations such as printing and comparing
         with Python strings are supported.
-
-        :param eventname: gcstring representing the name of the occurred event.
-        :type eventname: gcstring
-        :rtype: None
         """
 
         global all_cameras_ready
         if not all_cameras_ready:
             return
 
-        if eventname == self.event_name:
+        # Check if we receive the expected event type
+        if event_name == self.event_name:
             self.count += 1
 
             # Print information on specified device event
@@ -202,145 +162,16 @@ class FlirBlackflyS:
         # if not CALIBRATION_MODE:
         #     self.table_extractor = TableExtractionService()
 
-        #self.started = False
-        #self.read_lock = threading.Lock()
-
         self.init_cameras(subscriber)
 
-    # def start(self):
-    #     if self.started:
-    #         return None
-    #     else:
-    #         self.started = True
-    #         self.thread = threading.Thread(target=self.update, args=())
-    #         # thread.daemon = True
-    #         self.thread.start()
-    #         return self
-    #
-    # def update(self):
-    #     while self.started:
-    #         self.process_frames()
-    #
-    #         if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-    #             if DEBUG_MODE:
-    #                 print("FPS: %s (Warning: DEBUG_MODE might reduce FPS)" % round(self.frame_counter / (time.time() - self.start_time), 1))
-    #             else:
-    #                 print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-    #             self.frame_counter = 0
-    #             self.start_time = time.time()
-    #
-    #     self.end_camera_capture()
-
-    def end_camera_capture(self):
-        print('End Camera Capture')
-        for i, cam in enumerate(self.cam_list):
-            cam.EndAcquisition()  # End acquisition
-
-            cam.UnregisterEventHandler(self.device_event_handlers[i])
-            print('Device event handler unregistered')
-
-            # Deinitialize camera. Each camera needs to be deinitialized once all images have been acquired.
-            cam.DeInit()
-
-        # Release reference to camera. The usage of del is preferred to assigning the variable to None.
-        del cam
-
-        self.cam_list.Clear()
-
-        # Release system instance
-        self.system.ReleaseInstance()
-
-    # # @timeit('Flir Blackfly S')
-    # def process_frames(self):
-    #     print('in process frames')
-    #
-    #     newest_frames = []
-    #
-    #     self.frame_counter += 1
-    #
-    #     if len(self.matrices) == 0:
-    #         for i, cam in enumerate(self.cam_list):
-    #             self.matrices.append(self.table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Camera {}'.format(i)))
-    #
-    #     for cam in self.cam_list:
-    #         try:
-    #             #start = datetime.datetime.now()
-    #             image_result = cam.GetNextImage(1000)  # grabTimeout=1000
-    #
-    #             print(image_result.GetTimeStamp() / 1e9, image_result.GetFrameID(), image_result.GetBitsPerPixel())
-    #
-    #             if image_result.IsIncomplete():  # Ensure image completion
-    #                 print('Image incomplete with image status %d' % image_result.GetImageStatus())
-    #             else:
-    #                 image_data = image_result.GetNDArray()
-    #                 newest_frames.append(image_data)
-    #
-    #                 # Convert image to mono 8
-    #                 # image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
-    #
-    #             #  Images retrieved directly from the camera need to be released in order to keep from filling the
-    #             #  buffer.
-    #             image_result.Release()  # Release image
-    #             #end = datetime.datetime.now()
-    #             #print('GetNextImage', (end - start).microseconds / 1000.0)
-    #         except PySpin.SpinnakerException as ex:
-    #             print('Error: %s' % ex)
-    #
-    #     for i, frame in enumerate(newest_frames):
-    #         if self.camera_matrices[i] is not None and self.dist_matrices[i] is not None:
-    #             newest_frames[i] = cv2.remap(frame, self.rectify_maps[i][0], self.rectify_maps[i][1],
-    #                                          interpolation=cv2.INTER_LINEAR)
-    #
-    #     with self.read_lock:
-    #         self.newest_frames = newest_frames
-    #         self.new_frames_available = True
-    #
-    #     if DEBUG_MODE:
-    #         extracted_frames = []
-    #
-    #         for i, frame in enumerate(newest_frames):
-    #             cv2.imshow('Flir Camera {} (ID: {})'.format(i, self.device_serial_numbers[i]), frame)
-    #
-    #             if EXTRACT_PROJECTION_AREA:
-    #                 extracted_frame = self.table_extractor.extract_table_area(frame, 'Flir Camera {}'.format(i))
-    #                 extracted_frames.append(extracted_frame)
-    #                 cv2.imshow('Flir Camera {} (ID: {}) extracted'.format(i, self.device_serial_numbers[i]),
-    #                            extracted_frame)
-    #
-    #         if SHOW_DEBUG_STACKED_FRAMES and len(extracted_frames) == 2:
-    #             zeroes = np.zeros(extracted_frames[0].shape, 'uint8')
-    #             fake_color = np.dstack((extracted_frames[0], extracted_frames[1], zeroes))
-    #
-    #             cv2.namedWindow('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN)
-    #             cv2.setWindowProperty('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-    #             cv2.imshow('Flir Camera Frames combined', fake_color)
-    #
-    #     if CALIBRATION_MODE:
-    #         for i, cam in enumerate(self.cam_list):
-    #
-    #             calibration_finished = self.surface_selector.select_surface(newest_frames[i], 'Flir Camera {}'.format(i))
-    #
-    #             if calibration_finished:
-    #                 print("[Surface Selector Node]: Calibration Finished for camera {}".format(i))
-    #
-    #     if DEBUG_MODE or CALIBRATION_MODE:
-    #         key = cv2.waitKey(1)
-    #         if key == 27:  # ESC
-    #             self.started = False
-    #             cv2.destroyAllWindows()
-    #             sys.exit(0)
-
     def init_cameras(self, subscriber):
+        self.system = PySpin.System.GetInstance()  # Retrieve singleton reference to system object
 
-        # Retrieve singleton reference to system object
-        self.system = PySpin.System.GetInstance()
+        if DEBUG_MODE:
+            version = self.system.GetLibraryVersion()  # Get current library version
+            print('Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
 
-        # Get current library version
-        version = self.system.GetLibraryVersion()
-        print('Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
-
-        # Retrieve list of cameras from the system
-        self.cam_list = self.system.GetCameras()
+        self.cam_list = self.system.GetCameras()  # Retrieve list of cameras from the system
 
         num_cameras = self.cam_list.GetSize()
         print('Number of cameras detected: %d' % num_cameras)
@@ -351,8 +182,7 @@ class FlirBlackflyS:
         if num_cameras == 0:
             self.cam_list.Clear()  # Clear camera list before releasing system
             self.system.ReleaseInstance()  # Release system instance
-
-            print('No camera found')
+            print('No cameras found')
             return False
 
         try:
@@ -365,14 +195,12 @@ class FlirBlackflyS:
             # Initialize each camera
             for i, cam in enumerate(self.cam_list):
 
+                # Retrieve device serial numbers
                 device_serial_number = -1
-
-                # Retrieve device serial number for filename
                 node_device_serial_number = PySpin.CStringPtr(cam.GetTLDeviceNodeMap().GetNode('DeviceSerialNumber'))
                 if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
                     device_serial_number = node_device_serial_number.GetValue()
                     print('Camera %d serial number: %s' % (i, device_serial_number))
-
                 self.device_serial_numbers.append(device_serial_number)
 
                 if not CALIBRATION_MODE:
@@ -381,45 +209,7 @@ class FlirBlackflyS:
 
                 cam.Init()  # Initialize camera
 
-                if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
-                    print('Set Master')
-                    cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
-                    cam.TriggerSource.SetValue(PySpin.TriggerSource_Software)
-                    cam.LineSelector.SetValue(PySpin.LineSelector_Line1)
-                    cam.LineMode.SetValue(PySpin.LineMode_Output)
-                    cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
-                    cam.V3_3Enable.SetValue(True)
-                elif device_serial_number == SERIAL_NUMBER_SLAVE:
-                    print('Set Slave')
-                    cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
-                    cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
-                    cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
-                    # Set TriggerActivation Falling Edge TODO: better Rising Edge? ...
-                    cam.TriggerActivation.SetValue(PySpin.TriggerActivation_FallingEdge)
-                    cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
-                else:
-                    print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
-
-
-                # if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
-                #     print('Set Master')
-                #
-                #     cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
-                #     # cam.LineMode.SetValue(PySpin.LineMode_Output)
-                #     cam.V3_3Enable.SetValue(True)
-                #     # TODO: TriggerType Software für Master
-                # elif device_serial_number == SERIAL_NUMBER_SLAVE:
-                #     # Set up secondary camera trigger
-                #     print('Set Slave')
-                #     cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
-                #     cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
-                #     cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
-                #     cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
-                #     # TODO: TriggerType Hardware für Slave
-                # else:
-                #     print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
-
-
+                self.init_hardware_trigger(cam, device_serial_number)
 
                 success, device_event_handler = self.configure_device_events(cam, device_serial_number, subscriber)
                 if not success:
@@ -435,20 +225,50 @@ class FlirBlackflyS:
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
 
             cam_slave.BeginAcquisition()  # Begin acquiring images
-            # print('Sleep')
-            # time.sleep(10)
             cam_master.BeginAcquisition()  # Begin acquiring images
-
-            # for i, cam in enumerate(self.cam_list):
-            #
-            #     cam.BeginAcquisition()  # Begin acquiring images
-            #     print('Camera %d started acquiring images\n' % i)
-
             global all_cameras_ready
             all_cameras_ready = True
 
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
+
+    def init_hardware_trigger(self, cam, device_serial_number):
+        if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
+            print('Set Master')
+            cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+            cam.TriggerSource.SetValue(PySpin.TriggerSource_Software)
+            cam.LineSelector.SetValue(PySpin.LineSelector_Line1)
+            cam.LineMode.SetValue(PySpin.LineMode_Output)
+            cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
+            cam.V3_3Enable.SetValue(True)
+        elif device_serial_number == SERIAL_NUMBER_SLAVE:
+            print('Set Slave')
+            cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+            cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+            cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+            # Set TriggerActivation Falling Edge TODO: better Rising Edge? ...
+            cam.TriggerActivation.SetValue(PySpin.TriggerActivation_FallingEdge)
+            cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
+        else:
+            print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
+
+        # if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
+        #     print('Set Master')
+        #
+        #     cam.LineSelector.SetValue(PySpin.LineSelector_Line2)
+        #     # cam.LineMode.SetValue(PySpin.LineMode_Output)
+        #     cam.V3_3Enable.SetValue(True)
+        #     # TODO: TriggerType Software für Master
+        # elif device_serial_number == SERIAL_NUMBER_SLAVE:
+        #     # Set up secondary camera trigger
+        #     print('Set Slave')
+        #     cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
+        #     cam.TriggerSource.SetValue(PySpin.TriggerSource_Line3)
+        #     cam.TriggerOverlap.SetValue(PySpin.TriggerOverlap_ReadOut)
+        #     cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
+        #     # TODO: TriggerType Hardware für Slave
+        # else:
+        #     print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
 
     def load_camera_calibration_data(self, num_cameras):
         print('load calibration data')
@@ -634,8 +454,6 @@ class FlirBlackflyS:
 
         return True
 
-    # def set_camera_buffer(self):
-
     def print_device_info(self, nodemap, cam_num):
 
         print('Printing device information for camera %d... \n' % cam_num)
@@ -659,28 +477,6 @@ class FlirBlackflyS:
             return False
 
         return result
-
-    # def get_camera_frames(self):
-    #
-    #     if self.new_frames_available:
-    #         # self.frame_counter += 1
-    #         with self.read_lock:
-    #
-    #             self.new_frames_available = False
-    #
-    #             # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-    #             #     print("FPS1: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-    #             #     self.frame_counter = 0
-    #             #     self.start_time = time.time()
-    #
-    #             return self.newest_frames, self.matrices
-    #     else:
-    #         # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-    #         #     print("FPS2: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-    #         #     self.frame_counter = 0
-    #         #     self.start_time = time.time()
-    #
-    #         return [], []
 
     def configure_device_events(self, cam, cam_id, subscriber):
         """
@@ -783,20 +579,9 @@ class FlirBlackflyS:
             # Device event handlers must be unregistered manually. This must be done prior
             # to releasing the system and while the device event handlers are still in
             # scope.
-            if CHOSEN_EVENT == EventType.GENERIC:
 
-                # Device event handlers registered generally will be triggered by any device events.
-                cam.RegisterEventHandler(device_event_handler)
-
-                print('Device event handler registered generally...')
-
-            elif CHOSEN_EVENT == EventType.SPECIFIC:
-
-                # Device event handlers registered to a specified event will only
-                # be triggered by the type of event is it registered to.
-                cam.RegisterEventHandler(device_event_handler, 'EventExposureEnd')
-
-                print('Device event handler registered specifically to EventExposureEnd events...')
+            cam.RegisterEventHandler(device_event_handler, 'EventExposureEnd')
+            print('Device event handler registered specifically to EventExposureEnd events')
 
         except PySpin.SpinnakerException as ex:
             print('Error: %s' % ex)
@@ -804,7 +589,24 @@ class FlirBlackflyS:
 
         return success, device_event_handler
 
+    def end_camera_capture(self):
+        print('End Camera Capture')
+        for i, cam in enumerate(self.cam_list):
+            cam.EndAcquisition()  # End acquisition
 
+            cam.UnregisterEventHandler(self.device_event_handlers[i])
+            print('Device event handler unregistered')
+
+            # Deinitialize camera. Each camera needs to be deinitialized once all images have been acquired.
+            cam.DeInit()
+
+        # Release reference to camera. The usage of del is preferred to assigning the variable to None.
+        del cam
+
+        self.cam_list.Clear()
+
+        # Release system instance
+        self.system.ReleaseInstance()
 
 class CameraTester:
 
@@ -899,7 +701,3 @@ class CameraTester:
 
 if __name__ == '__main__':
     CameraTester()
-
-
-
-
