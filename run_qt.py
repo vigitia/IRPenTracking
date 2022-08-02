@@ -4,16 +4,27 @@ import datetime
 import time
 
 from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QPolygon, QFont, QImage)
+from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QPolygon, QFont, QImage, QSurfaceFormat)
 from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QTimer
 
 from flir_blackfly_s import FlirBlackflyS
 from ir_pen import IRPen
 
+import cv2
+
 # from draw_shape import ShapeCreator
 
-WINDOW_WIDTH = 3840  # 1920
-WINDOW_HEIGHT = 2160  # 1080
+DISPLAY_MODE = "4k"
+
+if DISPLAY_MODE == "4k":
+    WINDOW_WIDTH = 3840  # 1920
+    WINDOW_HEIGHT = 2160  # 1080
+    REDRAW_INTERVAL = 17
+elif DISPLAY_MODE == "1080":
+    WINDOW_WIDTH = 1920 # 3840  # 1920
+    WINDOW_HEIGHT = 1080 # 2160  # 1080
+    REDRAW_INTERVAL = 5
 
 LINE_THICKNESS = 1
 PEN_COLOR = QColor(255, 255, 255, 255)
@@ -24,7 +35,6 @@ PARTICIPANT_ID = 7
 
 last_time = 0
 current_debug_distances = [0, (0, 0)]
-
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -54,6 +64,9 @@ class GLWidget(QOpenGLWidget):
     def __init__(self, parent):
         super(GLWidget, self).__init__(parent)
 
+        fmt = QSurfaceFormat()
+        fmt.setSwapInterval(0)
+
         self.setGeometry(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 
         self.background = QBrush(QColor(0, 0, 0))
@@ -72,21 +85,36 @@ class GLWidget(QOpenGLWidget):
         self.color = QColor(255, 255, 255, 255)
         self.color_hover = QColor(255, 255, 255, 40)
 
+        self.redraw_timer = QTimer()
+        self.redraw_timer.setInterval(REDRAW_INTERVAL)
+        self.redraw_timer.timeout.connect(self.repaint)
+        self.redraw_timer.start()
+
         #self.setAutoFillBackground(False)
+
+        #self.redraw.connect(self._redraw())
 
         self.last_stored_lines_length = 0
 
+
+
     def mousePressEvent(self, QMouseEvent):
         self.fill_screen_white = True
-        self.update()
+        #self.repaint()
 
     def mouseReleaseEvent(self, QMouseEvent):
         self.fill_screen_white = False
-        self.update()
+        #self.repaint()
 
     def update_data(self, active_pen_events, stored_lines):
         self.active_pen_events = active_pen_events
         self.stored_lines = stored_lines
+
+    # @pyqtSlot()
+    # def redraw(self):
+    #     #self.update()
+    #     #self.repaint()
+    #     pass
 
     # @timeit("Paint")
     def paintEvent(self, event):
@@ -163,12 +191,16 @@ class Window(QMainWindow):
     start_time = time.time()
     frame_counter = 0
 
+    #redraw = pyqtSignal()
+
     def __init__(self):
         super().__init__()
 
         self.showFullScreen()
         self.openGL = GLWidget(self)
         self.setCentralWidget(self.openGL)
+
+        #self.redraw.connect(self.openGL.redraw)
 
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
@@ -180,11 +212,11 @@ class Window(QMainWindow):
             # # print('Received {} new frames from Flir Blackfly S'.format(len(frames)))
             # print('run', frames[0].shape)
             #
-            # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
-            # if brightest > 100:
-            #     self.fill_screen_white()
-            # else:
-            #     self.fill_screen_black()
+            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
+            if brightest > 100:
+                self.fill_screen_white()
+            else:
+                self.fill_screen_black()
 
             active_pen_events, stored_lines, _, _, debug_distances = self.ir_pen.get_ir_pen_events_multicam(frames,
                                                                                                             matrices)
@@ -200,17 +232,17 @@ class Window(QMainWindow):
 
     def draw_all_points(self, active_pen_events, stored_lines):
         self.openGL.update_data(active_pen_events, stored_lines)
-        self.openGL.update()
+        #self.redraw.emit()
 
     def fill_screen_white(self):
         # For latency measurements
         self.openGL.fill_screen_white = True
-        self.openGL.update()
+        #self.redraw.emit()
 
     def fill_screen_black(self):
         # For latency measurements
         self.openGL.fill_screen_white = False
-        self.openGL.update()
+        #self.redraw.emit()
 
     # Handle Key-press events
     def keyPressEvent(self, event):
