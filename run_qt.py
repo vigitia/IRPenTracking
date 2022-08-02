@@ -1,10 +1,11 @@
-
+import random
 import sys
 import datetime
+import threading
 import time
 
 from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QPolygon, QFont, QImage, QSurfaceFormat)
+from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QPolygon, QFont, QImage, QSurfaceFormat, QPixmap)
 from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QTimer
 
@@ -34,7 +35,11 @@ PHRASES_MODE = False
 PARTICIPANT_ID = 7
 
 last_time = 0
-current_debug_distances = [0, (0, 0)]
+current_debug_distances = []
+
+mackenzie_phrases = []
+current_phrase = ""
+num_phrases_written = 0
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -96,8 +101,6 @@ class GLWidget(QOpenGLWidget):
 
         self.last_stored_lines_length = 0
 
-
-
     def mousePressEvent(self, QMouseEvent):
         self.fill_screen_white = True
         #self.repaint()
@@ -118,10 +121,12 @@ class GLWidget(QOpenGLWidget):
 
     # @timeit("Paint")
     def paintEvent(self, event):
+        start_time = datetime.datetime.now()
+
         painter = QPainter()
         painter.begin(self)
 
-        #painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.Antialiasing)
 
         #painter.fillRect(event.rect(), self.background)
         painter.drawImage(event.rect(), self.background_image, self.background_image.rect())
@@ -140,6 +145,27 @@ class GLWidget(QOpenGLWidget):
             painter.end()
             return
 
+        # global current_debug_distances
+        # # for point in current_debug_distances:
+        #     # print(point)
+        # if len(current_debug_distances) > 0:
+        #     painter.drawEllipse(QPoint(int(current_debug_distances[0][0]), int(current_debug_distances[0][1])), 5, 5)
+
+
+        if PHRASES_MODE:
+            painter.setFont(self.font)
+            global current_phrase
+            painter.drawText(WINDOW_WIDTH / 2 - ((len(current_phrase) * 20) / 2), 300, current_phrase)
+
+            RECTANGLE_COLOR = QColor(50, 50, 50, 255)
+
+            # painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setBrush(QBrush(RECTANGLE_COLOR))
+            height = 120
+            width = WINDOW_WIDTH/2
+            painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
+
+
         polygons_to_draw = []
 
         for active_pen_event in self.active_pen_events:
@@ -147,9 +173,9 @@ class GLWidget(QOpenGLWidget):
             polygon = []
 
             # TODO: Maybe remove this if because the points in history might still be relevant?
-            if active_pen_event.state.value != 3:  # All events except hover
-                for point in active_pen_event.history:
-                    polygon.append(QPoint(point[0], point[1]))
+            # if active_pen_event.state.value != 3:  # All events except hover
+            for point in active_pen_event.history:
+                polygon.append(QPoint(point[0], point[1]))
             # else:
             #     # Draw a dot to show hover events
             #     painter.setPen(QPen(self.color_hover, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
@@ -162,7 +188,8 @@ class GLWidget(QOpenGLWidget):
                 polygons_to_draw.append(polygon)
 
         # TODO: Empty the stored lines list after the line is drawn
-        if len(self.stored_lines) > self.last_stored_lines_length:
+        if False: #  len(self.stored_lines) > self.last_stored_lines_length:
+            print('Store LINE')
             background_painter = QPainter(self.background_image)
             background_painter.begin(self)
             background_painter.setPen(self.pen)
@@ -185,16 +212,25 @@ class GLWidget(QOpenGLWidget):
 
         painter.end()
 
+        end_time = datetime.datetime.now()
+        run_time = (end_time - start_time).microseconds / 1000.0
+
+        print(run_time)
+
 
 class Window(QMainWindow):
 
     start_time = time.time()
     frame_counter = 0
 
+    rois = []
+
     #redraw = pyqtSignal()
 
     def __init__(self):
         super().__init__()
+
+        self.read_mackenzie_phrases()
 
         self.showFullScreen()
         self.openGL = GLWidget(self)
@@ -205,34 +241,53 @@ class Window(QMainWindow):
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
+    def read_mackenzie_phrases(self):
+        global mackenzie_phrases
+        global current_phrase
+        with open('phrase_set/phrases.txt') as file:
+            lines = file.readlines()
+            for line in lines:
+                mackenzie_phrases.append(line.replace('\n', ''))
+
+        current_phrase = self.get_random_phrase()
+
+    def get_random_phrase(self):
+        global mackenzie_phrases
+        index = random.randint(0, len(mackenzie_phrases) - 1)
+        random_phrase = mackenzie_phrases.pop(index)
+        return random_phrase
+
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
 
         if len(frames) > 0:
-            self.frame_counter += 1
+            # self.frame_counter += 1
             # # print('Received {} new frames from Flir Blackfly S'.format(len(frames)))
             # print('run', frames[0].shape)
             #
-            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
-            if brightest > 100:
-                self.fill_screen_white()
-            else:
-                self.fill_screen_black()
+            # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
+            # if brightest > 100:
+            #     self.fill_screen_white()
+            # else:
+            #     self.fill_screen_black()
 
-            active_pen_events, stored_lines, _, _, debug_distances = self.ir_pen.get_ir_pen_events_multicam(frames,
-                                                                                                            matrices)
+            active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(frames, matrices)
 
-            self.draw_all_points(active_pen_events, stored_lines)  # 1.2 ms
+            global current_debug_distances
+            current_debug_distances = debug_distances
+
+            # self.draw_all_points(active_pen_events, stored_lines)  # 1.2 ms
+            self.openGL.update_data(active_pen_events, stored_lines)
         else:
             print('No frames')
 
-        if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-            print("FPS in run_qt.py(): %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-            self.frame_counter = 0
-            self.start_time = time.time()
+        # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+        #     print("FPS in run_qt.py(): %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
+        #     self.frame_counter = 0
+        #     self.start_time = time.time()
 
-    def draw_all_points(self, active_pen_events, stored_lines):
-        self.openGL.update_data(active_pen_events, stored_lines)
-        #self.redraw.emit()
+    # def draw_all_points(self, active_pen_events, stored_lines):
+    #     self.openGL.update_data(active_pen_events, stored_lines)
+    #     #self.redraw.emit()
 
     def fill_screen_white(self):
         # For latency measurements
@@ -244,16 +299,23 @@ class Window(QMainWindow):
         self.openGL.fill_screen_white = False
         #self.redraw.emit()
 
+    # Save the current window content as a png
+    def save_screenshot(self):
+        filename = datetime.datetime.now().strftime('%Y_%m_%d-%H-%M-%S')
+        self.openGL.background_image.save('./study_results/Participant_{}_{}.png'.format(PARTICIPANT_ID, filename))
+
     # Handle Key-press events
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            # self.save_screenshot()
+            self.save_screenshot()
 
             self.close()
             self.flir_blackfly_s.end_camera_capture()
             sys.exit(0)
-        # elif event.key() == Qt.Key_Space:
-        #     self.save_screenshot()
+        elif event.key() == Qt.Key_Space:
+            self.save_screenshot()
+            global current_phrase
+            current_phrase = self.get_random_phrase()
 
 
 if __name__ == '__main__':

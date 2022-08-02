@@ -1,4 +1,5 @@
 import sys
+import threading
 from enum import Enum
 import time
 import numpy as np
@@ -11,16 +12,16 @@ from skimage.feature import peak_local_max
 from cv2 import cv2
 
 # Aktuell bestes model:
-MODEL_PATH = 'evaluation/model_new_projector_1'
+MODEL_PATH = 'evaluation/model_new_projector_5'
 
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 1  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
-TIME_POINT_MISSING_THRESHOLD_MS = 12
+TIME_POINT_MISSING_THRESHOLD_MS = 7
 
 # Point needs to appear and disappear within this timeframe in ms to count as a click (vs. a drag event)
 CLICK_THRESH_MS = 10
@@ -48,8 +49,8 @@ CAMERA_HEIGHT = 1200  # 480
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'draw_1_300'
-TRAIN_PATH = 'out3/2022-07-29'
+TRAIN_STATE = 'hover_far_0_400_18'
+TRAIN_PATH = 'out3/2022-08-02'
 TRAIN_IMAGE_COUNT = 3000
 
 MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES = 800
@@ -125,11 +126,12 @@ class IRPen:
         # Init Keras
         keras.backend.clear_session()
         self.keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
+        #self.keras_lite_model = keras.models.load_model(MODEL_PATH)
 
     def save_training_image(self, img, pos):
         if self.saved_image_counter == 0:
-            print('Starting in 10 Seconds')
-            time.sleep(10)
+            print('Starting in 5 Seconds')
+            time.sleep(5)
 
         self.saved_image_counter += 1
         if self.saved_image_counter % 10 == 0:
@@ -138,11 +140,12 @@ class IRPen:
 
         if self.saved_image_counter / 10 >= TRAIN_IMAGE_COUNT:
             print('FINISHED COLLECTING TRAINING IMAGES')
-            time.sleep(3)
+            time.sleep(5)
             sys.exit(0)
 
     def transform_coords_to_output_res(self, x, y, transform_matrix):
         try:
+            #print(transform_matrix)
             coords = np.array([x, y, 1])
 
             transformed_coords = transform_matrix.dot(coords)
@@ -170,7 +173,7 @@ class IRPen:
         roi_coords = []
         subpixel_coords = []
 
-        debug_distances = [0, (0, 0)]
+        debug_distances = []
 
         # WIP new approach for multiple pens
         WIP_APPROACH_MULTI_PEN = False
@@ -216,26 +219,34 @@ class IRPen:
         for i, frame in enumerate(camera_frames):
             # TODO: Get here all spots and not just one
 
+            #frame[46][565] = 0
+            #frame[681][597] = 0
+
             # crop 1: 0.5 ms
             # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
             pen_event_roi, brightest, (x, y) = self.crop_image(frame)
 
-            # print('PIXEL', x,y)
             # TODO: Remove
-            if (x,y) == (46, 565) or (x,y) == (681, 597):
-                # print('Dead pixel')
-                brightest = 0
+            # if (x,y) == (46, 565) or (x,y) == (681, 597):
+            #     # print('Dead pixel')
+            #     print('PIXEL', x, y)
+            #     brightest = 0
+            # else:
 
-            if TRAINING_DATA_COLLECTION_MODE:
-                self.save_training_image(pen_event_roi, (x, y))
-                continue
+
 
             # print(transform_matrices)
 
             if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
+                if TRAINING_DATA_COLLECTION_MODE:
+                    self.save_training_image(pen_event_roi, (x, y))
+                    continue
+
                 rois.append(pen_event_roi)
 
                 transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
+
+                # print(f'camera {i}: before {(x, y)}; after {transformed_coords}')
 
                 roi_coords.append(transformed_coords)
 
@@ -246,11 +257,12 @@ class IRPen:
                 # print('2', (x, y), radius)
 
                 subpixel_coords.append((x, y))
-                debug_distances.append(subpixel_coords)
+                debug_distances.append((x, y))
 
         # If we see only one point:
         if len(subpixel_coords) == 1:
             prediction, confidence = self.predict(rois[0])
+            # print('One Point', prediction, confidence)
             # print(prediction)
             if prediction == 'draw':
                 # print('Status: Touch')
@@ -272,12 +284,14 @@ class IRPen:
                                                          subpixel_coords[1])
 
             (center_x, center_y) = self.get_center(subpixel_coords[0], subpixel_coords[1])
-            debug_distances[0] = int(distance_between_points)
-            debug_distances[1] = (center_x, center_y)
+            # debug_distances[0] = int(distance_between_points)
+            # debug_distances[1] = (center_x, center_y)
+            debug_distances.append((center_x, center_y))
 
             # print(distance_between_points, center_x, center_y)
 
             if distance_between_points > MAX_DISTANCE_DRAW:
+                # print('Distance too large -> Hover', distance_between_points)
                 # Calculate center between the two points
 
                 new_ir_pen_event = PenEvent(center_x, center_y)
@@ -286,13 +300,16 @@ class IRPen:
             else:
                 for pen_event_roi in rois:
                     prediction, confidence = self.predict(pen_event_roi)
+                    # print('Two Points', prediction, confidence)
                     predictions.append(prediction)
 
                 if all(x == predictions[0] for x in predictions):
                     # The predictions for all cameras are the same
                     final_prediction = predictions[0]
+                    # print('Agreement on prediction')
                 else:
                     brightest_image_index = brightness_values.index(max(brightness_values))
+                    # print('Disagree -> image {} wins because it is brighter'.format(brightest_image_index))
                     # There is a disagreement
                     # Currently we then use the prediction of the brightest point in all camera frames
                     final_prediction = predictions[brightest_image_index]
@@ -318,10 +335,12 @@ class IRPen:
         # for event in self.active_pen_events:
         #     print(str(vars(event)))
 
-        if len(self.active_pen_events) > 0:
-            print(self.active_pen_events)
+        # if len(self.active_pen_events) > 0:
+        #     print(self.active_pen_events)
 
-        return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances
+        self.rois = rois
+
+        return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances, rois
 
     def generate_new_pen_events(self, subpixel_coords, predictions, brightness_values):
 
@@ -763,16 +782,18 @@ class IRPen:
                 continue
 
             if new_pen_event.state == State.HOVER and len(last_pen_event.history) > 0 and State.DRAG not in last_pen_event.state_history[:-3]:
-                print('No State.DRAG for at least 3 frames')
+                # print('No State.DRAG for at least 3 frames')
+                pass
 
             # TODO: Rework this check
             if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
-                print('Pen Event {} turned from State.DRAG into State.HOVER'.format(last_pen_event.id))
+                # print('Pen Event {} turned from State.DRAG into State.HOVER'.format(last_pen_event.id))
                 # new_pen_event.state_history.append(new_pen_event.state)
                 # We now want to assign a new ID
                 # TODO: Check why this event is called more than once
                 # Maybe set state of old event to missing?
-                # continue
+                continue
+                # pass
 
             new_pen_event.state_history = last_pen_event.state_history
             new_pen_event.state_history.append(new_pen_event.state)
@@ -788,7 +809,7 @@ class IRPen:
             if HOVER_WINS:
                 # Overwrite the current state to hover
                 if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
-                    print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
+                    # print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
                     new_pen_event.state = State.HOVER
                 else:
                     # print('Turning {} into a Drag event'.format(new_pen_event.state))
@@ -851,26 +872,26 @@ class IRPen:
                 if active_pen_event.state == State.NEW:
                     # We detected a click event, but we do not remove it yet because it also could be a double click.
                     # We will check this the next time this function is called.
-                    print('Click event candidate found')
+                    # print('Click event candidate found')
                     active_pen_event.state = State.CLICK
                     new_pen_events.append(active_pen_event)
                 elif active_pen_event.state == State.DRAG:
                     # End of a drag event
-                    print('DRAG Event ended for Pen Event {}'.format(active_pen_event.id))
+                    # print('DRAG Event ended for Pen Event {}'.format(active_pen_event.id))
                     self.pen_events_to_remove.append(active_pen_event)
-                    print('Adding {} points of Event {} to the stored_lines list'.format(len(active_pen_event.history),
-                                                                                         active_pen_event.id))
+                    # print('Adding {} points of Event {} to the stored_lines list'.format(len(active_pen_event.history),
+                    #                                                                      active_pen_event.id))
                     self.stored_lines.append(np.array(active_pen_event.history))
                     # self.new_pen_events.append(active_pen_event.history)
                 elif active_pen_event.state == State.HOVER:
                     # End of a Hover event
-                    print('HOVER Event ended for Pen Event {}'.format(active_pen_event.id))
+                    # print('HOVER Event ended for Pen Event {}'.format(active_pen_event.id))
                     self.pen_events_to_remove.append(active_pen_event)
 
                     if len(active_pen_event.history) > 0:
-                        print('Adding {} points of Event {} to the stored_lines list'.format(
-                            len(active_pen_event.history),
-                            active_pen_event.id))
+                        # print('Adding {} points of Event {} to the stored_lines list'.format(
+                        #     len(active_pen_event.history),
+                        #     active_pen_event.id))
                         self.stored_lines.append(np.array(active_pen_event.history))
 
 
@@ -962,25 +983,82 @@ class IRPen:
         return distances
 
 
+class IRPenDebugger:
+    frame_counter = 0
+    start_time = 0
+    rois = []
+
+    def __init__(self):
+        from flir_blackfly_s import FlirBlackflyS
+
+        self.ir_pen = IRPen()
+        self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
+
+        thread = threading.Thread(target=self.debug_mode_thread)
+        thread.start()
+
+    def debug_mode_thread(self):
+        cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('ROI', 1000, 500)
+
+        while True:
+            if len(self.rois) == 2:
+                roi0 = cv2.resize(self.rois[0], (500, 500), interpolation=cv2.INTER_AREA)
+                max0 = str(np.max(roi0))
+                roi1 = cv2.resize(self.rois[1], (500, 500), interpolation=cv2.INTER_AREA)
+                max1 = str(np.max(roi1))
+
+                roi0 = cv2.putText(
+                    img=roi0,
+                    text=max0,
+                    org=(50, 50),
+                    fontFace=cv2.FONT_HERSHEY_DUPLEX,
+                    fontScale=3.0,
+                    color=(255),
+                    thickness=3
+                )
+
+                roi1 = cv2.putText(
+                    img=roi1,
+                    text=max1,
+                    org=(50, 50),
+                    fontFace=cv2.FONT_HERSHEY_DUPLEX,
+                    fontScale=3.0,
+                    color=(255),
+                    thickness=3
+                )
+
+                cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
+                self.rois = []
+            elif len(self.rois) == 1:
+                roi0 = cv2.resize(self.rois[0], (500, 500), interpolation=cv2.INTER_AREA)
+                max0 = str(np.max(roi0))
+
+                roi0 = cv2.putText(
+                    img=roi0,
+                    text=max0,
+                    org=(50, 50),
+                    fontFace=cv2.FONT_HERSHEY_DUPLEX,
+                    fontScale=3.0,
+                    color=(255),
+                    thickness=3
+                )
+                roi1 = np.zeros((500, 500), np.uint8)
+                cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
+                self.rois = []
+
+            key = cv2.waitKey(1)
+            if key == 27:  # ESC
+                cv2.destroyAllWindows()
+                sys.exit(0)
+
+    def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
+        if len(frames) > 0:
+            self.frame_counter += 1
+            active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
+                frames, matrices)
+            self.rois = rois
+
+
 if __name__ == '__main__':
-    from flir_blackfly_s import FlirBlackflyS
-    flir_blackfly_s = FlirBlackflyS()
-    flir_blackfly_s.start()
-
-    ir_pen = IRPen()
-
-    DEBUG_MODE = True
-
-    while True:
-        new_frames, matrices = flir_blackfly_s.get_camera_frames()
-
-        if len(new_frames) > 0:
-            active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(new_frames,
-                                                                                                       matrices)
-
-            if len(active_pen_events) > 0:
-                print(active_pen_events)
-        else:
-            # We need this sleep. Otherwise we will overload the camera script with too many requests for new frames.
-            # TODO: Find a better solution
-            time.sleep(0.0001)
+    debugger = IRPenDebugger()
