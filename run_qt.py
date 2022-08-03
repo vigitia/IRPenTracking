@@ -188,24 +188,22 @@ class GLWidget(QOpenGLWidget):
                 polygons_to_draw.append(polygon)
 
         # TODO: Empty the stored lines list after the line is drawn
-        if False: #  len(self.stored_lines) > self.last_stored_lines_length:
+        if len(self.stored_lines) > self.last_stored_lines_length:
             print('Store LINE')
-            background_painter = QPainter(self.background_image)
-            background_painter.begin(self)
-            background_painter.setPen(self.pen)
 
             for i in range(self.last_stored_lines_length, len(self.stored_lines)):
                 line = self.stored_lines[i]
 
+                draw_background_thread = threading.Thread(target=self.draw_background, args=(line,), daemon=True)
+                draw_background_thread.start()
+
                 polygon = []
+
                 for point in line:
                     polygon.append(QPoint(point[0], point[1]))
 
                 if len(polygon) > 0:
-                    background_painter.drawPolyline(QPolygon(polygon))
-            self.last_stored_lines_length = len(self.stored_lines)
-
-            background_painter.end()
+                    polygons_to_draw.append(polygon)
 
         for polygon in polygons_to_draw:
             painter.drawPolyline(QPolygon(polygon))
@@ -216,6 +214,22 @@ class GLWidget(QOpenGLWidget):
         run_time = (end_time - start_time).microseconds / 1000.0
 
         print(run_time)
+
+    def draw_background(self, line):
+        background_painter = QPainter(self.background_image)
+        background_painter.begin(self)
+        background_painter.setPen(self.pen)
+
+        polygon = []
+        for point in line:
+            polygon.append(QPoint(point[0], point[1]))
+
+        if len(polygon) > 0:
+            background_painter.drawPolyline(QPolygon(polygon))
+
+        self.last_stored_lines_length += 1
+
+        background_painter.end()
 
 
 class Window(QMainWindow):
