@@ -41,6 +41,8 @@ mackenzie_phrases = []
 current_phrase = ""
 num_phrases_written = 0
 
+LATENCY_COMPENSATION_MODE = True
+
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
@@ -80,6 +82,7 @@ class GLWidget(QOpenGLWidget):
         self.background_image.fill(Qt.black)
 
         self.pen = QPen(Qt.white)
+        self.pen_latency_compensation = QPen(Qt.red)
         self.pen.setWidth(LINE_THICKNESS)
 
         self.font = QFont()
@@ -207,6 +210,16 @@ class GLWidget(QOpenGLWidget):
 
         for polygon in polygons_to_draw:
             painter.drawPolyline(QPolygon(polygon))
+
+        # currently only uses last two line segments for prediction, but can easily be extended
+        if LATENCY_COMPENSATION_MODE:
+            vectors = np.array(self.active_line)
+            if len(vectors) > 2:
+                difference = vectors[-2] - vectors[-1]
+                result = vectors[-1] - (difference * 3)
+
+                painter.setPen(self.pen_latency_compensation)
+                painter.drawLine(QPoint(vectors[-1][0], vectors[-1][1]), QPoint(result[0], result[1]))
 
         painter.end()
 
