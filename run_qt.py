@@ -4,6 +4,7 @@ import datetime
 import threading
 import time
 
+import numpy as np
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import (QBrush, QColor, QPainter, QPen, QPolygon, QFont, QImage, QSurfaceFormat, QPixmap)
 from PyQt5.QtWidgets import (QApplication, QOpenGLWidget, QMainWindow)
@@ -68,6 +69,8 @@ class GLWidget(QOpenGLWidget):
 
     fill_screen_white = False
 
+    painting_in_progess = False
+
     def __init__(self, parent):
         super(GLWidget, self).__init__(parent)
 
@@ -81,8 +84,10 @@ class GLWidget(QOpenGLWidget):
         self.background_image = QImage(self.size(), QImage.Format_RGB32)
         self.background_image.fill(Qt.black)
 
+        self.painter = QPainter(self)
+
         self.pen = QPen(Qt.white)
-        self.pen_latency_compensation = QPen(Qt.red)
+        self.pen_latency_compensation = QPen(Qt.white)
         self.pen.setWidth(LINE_THICKNESS)
 
         self.font = QFont()
@@ -93,10 +98,10 @@ class GLWidget(QOpenGLWidget):
         self.color = QColor(255, 255, 255, 255)
         self.color_hover = QColor(255, 255, 255, 40)
 
-        self.redraw_timer = QTimer()
-        self.redraw_timer.setInterval(REDRAW_INTERVAL)
-        self.redraw_timer.timeout.connect(self.repaint)
-        self.redraw_timer.start()
+        # self.redraw_timer = QTimer()
+        # self.redraw_timer.setInterval(REDRAW_INTERVAL)
+        # self.redraw_timer.timeout.connect(self.repaint)
+        # self.redraw_timer.start()
 
         #self.setAutoFillBackground(False)
 
@@ -115,6 +120,7 @@ class GLWidget(QOpenGLWidget):
     def update_data(self, active_pen_events, stored_lines):
         self.active_pen_events = active_pen_events
         self.stored_lines = stored_lines
+        self.update()
 
     # @pyqtSlot()
     # def redraw(self):
@@ -124,17 +130,22 @@ class GLWidget(QOpenGLWidget):
 
     # @timeit("Paint")
     def paintEvent(self, event):
+        while self.painting_in_progess:
+            time.sleep(0.001)
+            print('PAINTING ALREADY IN PROGRESS')
+        self.painting_in_progess = True
+
         start_time = datetime.datetime.now()
 
-        painter = QPainter()
-        painter.begin(self)
+        # painter = QPainter()
+        self.painter.begin(self)
 
-        painter.setRenderHint(QPainter.Antialiasing)
+        # painter.setRenderHint(QPainter.Antialiasing)
 
         #painter.fillRect(event.rect(), self.background)
-        painter.drawImage(event.rect(), self.background_image, self.background_image.rect())
+        self.painter.drawImage(event.rect(), self.background_image, self.background_image.rect())
 
-        painter.setPen(self.pen)
+        self.painter.setPen(self.pen)
 
         # global last_time
         # global current_debug_distances
@@ -143,9 +154,9 @@ class GLWidget(QOpenGLWidget):
         # painter.drawText(100, 500, str(last_time) + ' ms')
 
         if self.fill_screen_white:
-            painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
-            painter.drawRect(600, 0, 1900, 1000)
-            painter.end()
+            self.painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
+            self.painter.drawRect(600, 0, 1900, 1000)
+            self.painter.end()
             return
 
         # global current_debug_distances
@@ -156,17 +167,17 @@ class GLWidget(QOpenGLWidget):
 
 
         if PHRASES_MODE:
-            painter.setFont(self.font)
+            self.painter.setFont(self.font)
             global current_phrase
-            painter.drawText(WINDOW_WIDTH / 2 - ((len(current_phrase) * 20) / 2), 300, current_phrase)
+            self.painter.drawText(WINDOW_WIDTH / 2 - ((len(current_phrase) * 20) / 2), 300, current_phrase)
 
             RECTANGLE_COLOR = QColor(50, 50, 50, 255)
 
             # painter.setPen(QPen(RECTANGLE_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            painter.setBrush(QBrush(RECTANGLE_COLOR))
+            self.painter.setBrush(QBrush(RECTANGLE_COLOR))
             height = 120
             width = WINDOW_WIDTH/2
-            painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
+            self.painter.drawRect(int(WINDOW_WIDTH/2 - width/2), int(WINDOW_HEIGHT/2 - height/2), width, height)
 
 
         polygons_to_draw = []
@@ -190,47 +201,65 @@ class GLWidget(QOpenGLWidget):
             if len(polygon) > 0:
                 polygons_to_draw.append(polygon)
 
+        thread_list = []
+
         # TODO: Empty the stored lines list after the line is drawn
         if len(self.stored_lines) > self.last_stored_lines_length:
-            print('Store LINE')
-
             for i in range(self.last_stored_lines_length, len(self.stored_lines)):
+                print('Store LINE')
                 line = self.stored_lines[i]
 
+                #thread_start_time = time.time()
                 draw_background_thread = threading.Thread(target=self.draw_background, args=(line,), daemon=True)
-                draw_background_thread.start()
+                # draw_background_thread = threading.Thread(target=lambda: self.draw_background(line))
+
+                thread_list.append(draw_background_thread)
+
+                #thread_end_time = time.time()
+                #print('THREAD TIME: ', thread_end_time - thread_start_time)
 
                 polygon = []
 
                 for point in line:
                     polygon.append(QPoint(point[0], point[1]))
-
                 if len(polygon) > 0:
                     polygons_to_draw.append(polygon)
 
         for polygon in polygons_to_draw:
-            painter.drawPolyline(QPolygon(polygon))
+            self.painter.drawPolyline(QPolygon(polygon))
 
         # currently only uses last two line segments for prediction, but can easily be extended
-        if LATENCY_COMPENSATION_MODE:
-            vectors = np.array(self.active_line)
+        if LATENCY_COMPENSATION_MODE and len(self.active_pen_events) > 0:
+            vectors = np.array(self.active_pen_events[0].history)
             if len(vectors) > 2:
                 difference = vectors[-2] - vectors[-1]
                 result = vectors[-1] - (difference * 3)
 
-                painter.setPen(self.pen_latency_compensation)
-                painter.drawLine(QPoint(vectors[-1][0], vectors[-1][1]), QPoint(result[0], result[1]))
+                self.painter.setPen(self.pen_latency_compensation)
+                self.painter.drawLine(QPoint(vectors[-1][0], vectors[-1][1]), QPoint(result[0], result[1]))
 
-        painter.end()
+        self.painter.end()
+
+        for thread in thread_list:
+            thread.start()
+
 
         end_time = datetime.datetime.now()
         run_time = (end_time - start_time).microseconds / 1000.0
 
-        print(run_time)
+        if run_time < 2:
+            # print(run_time)
+            pass
+        else:
+            print(run_time, '<------------------- !!!!!!!', len(polygons_to_draw), len(self.active_pen_events))
+
+        self.painting_in_progess = False
 
     def draw_background(self, line):
+        print('In drawBackground()')
+        self.last_stored_lines_length += 1
         background_painter = QPainter(self.background_image)
-        background_painter.begin(self)
+        # background_painter.begin(self)
         background_painter.setPen(self.pen)
 
         polygon = []
@@ -240,9 +269,7 @@ class GLWidget(QOpenGLWidget):
         if len(polygon) > 0:
             background_painter.drawPolyline(QPolygon(polygon))
 
-        self.last_stored_lines_length += 1
-
-        background_painter.end()
+        # background_painter.end()
 
 
 class Window(QMainWindow):
@@ -287,7 +314,7 @@ class Window(QMainWindow):
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
 
         if len(frames) > 0:
-            # self.frame_counter += 1
+            self.frame_counter += 1
             # # print('Received {} new frames from Flir Blackfly S'.format(len(frames)))
             # print('run', frames[0].shape)
             #
@@ -307,10 +334,10 @@ class Window(QMainWindow):
         else:
             print('No frames')
 
-        # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-        #     print("FPS in run_qt.py(): %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-        #     self.frame_counter = 0
-        #     self.start_time = time.time()
+        if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
+            print("FPS in run_qt.py(): {}".format(round(self.frame_counter / (time.time() - self.start_time), 1)))
+            self.frame_counter = 0
+            self.start_time = time.time()
 
     # def draw_all_points(self, active_pen_events, stored_lines):
     #     self.openGL.update_data(active_pen_events, stored_lines)
