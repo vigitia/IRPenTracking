@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
 
     SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
 
-    SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, 400, 300, SDL_WINDOW_FULLSCREEN);
+    SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, 3840, 2160, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
             for(int i = 0; i < points.size(); i++)
             {
                 point_array[i] = points.at(i);
-                cout << point_array[i].x << " " << point_array[i].y << " " << points.size() << endl;
+                //cout << point_array[i].x << " " << point_array[i].y << " " << points.size() << endl;
             }
 
 
