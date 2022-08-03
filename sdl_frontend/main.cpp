@@ -11,13 +11,18 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <iostream>
-
+#include <SDL2/SDL.h>
+#include <vector>
 
 using namespace std;
 
 int fifo_fd = -1;    // path to FIFO for remotely controlled delay times
 char* fifo_path;
 pthread_t fifo_thread; 
+    
+SDL_Renderer* renderer;
+
+vector<SDL_Point> points;
 
 void *handle_fifo(void *args)
 {
@@ -28,32 +33,22 @@ void *handle_fifo(void *args)
         // open the FIFO - this call blocks the thread until someone writes to the FIFO
         fifo_fd = open(fifo_path, O_RDONLY);
 
+        int x, y;
+
         if(read(fifo_fd, buffer, 80) <= 0) continue; // read the FIFO's content into a buffer and skip setting the variables if an error occurs
 
-        /*
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "%d %d %d %d", &buffer_min_delay_click, &buffer_max_delay_click, &buffer_min_delay_move, &buffer_max_delay_move) == 4)
+        if(sscanf(buffer, "%d %d", &x, &y) == 2)
         {
-            // set delay times
-            min_delay_click = buffer_min_delay_click;
-            max_delay_click = buffer_max_delay_click;
-            min_delay_move = buffer_min_delay_move;
-            max_delay_move = buffer_max_delay_move;
-
-            // make sure max >= min
-            if(max_delay_click < min_delay_click) max_delay_click = min_delay_click;
-            if(max_delay_move < min_delay_move) max_delay_move = min_delay_move;
-
-            if(DEBUG) printf("set new values: %d %d %d %d\n", min_delay_click, max_delay_click, min_delay_move, max_delay_move);
+            cout << "x: " << x << "; y: " << y << endl;
+            points.push_back({x, y});
         }
         else
         {
-            if(DEBUG) printf("could not set new delays - bad data structure\n");
+            cout << "could not read input " << buffer << endl;
         }
-        */
 
-        cout << buffer << endl;
 
         close(fifo_fd);
     }
@@ -92,10 +87,62 @@ int main(int argc, char* argv[])
         if(!init_fifo()) return 1;
     }
 
-    while(1)
-    {
+    SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
 
+    SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, 400, 300, SDL_WINDOW_FULLSCREEN);
+    renderer = SDL_CreateRenderer(window, -1, 0);
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+    bool quit = false;
+    SDL_Event event;
+
+    while(!quit)
+    {
+        SDL_PollEvent(&event);
+ 
+        switch (event.type)
+        {
+            case SDL_QUIT:
+                quit = true;
+                break;
+            // TODO input handling code goes here
+        }
+
+        if(points.size() > 1)
+        {
+
+            SDL_Point point_array[points.size()];
+
+            for(int i = 0; i < points.size(); i++)
+            {
+                point_array[i] = points.at(i);
+                cout << point_array[i].x << " " << point_array[i].y << " " << points.size() << endl;
+            }
+
+
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderDrawLines(renderer, point_array, points.size());
+        }
+        //SDL_Point point_array[3] = {
+        //    {100, 200},
+        //    {150, 200},
+        //    {150, 400}
+        //};
+
+        //SDL_RenderDrawLines(renderer, point_array, points.size());
+        //SDL_RenderDrawLine(renderer, 100, 100, 200, 200);
+
+        SDL_RenderPresent(renderer);  // their sequence appears to not matter
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);    //
     }
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
 }
