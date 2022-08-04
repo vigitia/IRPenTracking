@@ -14,9 +14,12 @@
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
+#include <SDL2/SDL_ttf.h>
 #include <vector>
 #include <map>
 #include <ctime>
+#include <iostream>
+#include <fstream>
 
 #include "particle.h"
 
@@ -28,10 +31,12 @@
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
 
-#define SHOW_PARTICLES 1
+#define SHOW_PARTICLES 0
 
 #define STATE_HOVER 0
 #define STATE_DRAW 1
+
+#define FONT_SIZE 42
 
 const char* SCREENSHOT_PATH = "screenshots/";
 const char* PHRASES_PATH = "../phrase_set/phrases.txt";
@@ -39,13 +44,15 @@ const char* PHRASES_PATH = "../phrase_set/phrases.txt";
 using namespace std;
 
 vector<string> phrases;
+vector<int> usedPhrases;
 string currentPhrase;
 
 vector<Particle> particles;
 
 enum Modes {
     draw,
-    phrase
+    phrase,
+    cross
 };
 
 Modes currentMode = draw;
@@ -106,12 +113,10 @@ void *handle_fifo(void *args)
             cout << "could not read input " << buffer << endl;
         }
 
-
         close(fifo_fd);
         usleep(500);
     }
 }
-
 
 int init_fifo()
 {
@@ -183,9 +188,45 @@ void saveImage()
     SDL_FreeSurface(surface);
 }
 
+void loadPhrases()
+{
+    string line;
+    ifstream phraseFile(PHRASES_PATH);
+
+    if(phraseFile.is_open())
+    {
+        while(getline(phraseFile, line))
+        {
+            line.pop_back();
+            phrases.push_back(line);
+        }
+        phraseFile.close();
+    }
+}
+
 void nextPhrase()
 {
+    bool newPhraseFound = false;
+    int phraseIndex = 0;
 
+    while(!newPhraseFound)
+    {
+        newPhraseFound = true;
+        phraseIndex = rand() % phrases.size();
+
+        for (auto const& index : usedPhrases)
+        {
+            if(index == phraseIndex)
+            {
+                newPhraseFound = false;
+                break;
+            }
+        }
+    }
+
+    usedPhrases.push_back(phraseIndex);
+    currentPhrase = phrases.at(phraseIndex);
+    //cout << phraseIndex << " " << currentPhrase << endl;
 }
 
 int main(int argc, char* argv[]) 
@@ -205,6 +246,19 @@ int main(int argc, char* argv[])
     //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
     SDL_Init(SDL_INIT_VIDEO);
 
+    if ( TTF_Init() < 0 ) {
+        cout << "Error initializing SDL_ttf: " << TTF_GetError() << endl;
+    }
+
+    TTF_Font* font;
+
+    font = TTF_OpenFont("font.ttf", FONT_SIZE);
+
+    SDL_Surface* textSurface;
+    SDL_Color textColor = { 255, 255, 255 };
+
+    textSurface = TTF_RenderText_Solid( font, "Hello World!", textColor );
+
     SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
 
@@ -215,6 +269,7 @@ int main(int argc, char* argv[])
     bool quit = false;
     SDL_Event event;
 
+    loadPhrases();
 
     while(!quit)
     {
@@ -235,6 +290,10 @@ int main(int argc, char* argv[])
                         break;
                     case SDLK_e:
                         currentMode = phrase;
+                        nextPhrase();
+                        break;
+                    case SDLK_r:
+                        currentMode = cross;
                         break;
                     case SDLK_s:
                         saveImage();
@@ -245,6 +304,7 @@ int main(int argc, char* argv[])
                         if(currentMode == phrase)
                         {
                             nextPhrase();
+                            textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
                         }
                         break;
                 }
@@ -257,6 +317,20 @@ int main(int argc, char* argv[])
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);    //
+
+        if(currentMode == phrase)
+        {
+            SDL_Texture* textTexture;
+
+            textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
+
+            int w = textSurface->w;
+            int h = textSurface->h;
+
+            SDL_Rect dest = { WINDOW_WIDTH / 2 - w / 2, 200, w, h };
+
+            SDL_RenderCopy( renderer, textTexture, NULL, &dest );
+        }
 
         for (auto const& entry : lines)
         {
@@ -319,6 +393,7 @@ int main(int argc, char* argv[])
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+    TTF_Quit();
 
     return 0;
 }
