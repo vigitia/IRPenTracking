@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <iostream>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL2_gfxPrimitives.h>
 #include <vector>
 #include <map>
 #include <ctime>
@@ -20,9 +21,19 @@
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 
+#define HOVER_INDICATOR_COLOR 0xFF00FFFF
+#define SHOW_HOVER_INDICATOR 1
+
+#define STATE_HOVER 0
+#define STATE_DRAW 1
+
 const char* SCREENSHOT_PATH = "screenshots/";
+const char* PHRASES_PATH = "../phrase_set/phrases.txt";
 
 using namespace std;
+
+vector<string> phrases;
+string currentPhrase;
 
 enum Modes {
     draw,
@@ -44,6 +55,9 @@ int currentId = 0;
 
 int participantId = 0;
 
+int currentX, currentY = 0;
+int currentState = 0;
+
 void *handle_fifo(void *args)
 {
     char buffer[80];
@@ -53,15 +67,18 @@ void *handle_fifo(void *args)
         // open the FIFO - this call blocks the thread until someone writes to the FIFO
         fifo_fd = open(fifo_path, O_RDONLY);
 
-        int id, x, y;
+        int id, x, y, state;
 
         if(read(fifo_fd, buffer, 80) <= 0) continue; // read the FIFO's content into a buffer and skip setting the variables if an error occurs
 
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "%d %d %d ", &id, &x, &y) == 3)
+        if(sscanf(buffer, "%d %d %d %d ", &id, &x, &y, &state) == 3)
         {
-            cout << "id: " << id << "x: " << x << "; y: " << y << endl;
+            cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
+            currentX = x;
+            currentY = y;
+            currentState = state;
             if(id != currentId)
             {
                 lines[currentId] = currentLine;
@@ -70,7 +87,10 @@ void *handle_fifo(void *args)
             }
             else
             {
-                currentLine.push_back({x, y});
+                if(state == STATE_DRAW)
+                {
+                    currentLine.push_back({x, y});
+                }
             }
         }
         else
@@ -155,6 +175,11 @@ void saveImage()
     SDL_FreeSurface(surface);
 }
 
+void nextPhrase()
+{
+
+}
+
 int main(int argc, char* argv[]) 
 {
     signal(SIGINT, onExit);
@@ -209,6 +234,10 @@ int main(int argc, char* argv[])
                     case SDLK_SPACE:
                         saveImage();
                         clearScreen();
+                        if(currentMode == phrase)
+                        {
+                            nextPhrase();
+                        }
                         break;
                 }
                 break;
@@ -236,6 +265,11 @@ int main(int argc, char* argv[])
             }
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderDrawLines(renderer, point_array, currentLine.size());
+        }
+
+        if(SHOW_HOVER_INDICATOR && currentState == STATE_DRAW)
+        {
+            filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
         }
 
         SDL_RenderPresent(renderer);  // their sequence appears to not matter

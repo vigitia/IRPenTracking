@@ -39,7 +39,7 @@ while True:
     #x = random.randint(x_min, x_max)
     #y = random.randint(y_min, y_max)
 
-    os.write(pipeout, f'{line_id} {x} {y} '.encode())
+    os.write(pipeout, f'{line_id} {x} {y} 1 '.encode())
     print(f'{line_id} {x} {y}')
 
     if num_points > 2:
