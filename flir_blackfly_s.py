@@ -96,6 +96,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
                 elif self.cam_id == SERIAL_NUMBER_SLAVE:
                     global cam_image_slave
                     cam_image_slave = image_result.GetNDArray()
+                    self.check_both_frames_available()
                     # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
 
             #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
@@ -105,7 +106,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             # run_time = (end_time - start_time).microseconds / 1000.0
             # print('Time for self.cam.GetNextImage(1000)', run_time, self.cam_id)
 
-            self.check_both_frames_available()
+            # self.check_both_frames_available()
 
         else:
             # Print no information on non-specified event
@@ -135,6 +136,10 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             #         print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
             #     self.frame_counter = 0
             #     self.start_time = time.time()
+        # else:
+        #     time.sleep(0.001)
+        #     print('CHeck frames available again')
+        #     self.check_both_frames_available()
 
 
 class FlirBlackflyS:
@@ -633,7 +638,7 @@ class CameraTester:
         global DEBUG_MODE
         global EXTRACT_PROJECTION_AREA
         DEBUG_MODE = True
-        EXTRACT_PROJECTION_AREA = True
+        EXTRACT_PROJECTION_AREA = False
 
         # If this script is started as main, the debug mode is activated by default:
         cam_exposure = EXPOSURE_TIME_MICROSECONDS
