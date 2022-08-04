@@ -18,8 +18,8 @@
 #include <map>
 #include <ctime>
 
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 3840
+#define WINDOW_HEIGHT 2160
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -73,7 +73,7 @@ void *handle_fifo(void *args)
 
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "%d %d %d %d ", &id, &x, &y, &state) == 3)
+        if(sscanf(buffer, "%d %d %d %d ", &id, &x, &y, &state) == 4)
         {
             cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
             currentX = x;
@@ -267,7 +267,7 @@ int main(int argc, char* argv[])
             SDL_RenderDrawLines(renderer, point_array, currentLine.size());
         }
 
-        if(SHOW_HOVER_INDICATOR && currentState == STATE_DRAW)
+        if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER)
         {
             filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
         }
