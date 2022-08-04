@@ -18,11 +18,17 @@
 #include <map>
 #include <ctime>
 
-#define WINDOW_WIDTH 3840
-#define WINDOW_HEIGHT 2160
+#include "particle.h"
+
+//#define WINDOW_WIDTH 3840
+//#define WINDOW_HEIGHT 2160
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
+
+#define SHOW_PARTICLES 1
 
 #define STATE_HOVER 0
 #define STATE_DRAW 1
@@ -34,6 +40,8 @@ using namespace std;
 
 vector<string> phrases;
 string currentPhrase;
+
+vector<Particle> particles;
 
 enum Modes {
     draw,
@@ -270,6 +278,37 @@ int main(int argc, char* argv[])
         if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER)
         {
             filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
+        }
+
+        if(SHOW_PARTICLES)
+        {
+            if(currentState == STATE_DRAW)
+            {
+                int x = currentX;
+                int y = currentY;
+                for (int i = 0; i < 10; i++)
+                {
+                    Particle trailParticle = Particle(x, y, 0xFF0088FF);
+                    trailParticle.setAngle((rand() % 359) / 180 * M_PI);
+                    trailParticle.setLifetime(5 + (rand() % 5) / 5.0f);
+                    trailParticle.setVelocity(1 + rand() % 3);
+                    particles.push_back(trailParticle);
+                }
+            }
+
+            for (vector<Particle>::iterator it = particles.begin(); it != particles.end();)
+            {
+                bool alive = it->update(0.2);
+                if(!alive)
+                    it = particles.erase(it);
+                else 
+                    ++it;
+            }
+
+            for(const auto particle : particles)
+            {
+                particle.render(renderer);
+            }
         }
 
         SDL_RenderPresent(renderer);  // their sequence appears to not matter
