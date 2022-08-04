@@ -15,9 +15,12 @@
 #include <SDL2/SDL.h>
 #include <vector>
 #include <map>
+#include <ctime>
 
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
+
+const char* SCREENSHOT_PATH = "screenshots/";
 
 using namespace std;
 
@@ -27,7 +30,6 @@ enum Modes {
 };
 
 Modes currentMode = draw;
-
 
 int fifo_fd = -1;    // path to FIFO for remotely controlled delay times
 char* fifo_path;
@@ -39,6 +41,8 @@ map<int, vector<SDL_Point>> lines;
 vector<SDL_Point> currentLine;
 
 int currentId = 0;
+
+int participantId = 0;
 
 void *handle_fifo(void *args)
 {
@@ -126,8 +130,23 @@ void clearScreen()
     currentLine.clear();
 }
 
-void saveImage(char* filename)
+// https://stackoverflow.com/questions/997946/how-to-get-current-time-and-date-in-c
+const string currentDateTime()
+{
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    strftime(buf, sizeof(buf), "%Y-%m-%d_%X", &tstruct);
+
+    return buf;
+}
+
+void saveImage()
 { 
+    char filename[120];
+    sprintf(filename, "%s%d_%s.bmp", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
+
     const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
  
     SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
@@ -145,6 +164,10 @@ int main(int argc, char* argv[])
         fifo_path = argv[1];
         if(!init_fifo()) return 1;
     }
+    if(argc > 2)
+    {
+        participantId = atoi(argv[2]);
+    }
 
     //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
     SDL_Init(SDL_INIT_VIDEO);
@@ -159,6 +182,7 @@ int main(int argc, char* argv[])
     bool quit = false;
     SDL_Event event;
 
+
     while(!quit)
     {
         SDL_PollEvent(&event);
@@ -170,6 +194,7 @@ int main(int argc, char* argv[])
                 {
                     case SDLK_q:
                     case SDLK_ESCAPE:
+                        saveImage();
                         quit = true;
                         break;
                     case SDLK_w:
@@ -179,9 +204,10 @@ int main(int argc, char* argv[])
                         currentMode = phrase;
                         break;
                     case SDLK_s:
-                        saveImage("screenshot.bmp");
+                        saveImage();
                         break;
                     case SDLK_SPACE:
+                        saveImage();
                         clearScreen();
                         break;
                 }
