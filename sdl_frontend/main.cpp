@@ -7,12 +7,17 @@
 #include <string.h>
 #include <pthread.h> 
 #include <errno.h>
-#include <sys/types.h>
+//#include <sys/types.h>
+
 #include <sys/stat.h>
 #include <signal.h>
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <vector>
+#include <map>
+
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 
 using namespace std;
 
@@ -22,7 +27,10 @@ pthread_t fifo_thread;
     
 SDL_Renderer* renderer;
 
-vector<SDL_Point> points;
+map<int, vector<SDL_Point>> lines;
+vector<SDL_Point> currentLine;
+
+int currentId = 0;
 
 void *handle_fifo(void *args)
 {
@@ -33,16 +41,25 @@ void *handle_fifo(void *args)
         // open the FIFO - this call blocks the thread until someone writes to the FIFO
         fifo_fd = open(fifo_path, O_RDONLY);
 
-        int x, y;
+        int id, x, y;
 
         if(read(fifo_fd, buffer, 80) <= 0) continue; // read the FIFO's content into a buffer and skip setting the variables if an error occurs
 
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "%d %d", &x, &y) == 2)
+        if(sscanf(buffer, "%d %d %d ", &id, &x, &y) == 3)
         {
-            cout << "x: " << x << "; y: " << y << endl;
-            points.push_back({x, y});
+            cout << "id: " << id << "x: " << x << "; y: " << y << endl;
+            if(id != currentId)
+            {
+                lines[currentId] = currentLine;
+                currentId = id;
+                currentLine.clear();
+            }
+            else
+            {
+                currentLine.push_back({x, y});
+            }
         }
         else
         {
@@ -51,6 +68,7 @@ void *handle_fifo(void *args)
 
 
         close(fifo_fd);
+        usleep(500);
     }
 }
 
@@ -87,9 +105,10 @@ int main(int argc, char* argv[])
         if(!init_fifo()) return 1;
     }
 
-    SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
+    //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
+    SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, 3840, 2160, SDL_WINDOW_FULLSCREEN);
+    SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -111,6 +130,33 @@ int main(int argc, char* argv[])
             // TODO input handling code goes here
         }
 
+        for (auto const& entry : lines)
+        {
+            vector<SDL_Point> line = entry.second;
+            if(line.size() > 1)
+            {
+                SDL_Point point_array[line.size()];
+                for(int i = 0; i < line.size(); i++)
+                {
+                    point_array[i] = line.at(i);
+                }
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderDrawLines(renderer, point_array, line.size());
+            }
+        }
+
+        if(currentLine.size() > 1)
+        {
+            SDL_Point point_array[currentLine.size()];
+            for(int i = 0; i < currentLine.size(); i++)
+            {
+                point_array[i] = currentLine.at(i);
+            }
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderDrawLines(renderer, point_array, currentLine.size());
+        }
+
+        /*
         if(points.size() > 1)
         {
 
@@ -126,6 +172,8 @@ int main(int argc, char* argv[])
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderDrawLines(renderer, point_array, points.size());
         }
+        */
+
         //SDL_Point point_array[3] = {
         //    {100, 200},
         //    {150, 200},
@@ -138,6 +186,8 @@ int main(int argc, char* argv[])
         SDL_RenderPresent(renderer);  // their sequence appears to not matter
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);    //
+
+        usleep(1000);
     }
 
     SDL_DestroyRenderer(renderer);
