@@ -21,6 +21,14 @@
 
 using namespace std;
 
+enum Modes {
+    draw,
+    phrase
+};
+
+Modes currentMode = draw;
+
+
 int fifo_fd = -1;    // path to FIFO for remotely controlled delay times
 char* fifo_path;
 pthread_t fifo_thread; 
@@ -94,6 +102,39 @@ void onExit(int signum)
     exit(EXIT_SUCCESS);
 }
 
+void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line)
+{
+    if(line->size() > 1)
+    {
+        SDL_Point point_array[line->size()];
+        for(int i = 0; i < line->size(); i++)
+        {
+            point_array[i] = line->at(i);
+        }
+        SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
+        SDL_RenderDrawLines(rend, point_array, line->size());
+    }
+}
+
+void clearScreen()
+{
+    //for (auto const& entry : lines)
+    //{
+    //    entry.second.clear();
+    //}
+    lines.clear();
+    currentLine.clear();
+}
+
+void saveImage(char* filename)
+{ 
+    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
+ 
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
+    SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
+    SDL_SaveBMP(surface, filename);
+    SDL_FreeSurface(surface);
+}
 
 int main(int argc, char* argv[]) 
 {
@@ -124,25 +165,40 @@ int main(int argc, char* argv[])
  
         switch (event.type)
         {
+            case SDL_KEYDOWN:
+                switch(event.key.keysym.sym)
+                {
+                    case SDLK_q:
+                    case SDLK_ESCAPE:
+                        quit = true;
+                        break;
+                    case SDLK_w:
+                        currentMode = draw;
+                        break;
+                    case SDLK_e:
+                        currentMode = phrase;
+                        break;
+                    case SDLK_s:
+                        saveImage("screenshot.bmp");
+                        break;
+                    case SDLK_SPACE:
+                        clearScreen();
+                        break;
+                }
+                break;
             case SDL_QUIT:
                 quit = true;
                 break;
             // TODO input handling code goes here
         }
 
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);    //
+
         for (auto const& entry : lines)
         {
             vector<SDL_Point> line = entry.second;
-            if(line.size() > 1)
-            {
-                SDL_Point point_array[line.size()];
-                for(int i = 0; i < line.size(); i++)
-                {
-                    point_array[i] = line.at(i);
-                }
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                SDL_RenderDrawLines(renderer, point_array, line.size());
-            }
+            renderLine(renderer, &line);
         }
 
         if(currentLine.size() > 1)
@@ -156,36 +212,7 @@ int main(int argc, char* argv[])
             SDL_RenderDrawLines(renderer, point_array, currentLine.size());
         }
 
-        /*
-        if(points.size() > 1)
-        {
-
-            SDL_Point point_array[points.size()];
-
-            for(int i = 0; i < points.size(); i++)
-            {
-                point_array[i] = points.at(i);
-                //cout << point_array[i].x << " " << point_array[i].y << " " << points.size() << endl;
-            }
-
-
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderDrawLines(renderer, point_array, points.size());
-        }
-        */
-
-        //SDL_Point point_array[3] = {
-        //    {100, 200},
-        //    {150, 200},
-        //    {150, 400}
-        //};
-
-        //SDL_RenderDrawLines(renderer, point_array, points.size());
-        //SDL_RenderDrawLine(renderer, 100, 100, 200, 200);
-
         SDL_RenderPresent(renderer);  // their sequence appears to not matter
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);    //
 
         usleep(1000);
     }
