@@ -2,9 +2,9 @@
 #define CONSTANTS_H
 
 
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
-const float GRAVITY = 25.0f;
+const int WIDTH = 3840;
+const int HEIGHT = 2160;
+const float GRAVITY = 5.0f;
 const float SPAWN_TIME_MIN = 0.3;
 const float SPAWN_TIME_MAX = 0.8;
 const Uint32 COLORS[] = {   0xFF0000FF, 0xFFFF0000, 0xFF00FF00,

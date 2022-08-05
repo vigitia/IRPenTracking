@@ -20,10 +20,10 @@
 
 #include "particle.h"
 
-//#define WINDOW_WIDTH 3840
-//#define WINDOW_HEIGHT 2160
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 3840
+#define WINDOW_HEIGHT 2160
+//#define WINDOW_WIDTH 1920
+//#define WINDOW_HEIGHT 1080
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -261,7 +261,7 @@ int main(int argc, char* argv[])
         for (auto const& entry : lines)
         {
             vector<SDL_Point> line = entry.second;
-            renderLine(renderer, &line);
+            //renderLine(renderer, &line);
         }
 
         if(currentLine.size() > 1)
@@ -272,7 +272,7 @@ int main(int argc, char* argv[])
                 point_array[i] = currentLine.at(i);
             }
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderDrawLines(renderer, point_array, currentLine.size());
+            //SDL_RenderDrawLines(renderer, point_array, currentLine.size());
         }
 
         if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER)
@@ -286,19 +286,19 @@ int main(int argc, char* argv[])
             {
                 int x = currentX;
                 int y = currentY;
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 3; i++)
                 {
                     Particle trailParticle = Particle(x, y, 0xFF0088FF);
-                    trailParticle.setAngle((rand() % 359) / 180 * M_PI);
-                    trailParticle.setLifetime(5 + (rand() % 5) / 5.0f);
-                    trailParticle.setVelocity(1 + rand() % 3);
+                    trailParticle.setAngle((rand() * 359) / 180.0f * M_PI);
+                    trailParticle.setLifetime(20 + (rand() % 15) / 5.0f);
+                    trailParticle.setVelocity(2 + rand() % 3);
                     particles.push_back(trailParticle);
                 }
             }
 
             for (vector<Particle>::iterator it = particles.begin(); it != particles.end();)
             {
-                bool alive = it->update(0.2);
+                bool alive = it->update(0.03);
                 if(!alive)
                     it = particles.erase(it);
                 else 

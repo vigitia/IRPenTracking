@@ -76,7 +76,7 @@ if __name__ == '__main__':
     shape_creator = ShapeCreator(WINDOW_WIDTH, WINDOW_HEIGHT)
     img = shape_creator.draw_shape('shapes/wave.svg', (500, 500), 500, 3, ShapeCreator.DASH, (255, 0, 0))
 
-    cv2.imshow('image', img)
+    cv2.imshow('roi', img)
 
     while True:
         if cv2.waitKey(1) & 0xFF == ord('q'):
