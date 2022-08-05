@@ -23,10 +23,10 @@
 
 #include "particle.h"
 
-//#define WINDOW_WIDTH 3840
-//#define WINDOW_HEIGHT 2160
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 3840
+#define WINDOW_HEIGHT 2160
+//#define WINDOW_WIDTH 1920
+//#define WINDOW_HEIGHT 1080
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -421,9 +421,7 @@ int main(int argc, char* argv[])
             // TODO input handling code goes here
         }
 
-
         render(renderer);
-
 
         usleep(1000);
     }
