@@ -33,6 +33,8 @@
 
 #define SHOW_PARTICLES 0
 
+#define SHOW_LINES 1
+
 #define STATE_HOVER 0
 #define STATE_DRAW 1
 
@@ -76,6 +78,8 @@ int participantId = 0;
 
 int currentX, currentY = 0;
 int currentState = 0;
+
+SDL_Surface* textSurface;
 
 void *handle_fifo(void *args)
 {
@@ -233,6 +237,104 @@ void nextPhrase()
     //cout << phraseIndex << " " << currentPhrase << endl;
 }
 
+void renderParticles(SDL_Renderer* renderer)
+{
+    if(currentState == STATE_DRAW)
+    {
+        int x = currentX;
+        int y = currentY;
+        for (int i = 0; i < 10; i++)
+        {
+            Particle trailParticle = Particle(x, y, 0xFF0088FF);
+            trailParticle.setAngle((rand() % 359) / 180 * M_PI);
+            trailParticle.setLifetime(5 + (rand() % 5) / 5.0f);
+            trailParticle.setVelocity(1 + rand() % 3);
+            particles.push_back(trailParticle);
+        }
+    }
+
+    for (vector<Particle>::iterator it = particles.begin(); it != particles.end();)
+    {
+        bool alive = it->update(0.2);
+        if(!alive)
+            it = particles.erase(it);
+        else 
+            ++it;
+    }
+
+    for(const auto particle : particles)
+    {
+        particle.render(renderer);
+    }
+}
+
+void renderCrosses(SDL_Renderer* renderer)
+{
+
+}
+
+void renderPhrase(SDL_Renderer* renderer)
+{
+    SDL_Texture* textTexture;
+
+    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
+
+    int w = textSurface->w;
+    int h = textSurface->h;
+
+    SDL_Rect phraseRect = { WINDOW_WIDTH / 2 - w / 2, 200, w, h };
+
+    SDL_RenderCopy( renderer, textTexture, NULL, &phraseRect );
+
+    int textBoxWidth = TEXT_BOX_WIDTH;
+    int textBoxHeight = TEXT_BOX_HEIGHT_LARGE;
+
+    SDL_Rect textBoxRect = { WINDOW_WIDTH / 2 - textBoxWidth / 2,
+                             WINDOW_HEIGHT / 2 - textBoxHeight / 2,
+                             textBoxWidth, textBoxHeight };
+    
+    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_RenderFillRect(renderer, &textBoxRect);
+}
+
+void renderLines(SDL_Renderer* renderer)
+{
+    for (auto const& entry : lines)
+    {
+        vector<SDL_Point> line = entry.second;
+        renderLine(renderer, &line);
+    }
+
+    if(currentLine.size() > 1)
+    {
+        SDL_Point point_array[currentLine.size()];
+        for(int i = 0; i < currentLine.size(); i++)
+        {
+            point_array[i] = currentLine.at(i);
+        }
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawLines(renderer, point_array, currentLine.size());
+    }
+}
+
+void renderHoverIndicator(SDL_Renderer* renderer)
+{
+    filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
+}
+
+void render(SDL_Renderer* renderer)
+{
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);    //
+
+    if(SHOW_LINES) renderLines(renderer);
+    if(SHOW_PARTICLES) renderParticles(renderer);
+    if(currentMode == phrase) renderPhrase(renderer);
+    if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER) renderHoverIndicator(renderer);
+
+    SDL_RenderPresent(renderer);  // their sequence appears to not matter
+}
+
 int main(int argc, char* argv[]) 
 {
     signal(SIGINT, onExit);
@@ -258,7 +360,6 @@ int main(int argc, char* argv[])
 
     font = TTF_OpenFont("font.ttf", FONT_SIZE);
 
-    SDL_Surface* textSurface;
     SDL_Color textColor = { 255, 255, 255 };
 
     textSurface = TTF_RenderText_Solid( font, "Hello World!", textColor );
@@ -320,87 +421,9 @@ int main(int argc, char* argv[])
             // TODO input handling code goes here
         }
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);    //
 
-        if(currentMode == phrase)
-        {
-            SDL_Texture* textTexture;
+        render(renderer);
 
-            textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
-
-            int w = textSurface->w;
-            int h = textSurface->h;
-
-            SDL_Rect phraseRect = { WINDOW_WIDTH / 2 - w / 2, 200, w, h };
-
-            SDL_RenderCopy( renderer, textTexture, NULL, &phraseRect );
-
-            int textBoxWidth = TEXT_BOX_WIDTH;
-            int textBoxHeight = TEXT_BOX_HEIGHT_LARGE;
-
-            SDL_Rect textBoxRect = { WINDOW_WIDTH / 2 - textBoxWidth / 2,
-                                     WINDOW_HEIGHT / 2 - textBoxHeight / 2,
-                                     textBoxWidth, textBoxHeight };
-            
-            SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-            SDL_RenderFillRect(renderer, &textBoxRect);
-        }
-
-        for (auto const& entry : lines)
-        {
-            vector<SDL_Point> line = entry.second;
-            renderLine(renderer, &line);
-        }
-
-        if(currentLine.size() > 1)
-        {
-            SDL_Point point_array[currentLine.size()];
-            for(int i = 0; i < currentLine.size(); i++)
-            {
-                point_array[i] = currentLine.at(i);
-            }
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            SDL_RenderDrawLines(renderer, point_array, currentLine.size());
-        }
-
-        if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER)
-        {
-            filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
-        }
-
-        if(SHOW_PARTICLES)
-        {
-            if(currentState == STATE_DRAW)
-            {
-                int x = currentX;
-                int y = currentY;
-                for (int i = 0; i < 10; i++)
-                {
-                    Particle trailParticle = Particle(x, y, 0xFF0088FF);
-                    trailParticle.setAngle((rand() % 359) / 180 * M_PI);
-                    trailParticle.setLifetime(5 + (rand() % 5) / 5.0f);
-                    trailParticle.setVelocity(1 + rand() % 3);
-                    particles.push_back(trailParticle);
-                }
-            }
-
-            for (vector<Particle>::iterator it = particles.begin(); it != particles.end();)
-            {
-                bool alive = it->update(0.2);
-                if(!alive)
-                    it = particles.erase(it);
-                else 
-                    ++it;
-            }
-
-            for(const auto particle : particles)
-            {
-                particle.render(renderer);
-            }
-        }
-
-        SDL_RenderPresent(renderer);  // their sequence appears to not matter
 
         usleep(1000);
     }
