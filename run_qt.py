@@ -775,20 +775,20 @@ if __name__ == '__main__':
 #
 #
 #     def reset_image(self):
-#         # self.image = self.background_image.copy()
-#         self.image = QImage(self.size(), QImage.Format_ARGB32)
-#         self.image.fill(Qt.black)
+#         # self.roi = self.background_image.copy()
+#         self.roi = QImage(self.size(), QImage.Format_ARGB32)
+#         self.roi.fill(Qt.black)
 #
 #         if PHRASES_MODE:
 #             self.draw_rectangle()
 #
 #     # Only for latency measurements
 #     def fill_screen(self, fill):
-#         self.image = QImage(self.size(), QImage.Format_ARGB32)
+#         self.roi = QImage(self.size(), QImage.Format_ARGB32)
 #         if fill:
-#             self.image.fill(Qt.white)
+#             self.roi.fill(Qt.white)
 #         else:
-#             self.image.fill(Qt.black)
+#             self.roi.fill(Qt.black)
 #         self.update()
 #
 #     def draw_all_points(self, active_pen_events, stored_lines):
@@ -848,7 +848,7 @@ if __name__ == '__main__':
 #             # painter.drawPolygon(QPolygon(polygon))
 #             painter.drawPolyline(QPolygon(polygon))
 #
-#         self.image = new_image
+#         self.roi = new_image
 #         self.update()
 #
 #
@@ -867,7 +867,7 @@ if __name__ == '__main__':
 #     #
 #     #     # print('drawing', points)
 #     #
-#     #     painter = QPainter(self.image)
+#     #     painter = QPainter(self.roi)
 #     #     # painter.setRenderHint(QPainter.Antialiasing)
 #     #
 #     #     RECTANGLE_COLOR = QColor(40, 40, 40, 255)
@@ -897,7 +897,7 @@ if __name__ == '__main__':
 #     #     self.update()
 #     #
 #     # def draw_rectangle(self):
-#     #     painter = QPainter(self.image)
+#     #     painter = QPainter(self.roi)
 #     #
 #     #     painter.setPen(QPen(Qt.white))
 #     #
@@ -940,7 +940,7 @@ if __name__ == '__main__':
 #     #     # checking if left button is pressed and drawing flag is true
 #     #     if (event.buttons() & Qt.LeftButton) & self.drawing:
 #     #         # creating painter object
-#     #         painter = QPainter(self.image)
+#     #         painter = QPainter(self.roi)
 #     #
 #     #         # set the pen of the painter
 #     #         painter.setPen(QPen(PEN_COLOR, self.line_thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
@@ -963,7 +963,7 @@ if __name__ == '__main__':
 #         canvasPainter = QPainter(self)
 #
 #         # draw rectangle  on the canvas
-#         canvasPainter.drawImage(self.rect(), self.image, self.image.rect())
+#         canvasPainter.drawImage(self.rect(), self.roi, self.roi.rect())
 #
 #     # Handle Key-press events
 #     def keyPressEvent(self, event):
@@ -990,10 +990,10 @@ if __name__ == '__main__':
 #     # Save the current window content as a png
 #     def save_screenshot(self):
 #         filename = datetime.datetime.now().strftime('%Y_%m_%d-%H-%M-%S')
-#         self.image.save('./output_images/Participant_{}_{}.png'.format(PARTICIPANT_ID, filename))
+#         self.roi.save('./output_images/Participant_{}_{}.png'.format(PARTICIPANT_ID, filename))
 #
 #     def preview_images_on_canvas(self, images_to_preview, image_names):
-#         painter = QPainter(self.image)
+#         painter = QPainter(self.roi)
 #
 #         x_anchor = 3840
 #

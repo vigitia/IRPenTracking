@@ -28,7 +28,7 @@ FRAME_HEIGHT = 1200  # 600  # 1200
 EXPOSURE_TIME_MICROSECONDS = 400  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 18  # Controls the amplification of the video signal in dB.
 FRAMERATE = 158  # Target number of Frames per Second (Min: 1, Max: 158)
-NUM_BUFFERS = 1  # Number of image buffers per camera
+NUM_BUFFERS = 1  # Number of roi buffers per camera
 
 # Set the Serial Numbers of the primary and secondary cameras. Needed for the hardware trigger
 SERIAL_NUMBER_MASTER = str(22260470)
@@ -86,8 +86,8 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
 
             # print(image_result.GetTimeStamp() / 1e9)
 
-            if image_result.IsIncomplete():  # Ensure image completion
-                print('Image incomplete with image status %d' % image_result.GetImageStatus())
+            if image_result.IsIncomplete():  # Ensure roi completion
+                print('Image incomplete with roi status %d' % image_result.GetImageStatus())
             else:
                 if self.cam_id == SERIAL_NUMBER_MASTER:
                     global cam_image_master
