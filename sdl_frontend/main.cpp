@@ -38,6 +38,10 @@
 
 #define FONT_SIZE 42
 
+const int TEXT_BOX_WIDTH = (int)(WINDOW_WIDTH * 0.7);
+const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.1);
+const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.15);
+
 const char* SCREENSHOT_PATH = "screenshots/";
 const char* PHRASES_PATH = "../phrase_set/phrases.txt";
 
@@ -291,6 +295,7 @@ int main(int argc, char* argv[])
                     case SDLK_e:
                         currentMode = phrase;
                         nextPhrase();
+                        textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
                         break;
                     case SDLK_r:
                         currentMode = cross;
@@ -327,9 +332,19 @@ int main(int argc, char* argv[])
             int w = textSurface->w;
             int h = textSurface->h;
 
-            SDL_Rect dest = { WINDOW_WIDTH / 2 - w / 2, 200, w, h };
+            SDL_Rect phraseRect = { WINDOW_WIDTH / 2 - w / 2, 200, w, h };
 
-            SDL_RenderCopy( renderer, textTexture, NULL, &dest );
+            SDL_RenderCopy( renderer, textTexture, NULL, &phraseRect );
+
+            int textBoxWidth = TEXT_BOX_WIDTH;
+            int textBoxHeight = TEXT_BOX_HEIGHT_LARGE;
+
+            SDL_Rect textBoxRect = { WINDOW_WIDTH / 2 - textBoxWidth / 2,
+                                     WINDOW_HEIGHT / 2 - textBoxHeight / 2,
+                                     textBoxWidth, textBoxHeight };
+            
+            SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+            SDL_RenderFillRect(renderer, &textBoxRect);
         }
 
         for (auto const& entry : lines)
