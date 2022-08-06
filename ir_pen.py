@@ -4,6 +4,7 @@ import threading
 from enum import Enum
 import time
 import numpy as np
+import skimage
 from tensorflow import keras
 from tflite import LiteModel
 import datetime
@@ -13,7 +14,7 @@ from skimage.feature import peak_local_max
 from cv2 import cv2
 
 # Aktuell bestes model:
-MODEL_PATH = 'evaluation/model_new_projector_9'
+MODEL_PATH = 'evaluation/model_new_projector_10'
 
 CROP_IMAGE_SIZE = 48
 
@@ -29,21 +30,23 @@ CLICK_THRESH_MS = 10
 
 # Hover will be selected over Draw if Hover Event is within the last X event states
 HOVER_WINS = False
+NUM_HOVER_EVENTS_TO_END_LINE = 6  # We expect at least X Hover Events in a row to end that pen event
 KERNEL_SIZE_HOVER_WINS = 3
 
 MIN_BRIGHTNESS_FOR_PREDICTION = 50
 
 # MAX_DISTANCE_DRAW = 50000
-MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES = 500
+MAX_DISTANCE_FOR_MERGE = 500  # Maximum Distance between two points for them to be able to merge
 
 # Removes all points that are not within the screen coordinates (e.g. 3840x2160)
 REMOVE_EVENTS_OUTSIDE_BORDER = False  # TODO!
 
 
-DEBUG_MODE = True
+DEBUG_MODE = False
+ENABLE_FIFO_PIPE = True
 
-WINDOW_WIDTH = 3840  # 1920
-WINDOW_HEIGHT = 2160  # 1080
+WINDOW_WIDTH = 3840
+WINDOW_HEIGHT = 2160
 
 CAMERA_WIDTH = 1920  # 848
 CAMERA_HEIGHT = 1200  # 480
@@ -51,11 +54,9 @@ CAMERA_HEIGHT = 1200  # 480
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far_3_400_18'
+TRAIN_STATE = 'hover_far_5_400_18'
 TRAIN_PATH = 'out3/2022-08-02'
 TRAIN_IMAGE_COUNT = 3000
-
-
 
 
 def timeit(prefix):
@@ -98,7 +99,7 @@ class PenEvent:
         self.history = []  # All logged x and y positions as tuples
         self.state_history = [state]  # All logged states (Hover, draw, ...)
 
-        self.alive = True  # A pen event is alive if it is not missing
+        # self.alive = True  # A pen event is alive if it is not missing
 
     def get_coordinates(self):
         return tuple([self.x, self.y])
@@ -331,7 +332,7 @@ class IRPen:
                 # print('Agreement on prediction')
             else:
                 brightest_image_index = brightness_values.index(max(brightness_values))
-                # print('Disagree -> image {} wins because it is brighter'.format(brightest_image_index))
+                # print('Disagree -> roi {} wins because it is brighter'.format(brightest_image_index))
                 # There is a disagreement
                 # Currently we then use the prediction of the brightest point in all camera frames
                 final_prediction = predictions[brightest_image_index]
@@ -630,35 +631,40 @@ class IRPen:
         return state, confidence
 
     # TODO: Offset fixen
-    def find_pen_position_subpixel_crop(self, image, center_original):
-        w = image.shape[0]
-        h = image.shape[1]
+    def find_pen_position_subpixel_crop(self, roi, center_original):
+        w = roi.shape[0]
+        h = roi.shape[1]
         # print('1', ir_image.shape)
-        #center_original = (coords_original[0] + w/2, coords_original[1] + h/2)
+        # center_original = (coords_original[0] + w/2, coords_original[1] + h/2)
 
         factor_w = WINDOW_WIDTH / CAMERA_WIDTH
         factor_h = WINDOW_HEIGHT / CAMERA_HEIGHT
+
         new_w = int(w * factor_w)
         new_h = int(h * factor_h)
         top_left_scaled = (center_original[0] * factor_w - new_w / 2, center_original[1] * factor_h - new_h / 2)
 
-        if len(image.shape) == 3:
-            ir_image_grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            ir_image_grey = image
+        # print(w, h, factor_w, factor_h, new_w, new_h, center_original, top_left_scaled)
+
+        # cv2.imshow('roi', roi)
         # TODO:
         # print('2', ir_image_grey.shape)
-        _, thresh = cv2.threshold(ir_image_grey, np.max(ir_image_grey) - 1, 255, cv2.THRESH_BINARY)
-
+        # Set all pixels
+        _, thresh = cv2.threshold(roi, np.max(roi) - 1, 255, cv2.THRESH_BINARY)
+        # cv2.imshow('thresh', thresh)
 
         # TODO: resize only cropped area
-        thresh_large = cv2.resize(thresh, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        # thresh_large = cv2.resize(thresh, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        thresh_large = skimage.transform.resize(thresh, (new_w, new_h), mode='edge', anti_aliasing=False,
+                                                anti_aliasing_sigma=None, preserve_range=True, order=0)
+        # thresh_large_preview = cv2.cvtColor(thresh_large.copy(), cv2.COLOR_GRAY2BGR)
 
         contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         contours = contours[0] if len(contours) == 2 else contours[1]
-        min_radius = ir_image_grey.shape[0]
+        min_radius = thresh_large.shape[0]
         smallest_contour = contours[0]
+        min_center = (0, 0)
 
         # print(len(contours))
         # Find the smallest contour if there are multiple (we want to find the pen tip, not its light beam
@@ -667,20 +673,37 @@ class IRPen:
             if radius < min_radius:
                 min_radius = radius
                 smallest_contour = contour
+                min_center = (round(x), round(y))
 
-        # Find the center of the contour using OpenCV Moments
-        M = cv2.moments(smallest_contour)
-        # calculate x,y coordinate of center
-        try:
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
-        except Exception as e:
-            print(e)
-            print('Error in find_pen_position_subpixel_crop()')
-            cX = 0
-            cY = 0
+        min_radius = 1 if min_radius < 1 else min_radius
+
+        if len(smallest_contour) < 4:
+            cX, cY = min_center
+        else:
+            # Find the center of the contour using OpenCV Moments
+
+            M = cv2.moments(smallest_contour)
+            # calculate x,y coordinate of center
+            try:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+            except Exception as e:
+                print(e)
+                print('Error in find_pen_position_subpixel_crop()')
+                print('Test', min_radius, min_center, len(smallest_contour))
+                # time.sleep(5)
+                cX = 0
+                cY = 0
 
         position = (int(top_left_scaled[0] + cX), int(top_left_scaled[1] + cY))
+
+        # thresh_large_preview = cv2.drawContours(thresh_large_preview, [smallest_contour], 0, (0, 0, 255), 1)
+        # thresh_large_preview = cv2.circle(thresh_large_preview, min_center, round(min_radius), (0, 255, 0), 1)
+        # thresh_large_preview = cv2.circle(thresh_large_preview, min_center, 0, (0, 255, 0), 1)
+        # thresh_large_preview = cv2.circle(thresh_large_preview, (round(cX), round(cY)), 0, (0, 128, 128), 1)
+        # cv2.imshow('thresh_large', thresh_large_preview)
+
+        # print(min_radius, cX, cY, position)
 
         return position, min_radius
 
@@ -751,7 +774,7 @@ class IRPen:
                 
         _, thresh = cv2.threshold(image, np.median(samples) * 1.2, 255, cv2.THRESH_BINARY)
         
-        #y_nonzero, x_nonzero = np.nonzero(image)
+        #y_nonzero, x_nonzero = np.nonzero(roi)
         #x1 = np.min(x_nonzero)
         #x2 = np.max(x_nonzero)
         #y1 = np.min(y_nonzero)
@@ -806,7 +829,7 @@ class IRPen:
             distance_between_points = distance.euclidean(last_pen_event.get_coordinates(),
                                                          new_pen_event.get_coordinates())
 
-            if distance_between_points > MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES:
+            if distance_between_points > MAX_DISTANCE_FOR_MERGE:
                 print('Distance too large. End active event and start new')
                 print('PEN Event {} ({} points) gets deleted because distance to new event is too large'.format(last_pen_event.id,
                                                                                                    len(last_pen_event.history)))
@@ -856,23 +879,25 @@ class IRPen:
             #
             # print('Hover: {}/{}; Draw: {}/{}'.format(num_hover, num_total, num_draw, num_total))
 
-            if len(final_pen_event.history) >= 5:
+            # There needs to be at least one
+            if len(final_pen_event.history) >= 1 and len(final_pen_event.state_history) >= NUM_HOVER_EVENTS_TO_END_LINE:
                 # if final_pen_event.state == State.HOVER and State.HOVER not in final_pen_event.state_history[-3:]:
                 # print(final_pen_event.state, final_pen_event.state_history[-4:])
                 # if final_pen_event.state == State.HOVER and State.HOVER not in final_pen_event.state_history[-5:-1]:
-                num_hover_events = final_pen_event.state_history[-5:].count(State.HOVER)
-                num_draw_events = final_pen_event.state_history[-5:].count(State.DRAG)
+                # num_hover_events = final_pen_event.state_history[-5:].count(State.HOVER)
+                # num_draw_events = final_pen_event.state_history[-5:].count(State.DRAG)
                 # if final_pen_event.state == State.HOVER and num_hover_events >= 2 and num_draw_events >= 2:
-                if final_pen_event.state_history[-1] == State.HOVER and final_pen_event.state_history[-2] == State.HOVER and final_pen_event.state_history[-3] == State.HOVER:
+                # and final_pen_event.state_history[-2] == State.HOVER and final_pen_event.state_history[-3] == State.HOVER:
+                # if final_pen_event.state_history[-1] == State.HOVER:
+
+                print(NUM_HOVER_EVENTS_TO_END_LINE, final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER))
+                if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
                     print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
-                    # TODO: End event here
                     if len(final_pen_event.history) > 0:
                         self.stored_lines.append(np.array(final_pen_event.history))
                     print(final_pen_event.state, final_pen_event.state_history[-5:])
                     print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id, len(final_pen_event.history)))
                     final_pen_events = []
-
-
 
         return final_pen_events
 
@@ -1094,7 +1119,7 @@ class IRPen:
                     distance_between_points = distance.euclidean(point_list_one[i],
                                                                  point_list_two[j])
 
-                if distance_between_points > MAX_POINT_DISTANCE_BETWEEN_TWO_FRAMES:
+                if distance_between_points > MAX_DISTANCE_FOR_MERGE:
                     print('DISTANCE {} TOO LARGE'.format(distance_between_points))
                     continue
                 distances.append([i, j, distance_between_points])
@@ -1123,22 +1148,30 @@ class IRPenDebugger:
         thread.start()
 
     def debug_mode_thread(self):
-        pipe_name = 'pipe_test'
-        if not os.path.exists(pipe_name):
-            os.mkfifo(pipe_name)
-        # self.pipeout = os.open(pipe_name, os.O_WRONLY)
+        if ENABLE_FIFO_PIPE:
+            pipe_name = 'pipe_test'
+            if not os.path.exists(pipe_name):
+                os.mkfifo(pipe_name)
+            self.pipeout = os.open(pipe_name, os.O_WRONLY)
 
         if DEBUG_MODE:
             cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
             cv2.resizeWindow('ROI', 1000, 500)
 
         while True:
-            if len(self.active_pen_events) > 0:
-                if len(self.active_pen_events[0].history) > 0:
-                    message = str(self.active_pen_events[0].id) + ' ' + str(self.active_pen_events[0].history[-1][0]) + ' ' + str(self.active_pen_events[0].history[-1][1])
+            if ENABLE_FIFO_PIPE:
+                if len(self.active_pen_events) > 0:
+                    # if len(self.active_pen_events[0].history) > 0:
+                    message = '{} {} {} {} '.format(self.active_pen_events[0].id,
+                                                    self.active_pen_events[0].x,
+                                                    self.active_pen_events[0].y,
+                                                    0 if self.active_pen_events[0].state == State.HOVER else 1)
                     print(message)
-                    # os.write(self.pipeout, bytes(message, 'utf8'))
-                self.active_pen_events = []
+                    os.write(self.pipeout, bytes(message, 'utf8'))
+                    self.active_pen_events = []
+                if not DEBUG_MODE:
+                    # TODO: CHeck why we need this here. time.sleep() does not work here
+                    key = cv2.waitKey(1)
 
             if DEBUG_MODE:
                 if len(self.rois) == 2:
