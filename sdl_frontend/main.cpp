@@ -20,6 +20,7 @@
 #include <ctime>
 #include <iostream>
 #include <fstream>
+#include <sys/stat.h>
 
 #include "particle.h"
 
@@ -44,7 +45,7 @@ const int TEXT_BOX_WIDTH = (int)(WINDOW_WIDTH * 0.7);
 const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.1);
 const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.15);
 
-const char* SCREENSHOT_PATH = "screenshots/";
+char* SCREENSHOT_PATH = "screenshots/";
 const char* PHRASES_PATH = "../phrase_set/phrases.txt";
 
 using namespace std;
@@ -348,6 +349,13 @@ int main(int argc, char* argv[])
     {
         participantId = atoi(argv[2]);
     }
+
+    mkdir(SCREENSHOT_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    char participantPath[100];
+    sprintf(participantPath, "%s%02d/", SCREENSHOT_PATH, participantId);
+    mkdir(participantPath, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    SCREENSHOT_PATH = participantPath;
+    cout << SCREENSHOT_PATH << endl;
 
     //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
     SDL_Init(SDL_INIT_VIDEO);
