@@ -70,7 +70,8 @@ vector<Particle> particles;
 enum Modes {
     draw,
     phrase,
-    cross
+    cross,
+    save
 };
 
 Modes currentMode = draw;
@@ -94,6 +95,8 @@ int currentState = 0;
 SDL_Surface* textSurface;
 SDL_Surface* crossesSurface;
 SDL_Texture* crossesTexture;
+
+bool isSaving = false;
 
 void *handle_fifo(void *args)
 {
@@ -195,19 +198,6 @@ const string currentDateTime()
     strftime(buf, sizeof(buf), "%Y-%m-%d_%X", &tstruct);
 
     return buf;
-}
-
-void saveImage()
-{ 
-    char filename[120];
-    sprintf(filename, "%s%d_%s.bmp", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
-
-    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
- 
-    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
-    SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
-    SDL_SaveBMP(surface, filename);
-    SDL_FreeSurface(surface);
 }
 
 void loadPhrases()
@@ -344,11 +334,11 @@ void render(SDL_Renderer* renderer)
 
     if(currentMode == phrase) renderPhrase(renderer);
     if(SHOW_LINES) renderLines(renderer);
-    if(currentMode == cross) renderCrosses(renderer);
+    if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER) renderHoverIndicator(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
 
-    SDL_RenderPresent(renderer);  // their sequence appears to not matter
+    if(!isSaving) SDL_RenderPresent(renderer);  // their sequence appears to not matter
 }
 
 // https://lazyfoo.net/tutorials/SDL/06_extension_libraries_and_loading_other_image_formats/index2.php
@@ -379,6 +369,27 @@ SDL_Surface* loadSurface(string path)
     //return optimizedSurface;
 
     return loadedSurface;
+}
+
+void saveImage()
+{ 
+    char filename[120];
+    sprintf(filename, "%s%d_%s.bmp", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
+
+    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
+ 
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
+
+
+    isSaving = true;
+
+    render(renderer);
+    usleep(20000);
+    SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
+    SDL_SaveBMP(surface, filename);
+    SDL_FreeSurface(surface);
+
+    isSaving = false;
 }
 
 int main(int argc, char* argv[]) 
