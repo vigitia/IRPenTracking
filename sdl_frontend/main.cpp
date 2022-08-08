@@ -15,6 +15,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 #include <vector>
 #include <map>
 #include <ctime>
@@ -24,10 +25,20 @@
 
 #include "particle.h"
 
-//#define WINDOW_WIDTH 3840
-//#define WINDOW_HEIGHT 2160
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define MODE_1080 0
+#define MODE_4K 1
+
+#define MODE MODE_1080
+
+#if MODE == MODE_1080
+    #define WINDOW_WIDTH 1920
+    #define WINDOW_HEIGHT 1080
+    #define CROSSES_PATH "crosses_dots_1080.png"
+#else
+    #define WINDOW_WIDTH 3840
+    #define WINDOW_HEIGHT 2160
+    #define CROSSES_PATH "crosses_dots_4k.png"
+#endif
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -81,6 +92,8 @@ int currentX, currentY = 0;
 int currentState = 0;
 
 SDL_Surface* textSurface;
+SDL_Surface* crossesSurface;
+SDL_Texture* crossesTexture;
 
 void *handle_fifo(void *args)
 {
@@ -271,7 +284,8 @@ void renderParticles(SDL_Renderer* renderer)
 
 void renderCrosses(SDL_Renderer* renderer)
 {
-
+    SDL_Rect crossesRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+    SDL_RenderCopy(renderer, crossesTexture, NULL, &crossesRect);
 }
 
 void renderPhrase(SDL_Renderer* renderer)
@@ -330,10 +344,41 @@ void render(SDL_Renderer* renderer)
 
     if(currentMode == phrase) renderPhrase(renderer);
     if(SHOW_LINES) renderLines(renderer);
+    if(currentMode == cross) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER) renderHoverIndicator(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
 
     SDL_RenderPresent(renderer);  // their sequence appears to not matter
+}
+
+// https://lazyfoo.net/tutorials/SDL/06_extension_libraries_and_loading_other_image_formats/index2.php
+SDL_Surface* loadSurface(string path)
+{
+    //The final optimized image
+    SDL_Surface* optimizedSurface = NULL;
+
+    //Load image at specified path
+    SDL_Surface* loadedSurface = IMG_Load( path.c_str() );
+    //if( loadedSurface == NULL )
+    //{
+    //    printf( "Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError() );
+    //}
+    //else
+    //{
+    //    //Convert surface to screen format
+    //    optimizedSurface = SDL_ConvertSurface( loadedSurface, gScreenSurface->format, 0 );
+    //    if( optimizedSurface == NULL )
+    //    {
+    //        printf( "Unable to optimize image %s! SDL Error: %s\n", path.c_str(), SDL_GetError() );
+    //    }
+
+    //    //Get rid of old loaded surface
+    //    SDL_FreeSurface( loadedSurface );
+    //}
+    //
+    //return optimizedSurface;
+
+    return loadedSurface;
 }
 
 int main(int argc, char* argv[]) 
@@ -360,6 +405,8 @@ int main(int argc, char* argv[])
     //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
     SDL_Init(SDL_INIT_VIDEO);
 
+    IMG_Init(IMG_INIT_PNG);
+
     if ( TTF_Init() < 0 ) {
         cout << "Error initializing SDL_ttf: " << TTF_GetError() << endl;
     }
@@ -372,8 +419,12 @@ int main(int argc, char* argv[])
 
     textSurface = TTF_RenderText_Solid( font, "Hello World!", textColor );
 
+    crossesSurface = loadSurface(CROSSES_PATH);
+
     SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
+
+    crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
