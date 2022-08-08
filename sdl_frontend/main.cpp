@@ -23,10 +23,10 @@
 
 #include "particle.h"
 
-#define WINDOW_WIDTH 3840
-#define WINDOW_HEIGHT 2160
-//#define WINDOW_WIDTH 1920
-//#define WINDOW_HEIGHT 1080
+//#define WINDOW_WIDTH 3840
+//#define WINDOW_HEIGHT 2160
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -327,10 +327,10 @@ void render(SDL_Renderer* renderer)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);    //
 
-    if(SHOW_LINES) renderLines(renderer);
-    if(SHOW_PARTICLES) renderParticles(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
+    if(SHOW_LINES) renderLines(renderer);
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER) renderHoverIndicator(renderer);
+    if(SHOW_PARTICLES) renderParticles(renderer);
 
     SDL_RenderPresent(renderer);  // their sequence appears to not matter
 }
