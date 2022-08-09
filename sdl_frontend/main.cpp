@@ -15,18 +15,30 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 #include <vector>
 #include <map>
 #include <ctime>
 #include <iostream>
 #include <fstream>
+#include <sys/stat.h>
 
 #include "particle.h"
 
-#define WINDOW_WIDTH 3840
-#define WINDOW_HEIGHT 2160
-//#define WINDOW_WIDTH 1920
-//#define WINDOW_HEIGHT 1080
+#define MODE_1080 0
+#define MODE_4K 1
+
+#define MODE MODE_1080
+
+#if MODE == MODE_1080
+    #define WINDOW_WIDTH 1920
+    #define WINDOW_HEIGHT 1080
+    #define CROSSES_PATH "crosses_dots_1080.png"
+#else
+    #define WINDOW_WIDTH 3840
+    #define WINDOW_HEIGHT 2160
+    #define CROSSES_PATH "crosses_dots_4k.png"
+#endif
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -44,7 +56,7 @@ const int TEXT_BOX_WIDTH = (int)(WINDOW_WIDTH * 0.7);
 const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.1);
 const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.15);
 
-const char* SCREENSHOT_PATH = "screenshots/";
+char* SCREENSHOT_PATH = "screenshots/";
 const char* PHRASES_PATH = "../phrase_set/phrases.txt";
 
 using namespace std;
@@ -58,7 +70,8 @@ vector<Particle> particles;
 enum Modes {
     draw,
     phrase,
-    cross
+    cross,
+    save
 };
 
 Modes currentMode = draw;
@@ -80,6 +93,10 @@ int currentX, currentY = 0;
 int currentState = 0;
 
 SDL_Surface* textSurface;
+SDL_Surface* crossesSurface;
+SDL_Texture* crossesTexture;
+
+bool isSaving = false;
 
 void *handle_fifo(void *args)
 {
@@ -183,19 +200,6 @@ const string currentDateTime()
     return buf;
 }
 
-void saveImage()
-{ 
-    char filename[120];
-    sprintf(filename, "%s%d_%s.bmp", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
-
-    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
- 
-    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
-    SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
-    SDL_SaveBMP(surface, filename);
-    SDL_FreeSurface(surface);
-}
-
 void loadPhrases()
 {
     string line;
@@ -270,7 +274,8 @@ void renderParticles(SDL_Renderer* renderer)
 
 void renderCrosses(SDL_Renderer* renderer)
 {
-
+    SDL_Rect crossesRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+    SDL_RenderCopy(renderer, crossesTexture, NULL, &crossesRect);
 }
 
 void renderPhrase(SDL_Renderer* renderer)
@@ -327,12 +332,64 @@ void render(SDL_Renderer* renderer)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);    //
 
-    if(SHOW_LINES) renderLines(renderer);
-    if(SHOW_PARTICLES) renderParticles(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
+    if(SHOW_LINES) renderLines(renderer);
+    if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER) renderHoverIndicator(renderer);
+    if(SHOW_PARTICLES) renderParticles(renderer);
 
-    SDL_RenderPresent(renderer);  // their sequence appears to not matter
+    if(!isSaving) SDL_RenderPresent(renderer);  // their sequence appears to not matter
+}
+
+// https://lazyfoo.net/tutorials/SDL/06_extension_libraries_and_loading_other_image_formats/index2.php
+SDL_Surface* loadSurface(string path)
+{
+    //The final optimized image
+    SDL_Surface* optimizedSurface = NULL;
+
+    //Load image at specified path
+    SDL_Surface* loadedSurface = IMG_Load( path.c_str() );
+    //if( loadedSurface == NULL )
+    //{
+    //    printf( "Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError() );
+    //}
+    //else
+    //{
+    //    //Convert surface to screen format
+    //    optimizedSurface = SDL_ConvertSurface( loadedSurface, gScreenSurface->format, 0 );
+    //    if( optimizedSurface == NULL )
+    //    {
+    //        printf( "Unable to optimize image %s! SDL Error: %s\n", path.c_str(), SDL_GetError() );
+    //    }
+
+    //    //Get rid of old loaded surface
+    //    SDL_FreeSurface( loadedSurface );
+    //}
+    //
+    //return optimizedSurface;
+
+    return loadedSurface;
+}
+
+void saveImage()
+{ 
+    char filename[120];
+    sprintf(filename, "%s%d_%s.bmp", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
+
+    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
+ 
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
+
+
+    isSaving = true;
+
+    render(renderer);
+    usleep(20000);
+    SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
+    SDL_SaveBMP(surface, filename);
+    SDL_FreeSurface(surface);
+
+    isSaving = false;
 }
 
 int main(int argc, char* argv[]) 
@@ -349,8 +406,17 @@ int main(int argc, char* argv[])
         participantId = atoi(argv[2]);
     }
 
+    mkdir(SCREENSHOT_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    char participantPath[100];
+    sprintf(participantPath, "%s%02d/", SCREENSHOT_PATH, participantId);
+    mkdir(participantPath, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    SCREENSHOT_PATH = participantPath;
+    cout << SCREENSHOT_PATH << endl;
+
     //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
     SDL_Init(SDL_INIT_VIDEO);
+
+    IMG_Init(IMG_INIT_PNG);
 
     if ( TTF_Init() < 0 ) {
         cout << "Error initializing SDL_ttf: " << TTF_GetError() << endl;
@@ -364,8 +430,12 @@ int main(int argc, char* argv[])
 
     textSurface = TTF_RenderText_Solid( font, "Hello World!", textColor );
 
+    crossesSurface = loadSurface(CROSSES_PATH);
+
     SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
+
+    crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
