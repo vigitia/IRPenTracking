@@ -71,7 +71,8 @@ enum Modes {
     draw,
     phrase,
     cross,
-    save
+    save,
+    latency
 };
 
 Modes currentMode = draw;
@@ -327,6 +328,20 @@ void renderHoverIndicator(SDL_Renderer* renderer)
     filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
 }
 
+void renderLatencyTest(SDL_Renderer* renderer)
+{
+    if(currentState == STATE_DRAW)
+    {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    }
+    else
+    {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    }
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+}
+
 void render(SDL_Renderer* renderer)
 {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -338,7 +353,7 @@ void render(SDL_Renderer* renderer)
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER) renderHoverIndicator(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
 
-    if(!isSaving) SDL_RenderPresent(renderer);  // their sequence appears to not matter
+    if(!isSaving) SDL_RenderPresent(renderer);
 }
 
 // https://lazyfoo.net/tutorials/SDL/06_extension_libraries_and_loading_other_image_formats/index2.php
@@ -379,7 +394,6 @@ void saveImage()
     const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
  
     SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
-
 
     isSaving = true;
 
@@ -471,6 +485,9 @@ int main(int argc, char* argv[])
                     case SDLK_r:
                         currentMode = cross;
                         break;
+                    case SDLK_t:
+                        currentMode = latency;
+                        break;
                     case SDLK_s:
                         saveImage();
                         break;
@@ -491,7 +508,8 @@ int main(int argc, char* argv[])
             // TODO input handling code goes here
         }
 
-        render(renderer);
+        if(currentMode == latency) renderLatencyTest(renderer);
+        else render(renderer);
 
         usleep(1000);
     }
