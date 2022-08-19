@@ -1,6 +1,8 @@
 import cv2
 import time
 
+import numpy as np
+
 CHESSBOARD_SQUARES = (9, 6)
 
 MIN_TIME_BETWEEN_FRAMES_SEC = 3
@@ -26,18 +28,20 @@ class CalibrationImageCaptureService:
             else:
                 image_gray = image
 
-            ret, corners = cv2.findChessboardCorners(image, CHESSBOARD_SQUARES, None)
+            now = time.time()
+            if now - self.last_saved_frame_timestamps[camera_name] > MIN_TIME_BETWEEN_FRAMES_SEC:
+                # ret, corners = cv2.findChessboardCorners(roi, CHESSBOARD_SQUARES, None)
+                ret = True
 
-            if ret:
-                now = time.time()
-                if now - self.last_saved_frame_timestamps[camera_name] > MIN_TIME_BETWEEN_FRAMES_SEC:
+                if ret:
                     self.last_saved_frame_timestamps[camera_name] = now
                     cv2.imwrite('calibration_images/{}/{}.png'.format(camera_name, self.picture_index_for_camera[camera_name]), image)
-                    print('Saved calibration image {}.png for {}'.format(self.picture_index_for_camera[camera_name], camera_name))
+                    print('Saved calibration roi {}.png for {}'.format(self.picture_index_for_camera[camera_name], camera_name))
                     print('\a')
                     self.picture_index_for_camera[camera_name] += 1
-                    corners2 = cv2.cornerSubPix(image_gray, corners, (11, 11), (-1, -1), self.criteria)
-                    cv2.drawChessboardCorners(image, CHESSBOARD_SQUARES, corners2, ret)
+                    # image_gray = np.zeros(image_gray.shape, 'uint8')
+                    # corners2 = cv2.cornerSubPix(image_gray, corners, (11, 11), (-1, -1), self.criteria)
+                    # cv2.drawChessboardCorners(roi, CHESSBOARD_SQUARES, corners2, ret)
 
         return self.picture_index_for_camera[camera_name]
 

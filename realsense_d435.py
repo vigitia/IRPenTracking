@@ -157,9 +157,9 @@ class RealsenseD435Camera:
         except:
             print('Cant load calibration data for ir sensor')
 
-    # # in case the brightness distribution of the image is uneven,
+    # # in case the brightness distribution of the roi is uneven,
     # # it is recommended to record an empty bias frame and use it
-    # # to normalize the brightness distribution over the image
+    # # to normalize the brightness distribution over the roi
     # def overlay_bias_image(self, original_image, alpha=0.5):
     #     result = cv2.addWeighted(original_image, alpha, self.bias_image, 1.0 - alpha, 0.0)
     #     return result
@@ -280,9 +280,9 @@ class RealsenseD435Camera:
         left_ir_image_2 = np.asanyarray(left_ir_image_2.get_data())
 
         if DEBUG_MODE:
-            # cv2.imshow('Raw IR image 0', left_ir_image_0)
-            cv2.imshow('Raw IR image 1', left_ir_image_1)
-            cv2.imshow('Raw IR image 2', left_ir_image_2)
+            # cv2.imshow('Raw IR roi 0', left_ir_image_0)
+            cv2.imshow('Raw IR roi 1', left_ir_image_1)
+            cv2.imshow('Raw IR roi 2', left_ir_image_2)
 
         # Undistort camera images
         # TODO: Get this to work for both cameras

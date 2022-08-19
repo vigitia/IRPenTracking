@@ -6,6 +6,8 @@ import time
 import numpy as np
 import skimage
 from tensorflow import keras
+
+import flir_blackfly_s
 from tflite import LiteModel
 import datetime
 from scipy.spatial import distance
@@ -14,12 +16,13 @@ from skimage.feature import peak_local_max
 from cv2 import cv2
 
 # Aktuell bestes model:
-MODEL_PATH = 'evaluation/model_new_projector_10'
+MODEL_PATH = 'evaluation/model_new_projector_15'
+# MODEL_PATH = 'evaluation/model_optimized_1'
 
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing
-SMOOTHING_FACTOR = 0.5  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.2  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 
 # Amount of time a point can be missing until the event "on click/drag stop" will be fired
@@ -54,8 +57,9 @@ CAMERA_HEIGHT = 1200  # 480
 STATES = ['draw', 'hover', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far_5_400_18'
-TRAIN_PATH = 'out3/2022-08-02'
+ACTIVE_LEARNING_COLLECTION_MODE = False
+TRAIN_STATE = 'hover_far_0_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
+TRAIN_PATH = 'out3/2022-08-19'
 TRAIN_IMAGE_COUNT = 3000
 
 
@@ -127,13 +131,16 @@ class IRPen:
     num_saved_images_cam_0 = 0
     num_saved_images_cam_1 = 0
 
+    active_learning_counter = 0
+    active_learning_state = 'hover'
+
     def __init__(self):
         # Init Keras
         keras.backend.clear_session()
         self.keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
         #self.keras_lite_model = keras.models.load_model(MODEL_PATH)
 
-        if TRAINING_DATA_COLLECTION_MODE:
+        if TRAINING_DATA_COLLECTION_MODE or ACTIVE_LEARNING_COLLECTION_MODE:
             if not os.path.exists(os.path.join(TRAIN_PATH, TRAIN_STATE)):
                 os.makedirs(os.path.join(TRAIN_PATH, TRAIN_STATE))
             else:
@@ -141,12 +148,13 @@ class IRPen:
                 time.sleep(100000)
 
     def save_training_image(self, img, pos, camera_id):
+        num_wait_frames = 3
         if self.saved_image_counter == 0:
             print('Starting in 5 Seconds')
             time.sleep(5)
 
         self.saved_image_counter += 1
-        if self.saved_image_counter % 10 == 0:
+        if self.saved_image_counter % num_wait_frames == 0:
             # if camera_id == 0:
             #     if self.num_saved_images_cam_0 > self.num_saved_images_cam_1:
             #         return
@@ -156,16 +164,16 @@ class IRPen:
             #         return
             #     self.num_saved_images_cam_1 += 1
 
-            cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{int(self.saved_image_counter / 10)}_{pos[0]}_{pos[1]}.png', img)
-            print(f'saving frame {int(self.saved_image_counter / 10)}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
+            cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{int(self.saved_image_counter / num_wait_frames)}_{pos[0]}_{pos[1]}.png', img)
+            print(f'saving frame {int(self.saved_image_counter / num_wait_frames)}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
             if camera_id == 0:
                 self.num_saved_images_cam_0 += 1
             elif camera_id == 1:
                 self.num_saved_images_cam_1 += 1
 
-        if self.saved_image_counter / 10 >= TRAIN_IMAGE_COUNT:
+        if self.saved_image_counter / num_wait_frames >= TRAIN_IMAGE_COUNT:
             print('FINISHED COLLECTING TRAINING IMAGES. Saved {} images from cam 0 and {} images from cam 1'.format(self.num_saved_images_cam_0, self.num_saved_images_cam_1))
-            time.sleep(5)
+            time.sleep(10)
             sys.exit(0)
 
     def transform_coords_to_output_res(self, x, y, transform_matrix):
@@ -286,6 +294,7 @@ class IRPen:
 
         # If we see only one point:
         if len(subpixel_coords) == 1:
+            print('One point')
             prediction, confidence = self.predict(rois[0])
             # print('One Point', prediction, confidence)
             # print(prediction)
@@ -305,13 +314,14 @@ class IRPen:
 
         # If we see two points
         elif len(subpixel_coords) == 2:
+            print('Two points')
             (center_x, center_y) = self.get_center(subpixel_coords[0], subpixel_coords[1])
             debug_distances.append((center_x, center_y))
 
-            # distance_between_points = distance.euclidean(subpixel_coords[0],
-            #                                              subpixel_coords[1])
+            distance_between_points = distance.euclidean(subpixel_coords[0],
+                                                         subpixel_coords[1])
 
-            # print(distance_between_points, center_x, center_y)
+            print('DISTANCE:', distance_between_points, center_x, center_y)
 
             # if distance_between_points > MAX_DISTANCE_DRAW:
             #     print('Distance too large -> Hover', distance_between_points)
@@ -332,6 +342,7 @@ class IRPen:
                 # print('Agreement on prediction')
             else:
                 brightest_image_index = brightness_values.index(max(brightness_values))
+                # print('Brightness vs: {} > {}'.format(max(brightness_values), brightness_values))
                 # print('Disagree -> roi {} wins because it is brighter'.format(brightest_image_index))
                 # There is a disagreement
                 # Currently we then use the prediction of the brightest point in all camera frames
@@ -622,12 +633,18 @@ class IRPen:
         # else:
         #     img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
 
-        img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
-        prediction = self.keras_lite_model.predict(img)
+        img_reshaped = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
+        prediction = self.keras_lite_model.predict(img_reshaped)
         if not prediction.any():
             return STATES[-1], 0
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
+
+        if ACTIVE_LEARNING_COLLECTION_MODE:
+            if state != self.active_learning_state:
+                cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', img)
+                print(f'saving frame {self.active_learning_counter}')
+                self.active_learning_counter += 1
         return state, confidence
 
     # TODO: Offset fixen
@@ -1166,7 +1183,7 @@ class IRPenDebugger:
                                                     self.active_pen_events[0].x,
                                                     self.active_pen_events[0].y,
                                                     0 if self.active_pen_events[0].state == State.HOVER else 1)
-                    print(message)
+                    # print(message)
                     os.write(self.pipeout, bytes(message, 'utf8'))
                     self.active_pen_events = []
                 if not DEBUG_MODE:

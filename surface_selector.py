@@ -47,7 +47,7 @@ class SurfaceSelector:
     #     #cv2.startWindowThread()
     #     #cv2.namedWindow('Surface Selector', cv2.WINDOW_AUTOSIZE)
     #
-    #     # Set mouse callbacks to extract the coordinates of clicked spots in the image
+    #     # Set mouse callbacks to extract the coordinates of clicked spots in the roi
     #     #cv2.setMouseCallback('Surface Selector', self.on_mouse_click)
     #     pass
 
