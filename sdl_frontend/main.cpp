@@ -98,6 +98,8 @@ int participantId = 0;
 int currentX, currentY = 0;
 int currentState = 0;
 
+SDL_Texture* textTexture;
+
 SDL_Surface* textSurface;
 SDL_Surface* crossesSurface;
 SDL_Texture* crossesTexture;
@@ -247,6 +249,8 @@ void nextPhrase()
     //cout << phraseIndex << " " << currentPhrase << endl;
     
     currentTextSize = (currentTextSize + 1) % 3;
+
+    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
 }
 
 void renderParticles(SDL_Renderer* renderer)
@@ -288,10 +292,6 @@ void renderCrosses(SDL_Renderer* renderer)
 
 void renderPhrase(SDL_Renderer* renderer)
 {
-    SDL_Texture* textTexture;
-
-    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
-
     int w = textSurface->w;
     int h = textSurface->h;
 
