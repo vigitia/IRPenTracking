@@ -28,7 +28,7 @@
 #define MODE_1080 0
 #define MODE_4K 1
 
-#define MODE MODE_1080
+#define MODE MODE_4K
 
 #if MODE == MODE_1080
     #define WINDOW_WIDTH 1920
@@ -43,7 +43,6 @@
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
 
-#define SHOW_PARTICLES 0
 
 #define SHOW_LINES 1
 
@@ -65,6 +64,7 @@ vector<string> phrases;
 vector<int> usedPhrases;
 string currentPhrase;
 
+bool SHOW_PARTICLES = false;
 vector<Particle> particles;
 
 enum Modes {
@@ -72,7 +72,8 @@ enum Modes {
     phrase,
     cross,
     save,
-    latency
+    latency,
+    particle
 };
 
 Modes currentMode = draw;
@@ -487,6 +488,9 @@ int main(int argc, char* argv[])
                         break;
                     case SDLK_t:
                         currentMode = latency;
+                        break;
+                    case SDLK_z:
+                        SHOW_PARTICLES = !SHOW_PARTICLES;
                         break;
                     case SDLK_s:
                         saveImage();
