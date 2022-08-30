@@ -151,3 +151,6 @@ ROS2/config.ini
 additional_training_images/
 
 sdl_frontend/sdl_frontend
+sdl_frontend/screenshots/
+
+evaluation/
