@@ -99,6 +99,9 @@ int currentX, currentY = 0;
 int currentState = 0;
 
 SDL_Texture* textTexture;
+TTF_Font* font;
+SDL_Color textColor = { 255, 255, 255 };
+
 
 SDL_Surface* textSurface;
 SDL_Surface* crossesSurface;
@@ -250,6 +253,7 @@ void nextPhrase()
     
     currentTextSize = (currentTextSize + 1) % 3;
 
+    textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
     textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
 }
 
@@ -456,11 +460,7 @@ int main(int argc, char* argv[])
         cout << "Error initializing SDL_ttf: " << TTF_GetError() << endl;
     }
 
-    TTF_Font* font;
-
     font = TTF_OpenFont("font.ttf", FONT_SIZE);
-
-    SDL_Color textColor = { 255, 255, 255 };
 
     textSurface = TTF_RenderText_Solid( font, "Hello World!", textColor );
 
@@ -501,11 +501,10 @@ int main(int argc, char* argv[])
                         break;
                     case SDLK_e:
                         saveImage();
-                        clearScreen();
                         currentMode = phrase;
                         nextPhrase();
                         currentTextSize = 0;
-                        textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
+                        clearScreen();
                         break;
                     case SDLK_r:
                         saveImage();
@@ -527,7 +526,6 @@ int main(int argc, char* argv[])
                         if(currentMode == phrase)
                         {
                             nextPhrase();
-                            textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
                         }
                         break;
                 }
