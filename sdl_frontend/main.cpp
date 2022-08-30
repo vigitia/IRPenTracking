@@ -434,6 +434,8 @@ int main(int argc, char* argv[])
 {
     signal(SIGINT, onExit);
 
+    srand(time(NULL));
+
     if(argc > 1)
     {
         fifo_path = argv[1];
