@@ -409,7 +409,7 @@ SDL_Surface* loadSurface(string path)
 void saveImage()
 { 
     char filename[120];
-    sprintf(filename, "%s%d_%s.bmp", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
+    sprintf(filename, "%s%d_%s.png", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
 
     const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
  
@@ -420,8 +420,8 @@ void saveImage()
     render(renderer);
     usleep(20000);
     SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
-    SDL_SaveBMP(surface, filename);
-    SDL_FreeSurface(surface);
+    //SDL_SaveBMP(surface, filename);
+    IMG_SavePNG(surface, filename);
 
     isSaving = false;
 }
