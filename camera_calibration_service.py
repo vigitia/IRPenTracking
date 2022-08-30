@@ -27,9 +27,9 @@ class CameraCalibrationService:
 
             image_path = "calibration_images/{}/*.png".format(camera)
 
-            # Arrays to store object points and image points from all the images.
+            # Arrays to store object points and roi points from all the images.
             objpoints = []  # 3d point in real world space
-            imgpoints = []  # 2d points in image plane.
+            imgpoints = []  # 2d points in roi plane.
 
             # get the paths to all images in path
             images = glob.glob(image_path)
@@ -45,7 +45,7 @@ class CameraCalibrationService:
                 # Find the Chessboard corners
                 ret, corners = cv2.findChessboardCorners(gray, CHESSBOARD_SQUARES, None)
 
-                # If found, add object points, image points (after refining them)
+                # If found, add object points, roi points (after refining them)
                 if ret:
                     objpoints.append(self.object_points)
                     # corners = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)

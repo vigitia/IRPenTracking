@@ -17,6 +17,7 @@ class TableExtractionService:
 
     # TODO: reload config file
     def __init__(self):
+        print('init extractor')
         self.read_config_file()
 
     # In the config file, info like the table corner coordinates are stored

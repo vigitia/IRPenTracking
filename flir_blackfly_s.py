@@ -16,7 +16,7 @@ from table_extraction_service import TableExtractionService
 
 # CONSTANTS and Camera Settings
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 CALIBRATION_MODE = False
 EXTRACT_PROJECTION_AREA = False
 SHOW_DEBUG_STACKED_FRAMES = False
@@ -25,7 +25,7 @@ CALIBRATION_DATA_PATH = ''
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
-EXPOSURE_TIME_MICROSECONDS = 400  # μs -> must be lower than the frame time (FRAMERATE / 1000)
+EXPOSURE_TIME_MICROSECONDS = 600  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 18  # Controls the amplification of the video signal in dB.
 FRAMERATE = 158  # Target number of Frames per Second (Min: 1, Max: 158)
 NUM_BUFFERS = 1  # Number of roi buffers per camera

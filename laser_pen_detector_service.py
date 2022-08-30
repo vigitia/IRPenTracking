@@ -106,7 +106,7 @@ class Point:
 class LaserPenDetectorService:
     """ LaserPenDetectorService
 
-        Uses an IR camera image to find bright spots caused by an IR emitting light source
+        Uses an IR camera roi to find bright spots caused by an IR emitting light source
         (in this case a red laser pointer)
 
     """
@@ -130,7 +130,7 @@ class LaserPenDetectorService:
     def __init__(self):
         print('[LaserPointerDetectionService]: Ready')
 
-    # Find bright spots in the IR image. If their size and brightness matches, we can assume that they are from the
+    # Find bright spots in the IR roi. If their size and brightness matches, we can assume that they are from the
     # laser pointer
 
     def reset_color(self):
