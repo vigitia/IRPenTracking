@@ -495,15 +495,21 @@ int main(int argc, char* argv[])
                         quit = true;
                         break;
                     case SDLK_w:
+                        saveImage();
+                        clearScreen();
                         currentMode = draw;
                         break;
                     case SDLK_e:
+                        saveImage();
+                        clearScreen();
                         currentMode = phrase;
                         nextPhrase();
                         currentTextSize = 0;
                         textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
                         break;
                     case SDLK_r:
+                        saveImage();
+                        clearScreen();
                         currentMode = cross;
                         break;
                     case SDLK_t:
