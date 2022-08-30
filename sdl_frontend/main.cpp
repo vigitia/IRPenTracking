@@ -53,8 +53,11 @@
 #define FONT_SIZE 42
 
 const int TEXT_BOX_WIDTH = (int)(WINDOW_WIDTH * 0.7);
-const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.1);
-const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.15);
+const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.05);
+const int TEXT_BOX_HEIGHT_MEDIUM = (int)(WINDOW_HEIGHT * 0.075);
+const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.1);
+const int TEXTBOX_OFFSET = (int)(WINDOW_HEIGHT * 0.1);
+
 
 char* SCREENSHOT_PATH = "screenshots/";
 const char* PHRASES_PATH = "../phrase_set/phrases.txt";
@@ -64,6 +67,7 @@ using namespace std;
 vector<string> phrases;
 vector<int> usedPhrases;
 string currentPhrase;
+int currentTextSize = 0;
 
 vector<Particle> particles;
 
@@ -240,6 +244,8 @@ void nextPhrase()
     usedPhrases.push_back(phraseIndex);
     currentPhrase = phrases.at(phraseIndex);
     //cout << phraseIndex << " " << currentPhrase << endl;
+    
+    currentTextSize = (currentTextSize + 1) % 3;
 }
 
 void renderParticles(SDL_Renderer* renderer)
@@ -293,13 +299,26 @@ void renderPhrase(SDL_Renderer* renderer)
     SDL_RenderCopy( renderer, textTexture, NULL, &phraseRect );
 
     int textBoxWidth = TEXT_BOX_WIDTH;
-    int textBoxHeight = TEXT_BOX_HEIGHT_LARGE;
+    int textBoxHeight;
+
+    switch(currentTextSize)
+    {
+        case 2:
+            textBoxHeight = TEXT_BOX_HEIGHT_SMALL;
+            break;
+        case 1:
+            textBoxHeight = TEXT_BOX_HEIGHT_MEDIUM;
+            break;
+        case 0:
+            textBoxHeight = TEXT_BOX_HEIGHT_LARGE;
+            break;
+    }
 
     SDL_Rect textBoxRect = { WINDOW_WIDTH / 2 - textBoxWidth / 2,
-                             WINDOW_HEIGHT / 2 - textBoxHeight / 2,
+                             WINDOW_HEIGHT / 2 - textBoxHeight / 2 + TEXTBOX_OFFSET,
                              textBoxWidth, textBoxHeight };
     
-    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &textBoxRect);
 }
 
@@ -480,6 +499,7 @@ int main(int argc, char* argv[])
                     case SDLK_e:
                         currentMode = phrase;
                         nextPhrase();
+                        currentTextSize = 0;
                         textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
                         break;
                     case SDLK_r:
