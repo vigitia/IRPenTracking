@@ -43,7 +43,6 @@
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
 
-
 #define SHOW_LINES 1
 
 #define STATE_HOVER 0
@@ -109,6 +108,8 @@ SDL_Texture* crossesTexture;
 
 bool isSaving = false;
 
+bool showBrokenPipeIndicator = false;
+
 void *handle_fifo(void *args)
 {
     char buffer[80];
@@ -173,6 +174,11 @@ void onExit(int signum)
     unlink(fifo_path);
 
     exit(EXIT_SUCCESS);
+}
+
+void onBrokenPipe(int signum)
+{
+    showBrokenPipeIndicator = true;
 }
 
 void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line)
@@ -366,6 +372,14 @@ void renderLatencyTest(SDL_Renderer* renderer)
     SDL_RenderPresent(renderer);
 }
 
+void renderBrokenPipeIndicator(SDL_Renderer* renderer)
+{
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_Rect brokenPipeIndicator = { 0, 0, 20, 20 };
+
+    SDL_RenderFillRect(renderer, &brokenPipeIndicator);
+}
+
 void render(SDL_Renderer* renderer)
 {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -376,6 +390,7 @@ void render(SDL_Renderer* renderer)
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER && currentMode != cross) renderHoverIndicator(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
+    if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
     if(!isSaving) SDL_RenderPresent(renderer);
 }
@@ -433,6 +448,7 @@ void saveImage()
 int main(int argc, char* argv[]) 
 {
     signal(SIGINT, onExit);
+    signal(SIGPIPE, onBrokenPipe);
 
     srand(time(NULL));
 
@@ -521,6 +537,9 @@ int main(int argc, char* argv[])
                         break;
                     case SDLK_s:
                         saveImage();
+                        break;
+                    case SDLK_a:
+                        showBrokenPipeIndicator = false;
                         break;
                     case SDLK_SPACE:
                         saveImage();
