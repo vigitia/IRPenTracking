@@ -9,7 +9,6 @@ import time
 
 import PySpin
 import cv2
-import numpy as np
 
 from surface_selector import SurfaceSelector
 from table_extraction_service import TableExtractionService
@@ -92,12 +91,12 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
                 if self.cam_id == SERIAL_NUMBER_MASTER:
                     global cam_image_master
                     cam_image_master = image_result.GetNDArray()
-                    # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
+                    cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
                 elif self.cam_id == SERIAL_NUMBER_SLAVE:
                     global cam_image_slave
                     cam_image_slave = image_result.GetNDArray()
                     self.check_both_frames_available()
-                    # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
+                    cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
 
             #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
             image_result.Release()
@@ -185,8 +184,6 @@ class FlirBlackflyS:
         num_cameras = self.cam_list.GetSize()
         print('Number of cameras detected: %d' % num_cameras)
 
-        self.load_camera_calibration_data(num_cameras)
-
         # Finish if there are no cameras
         if num_cameras == 0:
             self.cam_list.Clear()  # Clear camera list before releasing system
@@ -238,6 +235,8 @@ class FlirBlackflyS:
                     print('Errors while applying settings to the cameras')
                     time.sleep(10)
 
+            self.load_camera_calibration_data(self.device_serial_numbers)
+
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
 
@@ -287,15 +286,15 @@ class FlirBlackflyS:
         # else:
         #     print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
 
-    def load_camera_calibration_data(self, num_cameras):
+    def load_camera_calibration_data(self, camera_serial_numbers):
         print('load calibration data')
 
-        for i in range(num_cameras):
+        for i, camera_serial_number in enumerate(camera_serial_numbers):
             self.camera_matrices.append([None])
             self.dist_matrices.append([None])
             try:
                 # TODO: Change path
-                cv_file = cv2.FileStorage(os.path.join(CALIBRATION_DATA_PATH, 'FlirBlackflyS {}.yml'.format(i)),
+                cv_file = cv2.FileStorage(os.path.join(CALIBRATION_DATA_PATH, 'Flir Blackfly S {}.yml'.format(camera_serial_number)),
                                           cv2.FILE_STORAGE_READ)
                 self.camera_matrices[i] = cv_file.getNode('K').mat()
                 self.dist_matrices[i] = cv_file.getNode('D').mat()
@@ -308,8 +307,8 @@ class FlirBlackflyS:
 
                 cv_file.release()
             except Exception as e:
-                print(e)
-                print('Cant load calibration data for FlirBlackflyS {}.yml'.format(i))
+                print('Error in load_camera_calibration_data():', e)
+                print('Cant load calibration data for Flir Blackfly S {}.yml'.format(i))
 
     def apply_camera_settings(self, cam, serial_number):
 
@@ -491,7 +490,7 @@ class FlirBlackflyS:
             print()
 
         except PySpin.SpinnakerException as ex:
-            print('Error: %s' % ex)
+            print('Error in print_device_info(): %s' % ex)
             return False
 
         return result
@@ -602,7 +601,7 @@ class FlirBlackflyS:
             print('Device event handler registered specifically to EventExposureEnd events')
 
         except PySpin.SpinnakerException as ex:
-            print('Error: %s' % ex)
+            print('Error in configure_device_events(): %s' % ex)
             success = False
 
         return success, device_event_handler
@@ -645,6 +644,9 @@ class CameraTester:
         framerate = FRAMERATE
         # cam_exposure = 10000
 
+        # from ir_pen import IRPen
+        # self.ir_pen = IRPen()
+
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
         # thread.join()
@@ -671,10 +673,12 @@ class CameraTester:
                     for camera_serial_number in self.camera_serial_numbers:
                         cv2.namedWindow('Flir Blackfly S {}'.format(camera_serial_number), cv2.WINDOW_NORMAL)
                         cv2.resizeWindow('Flir Blackfly S {}'.format(camera_serial_number), FRAME_WIDTH, FRAME_HEIGHT)
+                        # cv2.resizeWindow('Flir Blackfly S {}'.format(camera_serial_number), 480, 480)
 
                         if EXTRACT_PROJECTION_AREA:
                             cv2.namedWindow('Flir Camera {} Extracted'.format(camera_serial_number), cv2.WINDOW_NORMAL)
                             cv2.resizeWindow('Flir Camera {} Extracted'.format(camera_serial_number), FRAME_WIDTH, FRAME_HEIGHT)
+                            # cv2.resizeWindow('Flir Camera {} Extracted'.format(camera_serial_number), 480, 480)
 
                             # cv2.namedWindow('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN)
                             # cv2.setWindowProperty('Flir Camera Frames combined', cv2.WND_PROP_FULLSCREEN,
@@ -689,8 +693,11 @@ class CameraTester:
                     window_name = 'Flir Blackfly S {}'.format(self.camera_serial_numbers[i])
                     window_name_extracted = 'Flir Camera {} Extracted'.format(self.camera_serial_numbers[i])
 
+                    # pen_event_roi, brightest, (x, y) = self.ir_pen.crop_image(frame)
+
                     if DEBUG_MODE:
                         cv2.imshow(window_name, frame)
+                        # cv2.imshow(window_name, pen_event_roi)
 
                     if EXTRACT_PROJECTION_AREA:
                         global table_extractor

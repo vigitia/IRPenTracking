@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import time
 
@@ -5,7 +7,7 @@ import numpy as np
 
 CHESSBOARD_SQUARES = (9, 6)
 
-MIN_TIME_BETWEEN_FRAMES_SEC = 3
+MIN_TIME_BETWEEN_FRAMES_SEC = 5
 
 
 class CalibrationImageCaptureService:
@@ -20,30 +22,46 @@ class CalibrationImageCaptureService:
             self.last_saved_frame_timestamps[camera_name] = 0
             self.picture_index_for_camera[camera_name] = 0
 
-    def collect_calibration_image(self, image, camera_name):
+    def collect_calibration_image(self, image, camera_serial_number):
         if image is not None:
-            # TODO: Check if getting the grey frame is necessary
-            if len(image.shape) == 3:
-                image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            else:
-                image_gray = image
+            # # TODO: Check if getting the grey frame is necessary
+            # if len(image.shape) == 3:
+            #     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            # else:
+            #     image_gray = image
 
             now = time.time()
-            if now - self.last_saved_frame_timestamps[camera_name] > MIN_TIME_BETWEEN_FRAMES_SEC:
+            if now - self.last_saved_frame_timestamps[camera_serial_number] > MIN_TIME_BETWEEN_FRAMES_SEC:
                 # ret, corners = cv2.findChessboardCorners(roi, CHESSBOARD_SQUARES, None)
                 ret = True
 
                 if ret:
-                    self.last_saved_frame_timestamps[camera_name] = now
-                    cv2.imwrite('calibration_images/{}/{}.png'.format(camera_name, self.picture_index_for_camera[camera_name]), image)
-                    print('Saved calibration roi {}.png for {}'.format(self.picture_index_for_camera[camera_name], camera_name))
-                    print('\a')
-                    self.picture_index_for_camera[camera_name] += 1
+                    self.last_saved_frame_timestamps[camera_serial_number] = now
+
+                    self.save_image(image, camera_serial_number)
+                    # print('\a')
+
                     # image_gray = np.zeros(image_gray.shape, 'uint8')
                     # corners2 = cv2.cornerSubPix(image_gray, corners, (11, 11), (-1, -1), self.criteria)
                     # cv2.drawChessboardCorners(roi, CHESSBOARD_SQUARES, corners2, ret)
 
-        return self.picture_index_for_camera[camera_name]
+        return self.picture_index_for_camera[camera_serial_number]
+
+    def save_image(self, image, camera_serial_number):
+        if not os.path.exists('calibration_images'):
+            os.makedirs('calibration_images')
+        if not os.path.exists('calibration_images/Flir Blackfly S {}'.format(camera_serial_number)):
+            os.makedirs('calibration_images/Flir Blackfly S {}'.format(camera_serial_number))
+
+        cv2.imwrite('calibration_images/Flir Blackfly S {}/{}.png'.format(camera_serial_number,
+                                                                          self.picture_index_for_camera[
+                                                                              camera_serial_number]), image)
+        print('Saved calibration image "{}.png" for camera "Flir Blackfly S {}"'.format(
+            self.picture_index_for_camera[camera_serial_number], camera_serial_number))
+
+        self.picture_index_for_camera[camera_serial_number] += 1
+
+        return self.picture_index_for_camera[camera_serial_number]
 
 
 
