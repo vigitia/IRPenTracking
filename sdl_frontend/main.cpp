@@ -23,7 +23,17 @@
 #include <fstream>
 #include <sys/stat.h>
 
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "particle.h"
+
+#define MODE_FIFO 0
+#define MODE_UDS 1
+
+#define COMMUNICATION_MODE MODE_UDS
 
 #define MODE_1080 0
 #define MODE_4K 1
@@ -56,7 +66,6 @@ const int TEXT_BOX_HEIGHT_MEDIUM = (int)(WINDOW_HEIGHT * 0.075);
 const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.1);
 const int TEXTBOX_OFFSET = (int)(WINDOW_HEIGHT * 0.1);
 
-
 char* SCREENSHOT_PATH = "screenshots/";
 const char* PHRASES_PATH = "../phrase_set/phrases.txt";
 
@@ -84,11 +93,22 @@ Modes currentMode = draw;
 int fifo_fd = -1;    // path to FIFO for remotely controlled delay times
 char* fifo_path;
 pthread_t fifo_thread; 
+
+pthread_t uds_thread; 
     
 SDL_Renderer* renderer;
 
 map<int, vector<SDL_Point>> lines;
 vector<SDL_Point> currentLine;
+
+struct Poly {
+    int id;
+    short int x[4];
+    short int y[4];
+    bool alive;
+};
+
+map<int, struct Poly> rects;
 
 int currentId = 0;
 
@@ -101,6 +121,7 @@ SDL_Texture* textTexture;
 TTF_Font* font;
 SDL_Color textColor = { 255, 255, 255 };
 
+uint32_t highlightColor = 0x9900FFFF;
 
 SDL_Surface* textSurface;
 SDL_Surface* crossesSurface;
@@ -110,24 +131,32 @@ bool isSaving = false;
 
 bool showBrokenPipeIndicator = false;
 
-void *handle_fifo(void *args)
+#define BUF 1024
+#define UDS_FILE "/tmp/sock.uds"
+
+int server_socket, client_socket;
+
+void clearScreen()
 {
-    char buffer[80];
+    //for (auto const& entry : lines)
+    //{
+    //    entry.second.clear();
+    //}
+    lines.clear();
+    currentLine.clear();
+}
 
-    while(1)
+void parseMessage(char* buffer)
+{
+
+    if(buffer[0] == 'l')
     {
-        // open the FIFO - this call blocks the thread until someone writes to the FIFO
-        fifo_fd = open(fifo_path, O_RDONLY);
-
         int id, x, y, state;
-
-        if(read(fifo_fd, buffer, 80) <= 0) continue; // read the FIFO's content into a buffer and skip setting the variables if an error occurs
-
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "%d %d %d %d ", &id, &x, &y, &state) == 4)
+        if(sscanf(buffer, "l %d %d %d %d ", &id, &x, &y, &state) == 4)
         {
-            cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
+            //cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
             currentX = x;
             currentY = y;
             currentState = state;
@@ -149,6 +178,125 @@ void *handle_fifo(void *args)
         {
             cout << "could not read input " << buffer << endl;
         }
+    }
+    else if(buffer[0] == 'r')
+    {
+        int id, state;
+        int x1, x2, x3, x4;
+        int y1, y2, y3, y4;
+        // parse new values from the FIFO
+        // only set the delay times if all four values could be read correctly
+        if(sscanf(buffer, "r %d %d %d %d %d %d %d %d %d %d ", &id, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 10)
+        {
+            //cout << buffer << endl;
+            struct Poly poly;
+
+            poly.id = id;
+            poly.alive = state;
+            poly.x[0] = x1;
+            poly.x[1] = x2;
+            poly.x[2] = x3;
+            poly.x[3] = x4;
+            poly.y[0] = y1;
+            poly.y[1] = y2;
+            poly.y[2] = y3;
+            poly.y[3] = y4;
+
+            // new rect
+            if(rects.find(id) == rects.end())
+            {
+                rects[id] = poly;
+            }
+            else
+            {
+                if(state == 0)
+                {
+                    rects.erase(id);
+                }
+            }
+        }
+    }
+    else if(buffer[0] == 'c')
+    {
+        rects.clear();
+    }
+    else if(buffer[0] == 'x')
+    {
+        clearScreen();
+    }
+
+}
+
+void *handle_uds(void *args)
+{
+    char buffer[80];
+
+    while(1)
+    {
+        int id, x, y, state;
+
+        int size;
+
+        size = recv(client_socket, buffer, 80-1, 0);
+        //size = read(client_socket, buffer, 80-1);
+
+        if(size > 0)
+        {
+            parseMessage(buffer);
+        }
+        //send(client_socket, "ok", 2, 0);
+        usleep(500);
+    }
+}
+
+int init_uds()
+{
+    socklen_t addrlen;
+    ssize_t size;
+    struct sockaddr_un address;
+    const int y = 1;
+    if((server_socket=socket (AF_LOCAL, SOCK_STREAM, 0)) > 0)
+        printf ("created socket\n");
+    unlink(fifo_path);
+    address.sun_family = AF_LOCAL;
+    strcpy(address.sun_path, fifo_path);
+    if (bind ( server_socket,
+                (struct sockaddr *) &address,
+                sizeof (address)) != 0) {
+        printf( "port is not free!\n");
+    }
+    listen (server_socket, 5);
+    addrlen = sizeof (struct sockaddr_in);
+    while (1) {
+        client_socket = accept ( server_socket,
+                (struct sockaddr *) &address,
+                &addrlen );
+        if (client_socket > 0)
+        {
+            printf ("client connected\n");
+            break;
+        }
+    }
+
+    pthread_create(&uds_thread, NULL, handle_uds, NULL); 
+
+    return 1;
+}
+
+
+void *handle_fifo(void *args)
+{
+    char buffer[80];
+
+    while(1)
+    {
+        // open the FIFO - this call blocks the thread until someone writes to the FIFO
+        fifo_fd = open(fifo_path, O_RDONLY);
+
+
+        if(read(fifo_fd, buffer, 80) <= 0) continue; // read the FIFO's content into a buffer and skip setting the variables if an error occurs
+
+        parseMessage(buffer);
 
         close(fifo_fd);
         usleep(500);
@@ -169,9 +317,20 @@ int init_fifo()
 
 void onExit(int signum)
 {
+    cout << "exiting..." << endl;
+
     // end inter process communication
-    pthread_cancel(fifo_thread);
-    unlink(fifo_path);
+    if(COMMUNICATION_MODE == MODE_FIFO)
+    {
+        pthread_cancel(fifo_thread);
+        unlink(fifo_path);
+    }
+    else if(COMMUNICATION_MODE == MODE_UDS)
+    {
+        pthread_cancel(uds_thread);
+        close(client_socket);
+        close(server_socket);
+    }
 
     exit(EXIT_SUCCESS);
 }
@@ -193,16 +352,6 @@ void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line)
         SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
         SDL_RenderDrawLines(rend, point_array, line->size());
     }
-}
-
-void clearScreen()
-{
-    //for (auto const& entry : lines)
-    //{
-    //    entry.second.clear();
-    //}
-    lines.clear();
-    currentLine.clear();
 }
 
 // https://stackoverflow.com/questions/997946/how-to-get-current-time-and-date-in-c
@@ -333,6 +482,16 @@ void renderPhrase(SDL_Renderer* renderer)
     SDL_RenderFillRect(renderer, &textBoxRect);
 }
 
+void renderHighlights(SDL_Renderer* renderer)
+{
+    for (auto const& entry : rects)
+    {
+        struct Poly poly = entry.second;
+        
+        filledPolygonColor(renderer, poly.x, poly.y, 4, highlightColor);
+    }
+}
+
 void renderLines(SDL_Renderer* renderer)
 {
     for (auto const& entry : lines)
@@ -385,6 +544,7 @@ void render(SDL_Renderer* renderer)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);    //
 
+    renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
     if(SHOW_LINES) renderLines(renderer);
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
@@ -455,7 +615,14 @@ int main(int argc, char* argv[])
     if(argc > 1)
     {
         fifo_path = argv[1];
-        if(!init_fifo()) return 1;
+        if(COMMUNICATION_MODE == MODE_FIFO)
+        {
+            if(!init_fifo()) return 1;
+        }
+        else
+        {
+            if(!init_uds()) return 1;
+        }
     }
     if(argc > 2)
     {

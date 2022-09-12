@@ -1,7 +1,7 @@
 import os, time, sys
 import random
 
-pipe_name = 'pipe_test'
+pipe_name = 'test_fifo'
 
 if not os.path.exists(pipe_name):
     os.mkfifo(pipe_name)  
