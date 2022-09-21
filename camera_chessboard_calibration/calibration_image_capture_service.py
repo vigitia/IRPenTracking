@@ -67,7 +67,7 @@ class CalibrationImageCaptureService:
 
 
 # def main():
-#     table_extraction_service = TableExtractionService()
+#     table_extraction_service = SurfaceExtractor()
 #
 #     camera = RealsenseD435Camera()
 #     camera.init_video_capture()

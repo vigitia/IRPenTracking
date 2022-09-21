@@ -16,11 +16,7 @@ from skimage.feature import peak_local_max
 
 from cv2 import cv2
 
-# Aktuell bestes model:
-MODEL_PATH = 'evaluation/model_new_projector_15'
-#MODEL_PATH = 'evaluation/model_three_class_predictor_2'
-# MODEL_PATH = 'evaluation/model_optimized_1'
-
+MODEL_PATH = 'cnn'
 CROP_IMAGE_SIZE = 48
 
 # Simple Smoothing

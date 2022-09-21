@@ -21,6 +21,10 @@ class InputSimulator:
         self.device = UInput(self.capabilities, name='mouse', version=0x3)
         self.was_pressed = False
 
+    def sync_event(self):
+        self.device.syn()
+        #time.sleep(0.001)
+
     def input_event(self, x, y, state):
         self.device.write(e.EV_ABS, e.ABS_X, x)
         self.device.write(e.EV_ABS, e.ABS_Y, y)
@@ -39,8 +43,6 @@ class InputSimulator:
     def move_event(self, x, y):
         self.device.write(e.EV_ABS, e.ABS_X, x)
         self.device.write(e.EV_ABS, e.ABS_Y, y)
-        self.device.syn()
-        time.sleep(0.01)
 
     def click_event(self, btn, state):
         if btn == 'left':
@@ -73,9 +75,6 @@ class InputSimulator:
                 print(btn + ' release')
                 self.device.write(e.EV_KEY, button, 0)
                 self.was_pressed = False
-
-        self.device.syn()
-        time.sleep(0.01)
 
     def close(self):
         time.sleep(0.1)

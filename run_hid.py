@@ -192,6 +192,8 @@ class Run:
                     self.current_click_type = 'left'
                 else:
                     print(self.current_click_type, state)
+
+                self.input_device.sync_event()
             else:
                 # print(x, y, ' -> Outside screen borders')
                 pass

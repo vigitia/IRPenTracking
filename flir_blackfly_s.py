@@ -11,7 +11,7 @@ import PySpin
 import cv2
 
 from surface_selector import SurfaceSelector
-from table_extraction_service import TableExtractionService
+from surface_extractor import SurfaceExtractor
 
 # CONSTANTS and Camera Settings
 
@@ -42,7 +42,7 @@ all_cameras_ready = False
 matrices = [[]]
 
 
-table_extractor = TableExtractionService()
+surface_extractor = SurfaceExtractor()
 
 
 class DeviceEventHandler(PySpin.DeviceEventHandler):
@@ -167,9 +167,6 @@ class FlirBlackflyS:
         EXPOSURE_TIME_MICROSECONDS = cam_exposure
         FRAMERATE = framerate
 
-        # if not CALIBRATION_MODE:
-        #     self.table_extractor = TableExtractionService()
-
         self.init_cameras(subscriber)
 
     def init_cameras(self, subscriber):
@@ -210,15 +207,15 @@ class FlirBlackflyS:
 
                 if not CALIBRATION_MODE:
                     global matrices
-                    global table_extractor
+                    global surface_extractor
 
                     if device_serial_number == SERIAL_NUMBER_MASTER:
-                        matrices[0] = table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number))
+                        matrices[0] = surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number))
                     else:
-                        matrices.append(table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
+                        matrices.append(surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
 
-                    # matrices[device_serial_number] = table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number))
-                    # matrices.append(table_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
+                    # matrices[device_serial_number] = surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number))
+                    # matrices.append(surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blackfly S {}'.format(device_serial_number)))
 
                 cam.Init()  # Initialize camera
 
@@ -700,8 +697,8 @@ class CameraTester:
                         # cv2.imshow(window_name, pen_event_roi)
 
                     if EXTRACT_PROJECTION_AREA:
-                        global table_extractor
-                        extracted_frame = table_extractor.extract_table_area(frame, window_name)
+                        global surface_extractor
+                        extracted_frame = surface_extractor.extract_table_area(frame, window_name)
                         extracted_frame = cv2.resize(extracted_frame, (3840, 2160))
                         extracted_frames.append(extracted_frame)
                         cv2.imshow(window_name_extracted, extracted_frame)
