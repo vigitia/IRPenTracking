@@ -154,3 +154,4 @@ sdl_frontend/sdl_frontend
 sdl_frontend/screenshots/
 
 evaluation/
+*.yml

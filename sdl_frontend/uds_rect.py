@@ -8,7 +8,7 @@ import random
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 # Connect the socket to the port where the server is listening
-server_address = 'test_uds'
+server_address = '../uds_test'
 print('connecting to %s' % server_address)
 try:
     sock.connect(server_address)

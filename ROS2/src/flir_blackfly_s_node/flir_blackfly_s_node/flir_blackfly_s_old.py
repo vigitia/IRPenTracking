@@ -114,16 +114,16 @@ class FlirBlackflyS:
                 #start = datetime.datetime.now()
                 image_result = cam.GetNextImage(1000)  # grabTimeout=1000
 
-                if image_result.IsIncomplete():  # Ensure image completion
-                    print('Image incomplete with image status %d' % image_result.GetImageStatus())
+                if image_result.IsIncomplete():  # Ensure roi completion
+                    print('Image incomplete with roi status %d' % image_result.GetImageStatus())
                 else:
                     image_data = image_result.GetNDArray()
                     newest_frames.append(image_data)
 
-                    # Convert image to mono 8
+                    # Convert roi to mono 8
                     # image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
 
-                image_result.Release()  # Release image
+                image_result.Release()  # Release roi
                 #end = datetime.datetime.now()
                 #print('GetNextImage', (end - start).microseconds / 1000.0)
             except PySpin.SpinnakerException as ex:

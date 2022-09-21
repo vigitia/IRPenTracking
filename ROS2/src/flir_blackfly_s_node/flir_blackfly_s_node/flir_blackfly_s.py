@@ -34,7 +34,7 @@ FRAME_HEIGHT = 1200  # 600  # 1200
 EXPOSURE_TIME_MICROSECONDS = 300  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 0  # Controls the amplification of the video signal in dB. TODO: SET GAIN
 FRAMERATE = 158  # 158  # Target number of Frames per Second
-NUM_BUFFERS = 1  # Number of image buffers per camera
+NUM_BUFFERS = 1  # Number of roi buffers per camera
 
 SERIAL_NUMBER_MASTER = str(22260470)
 SERIAL_NUMBER_SLAVE = str(22260466)
@@ -130,8 +130,8 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
 
             # print(image_result.GetTimeStamp() / 1e9)
 
-            if image_result.IsIncomplete():  # Ensure image completion
-                print('Image incomplete with image status %d' % image_result.GetImageStatus())
+            if image_result.IsIncomplete():  # Ensure roi completion
+                print('Image incomplete with roi status %d' % image_result.GetImageStatus())
             else:
                 if self.cam_id == SERIAL_NUMBER_MASTER:
                     global cam_image_master
@@ -291,18 +291,18 @@ class FlirBlackflyS:
     #
     #             print(image_result.GetTimeStamp() / 1e9, image_result.GetFrameID(), image_result.GetBitsPerPixel())
     #
-    #             if image_result.IsIncomplete():  # Ensure image completion
-    #                 print('Image incomplete with image status %d' % image_result.GetImageStatus())
+    #             if image_result.IsIncomplete():  # Ensure roi completion
+    #                 print('Image incomplete with roi status %d' % image_result.GetImageStatus())
     #             else:
     #                 image_data = image_result.GetNDArray()
     #                 newest_frames.append(image_data)
     #
-    #                 # Convert image to mono 8
+    #                 # Convert roi to mono 8
     #                 # image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
     #
     #             #  Images retrieved directly from the camera need to be released in order to keep from filling the
     #             #  buffer.
-    #             image_result.Release()  # Release image
+    #             image_result.Release()  # Release roi
     #             #end = datetime.datetime.now()
     #             #print('GetNextImage', (end - start).microseconds / 1000.0)
     #         except PySpin.SpinnakerException as ex:

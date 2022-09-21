@@ -691,7 +691,7 @@ class IRPen:
                 
         _, thresh = cv2.threshold(image, np.median(samples) * 1.2, 255, cv2.THRESH_BINARY)
         
-        #y_nonzero, x_nonzero = np.nonzero(image)
+        #y_nonzero, x_nonzero = np.nonzero(roi)
         #x1 = np.min(x_nonzero)
         #x2 = np.max(x_nonzero)
         #y1 = np.min(y_nonzero)
