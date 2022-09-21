@@ -431,12 +431,12 @@ if __name__ == '__main__':
 #         # global ir_pen
 #         # left_ir_image_1, left_ir_image_2, matrix1, matrix2 = realsense_d435_camera.get_camera_frames()
 #
-#         new_frames, matrices = flir_blackfly_s.get_camera_frames()
+#         frames, matrices = flir_blackfly_s.get_camera_frames()
 #
-#         if len(new_frames) > 0:
+#         if len(frames) > 0:
 #             self.frame_counter += 1
 #
-#             _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(new_frames[0])
+#             _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
 #             if brightest > 100:
 #                 # print('Bright!')
 #                 self.painting_widget.fill_screen_white()
@@ -459,7 +459,7 @@ if __name__ == '__main__':
 #             # print(coords, result)
 #
 #             # active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam([left_ir_image_1, left_ir_image_2], [matrix1, matrix2])
-#             active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(new_frames, matrices)
+#             active_pen_events, stored_lines, _, _, debug_distances = ir_pen.get_ir_pen_events_multicam(frames, matrices)
 #
 #             # active_pen_events, stored_lines, _, _, debug_distances = [], [], [], [], []
 #             global current_debug_distances

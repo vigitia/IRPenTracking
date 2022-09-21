@@ -6,6 +6,7 @@ import time
 import numpy as np
 import skimage
 from tensorflow import keras
+import socket
 
 import flir_blackfly_s
 from tflite import LiteModel
@@ -49,7 +50,10 @@ USE_MAX_DISTANCE_DRAW = False
 MAX_DISTANCE_DRAW = 500
 
 DEBUG_MODE = False
-ENABLE_FIFO_PIPE = True
+SEND_TO_FRONTEND = True
+ENABLE_FIFO_PIPE = False
+ENABLE_UNIX_SOCKET = True
+UNIX_SOCK_NAME = 'uds_test'
 
 LATENCY_MEASURING_MODE = False
 
@@ -63,7 +67,7 @@ STATES = ['draw', 'hover', 'hover_far', 'undefined']
 
 TRAINING_DATA_COLLECTION_MODE = False
 ACTIVE_LEARNING_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far_0_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
+TRAIN_STATE = 'hover_far_1_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
 TRAIN_PATH = 'out3/2022-08-19'
 TRAIN_IMAGE_COUNT = 3000
 
@@ -96,8 +100,8 @@ class PenEvent:
 
     def __init__(self, x, y, state=State.NEW):
 
-        self.x = int(x)
-        self.y = int(y)
+        self.x = x# int(x)
+        self.y = y # int(y)
         self.id = -1
 
         self.missing = False
@@ -191,8 +195,11 @@ class IRPen:
 
             transformed_coords = transform_matrix.dot(coords)
             # Normalize coordinates by dividing by z
-            transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
-                                  int(transformed_coords[1] / transformed_coords[2]))
+            # transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
+            #                       int(transformed_coords[1] / transformed_coords[2]))
+
+            transformed_coords = (transformed_coords[0] / transformed_coords[2], transformed_coords[1] / transformed_coords[2])
+
             return transformed_coords
         except Exception as e:
             print(e)
@@ -217,45 +224,45 @@ class IRPen:
 
         debug_distances = []
 
-        # WIP new approach for multiple pens
-        WIP_APPROACH_MULTI_PEN = False
-        if WIP_APPROACH_MULTI_PEN:
-            for i, frame in enumerate(camera_frames):
-
-                # Add a new sublist for each frame
-                predictions.append([])
-                rois.append([])
-                roi_coords.append([])
-                brightness_values.append([])
-                subpixel_coords.append([])
-
-                rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
-
-                for j, pen_event_roi in enumerate(rois_new):
-
-                    if TRAINING_DATA_COLLECTION_MODE:
-                        self.save_training_image(pen_event_roi, (roi_coords_new[j][0], roi_coords_new[j][1]))
-                        continue
-
-                    prediction, confidence = self.predict(pen_event_roi)
-
-                    predictions[i].append(prediction)
-                    rois[i].append(pen_event_roi)
-
-                    transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1], transform_matrices[i])
-                    roi_coords[i].append(transformed_coords)
-
-                    brightness_values[i].append(max_brightness_values[j])
-
-                    (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
-                    subpixel_coords[i].append((x, y))
-
-            new_pen_events = self.generate_new_pen_events(subpixel_coords, predictions, brightness_values)
-
-            # This function needs to be called even if there are no new pen events to update all existing events
-            self.active_pen_events = self.merge_pen_events(new_pen_events)
-
-            return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances
+        # # WIP new approach for multiple pens
+        # WIP_APPROACH_MULTI_PEN = False
+        # if WIP_APPROACH_MULTI_PEN:
+        #     for i, frame in enumerate(camera_frames):
+        #
+        #         # Add a new sublist for each frame
+        #         predictions.append([])
+        #         rois.append([])
+        #         roi_coords.append([])
+        #         brightness_values.append([])
+        #         subpixel_coords.append([])
+        #
+        #         rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
+        #
+        #         for j, pen_event_roi in enumerate(rois_new):
+        #
+        #             if TRAINING_DATA_COLLECTION_MODE:
+        #                 self.save_training_image(pen_event_roi, (roi_coords_new[j][0], roi_coords_new[j][1]))
+        #                 continue
+        #
+        #             prediction, confidence = self.predict(pen_event_roi)
+        #
+        #             predictions[i].append(prediction)
+        #             rois[i].append(pen_event_roi)
+        #
+        #             transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1], transform_matrices[i])
+        #             roi_coords[i].append(transformed_coords)
+        #
+        #             brightness_values[i].append(max_brightness_values[j])
+        #
+        #             (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
+        #             subpixel_coords[i].append((x, y))
+        #
+        #     new_pen_events = self.generate_new_pen_events(subpixel_coords, predictions, brightness_values)
+        #
+        #     # This function needs to be called even if there are no new pen events to update all existing events
+        #     self.active_pen_events = self.merge_pen_events(new_pen_events)
+        #
+        #     return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances
 
         # 8 ms
         for i, frame in enumerate(camera_frames):
@@ -302,29 +309,25 @@ class IRPen:
 
         # If we see only one point:
         if len(subpixel_coords) == 1:
-            # print('One point')
             prediction, confidence = self.predict(rois[0])
             # print('One Point', prediction, confidence)
-            # print(prediction)
             if prediction == 'draw':
-                print('One point draw')
-                # print('Status: Touch')
+                # print('One point draw')
                 new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], State.DRAG)
                 # new_ir_pen_event.state = State.DRAG
                 new_pen_events.append(new_ir_pen_event)
 
             elif prediction == 'hover':
-                print('One point hover')
-                # print('Status: Hover')
+                # print('One point hover')
                 new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], State.HOVER)
                 # new_ir_pen_event.state = State.HOVER
                 new_pen_events.append(new_ir_pen_event)
             else:
-                print('Unknown state')
+                print('Error: Unknown state')
 
         # If we see two points
         elif len(subpixel_coords) == 2:
-            print('Two points')
+            # print('Two points')
             (center_x, center_y) = self.get_center(subpixel_coords[0], subpixel_coords[1])
             debug_distances.append((center_x, center_y))
 
@@ -368,7 +371,7 @@ class IRPen:
                 new_ir_pen_event = PenEvent(center_x, center_y, State.HOVER)
                 new_pen_events.append(new_ir_pen_event)
             else:
-                print('Unknown state')
+                print('Error: Unknown state')
 
         if LATENCY_MEASURING_MODE:
             if len(subpixel_coords) == 0:
@@ -412,7 +415,7 @@ class IRPen:
             else:
                 cv2.circle(zeros, point_right_cam, 20, (0, 0, 255), -1)
 
-        print(' ')
+        # print(' ')
         # print(subpixel_coords)
 
         # Deal with single points first
@@ -506,40 +509,40 @@ class IRPen:
 
     # @timeit('All ROIs')
     # TOO SLOW :(
-    def get_all_rois_bad(self, img, size=CROP_IMAGE_SIZE):
-        start_time = datetime.datetime.now()
-        _, img = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
-
-        end_time = datetime.datetime.now()
-        run_time = (end_time - start_time).microseconds / 1000.0
-        print('RUN TIME:', run_time)
-        peaks = peak_local_max(img, min_distance=10, threshold_abs=50)
-
-        rois = []
-        roi_coords = []
-        margin = int(size / 2)
-        max_brightness_values = []
-
-        for point in peaks:
-            x = point[1]
-            y = point[0]
-
-            # Dead pixel fix
-            if x == 46 and y == 565:
-                # TODO: Find solution for dead pixel
-                continue
-
-            roi = img[y - margin: y + margin, x - margin: x + margin]
-            if roi.shape[0] != size or roi.shape[1] != size:
-                print('WRONG SHAPE')
-                # TODO: FIX THIS
-                return rois, roi_coords, max_brightness_values
-            rois.append(roi)
-            roi_coords.append((x, y))
-            _, brightest, _, _ = cv2.minMaxLoc(roi)
-            max_brightness_values.append(int(brightest))
-
-        return rois, roi_coords, max_brightness_values
+    # def get_all_rois_bad(self, img, size=CROP_IMAGE_SIZE):
+    #     start_time = datetime.datetime.now()
+    #     _, img = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
+    #
+    #     end_time = datetime.datetime.now()
+    #     run_time = (end_time - start_time).microseconds / 1000.0
+    #     print('RUN TIME:', run_time)
+    #     peaks = peak_local_max(img, min_distance=10, threshold_abs=50)
+    #
+    #     rois = []
+    #     roi_coords = []
+    #     margin = int(size / 2)
+    #     max_brightness_values = []
+    #
+    #     for point in peaks:
+    #         x = point[1]
+    #         y = point[0]
+    #
+    #         # Dead pixel fix
+    #         if x == 46 and y == 565:
+    #             # TODO: Find solution for dead pixel
+    #             continue
+    #
+    #         roi = img[y - margin: y + margin, x - margin: x + margin]
+    #         if roi.shape[0] != size or roi.shape[1] != size:
+    #             print('WRONG SHAPE')
+    #             # TODO: FIX THIS
+    #             return rois, roi_coords, max_brightness_values
+    #         rois.append(roi)
+    #         roi_coords.append((x, y))
+    #         _, brightest, _, _ = cv2.minMaxLoc(roi)
+    #         max_brightness_values.append(int(brightest))
+    #
+    #     return rois, roi_coords, max_brightness_values
 
     def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
 
@@ -720,14 +723,19 @@ class IRPen:
 
         if len(smallest_contour) < 4:
             cX, cY = min_center
+            print('small contour')
         else:
             # Find the center of the contour using OpenCV Moments
 
             M = cv2.moments(smallest_contour)
             # calculate x,y coordinate of center
             try:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
+                # cX = int(M["m10"] / M["m00"])
+                # cY = int(M["m01"] / M["m00"])
+
+                cX = M["m10"] / M["m00"]
+                cY = M["m01"] / M["m00"]
+
             except Exception as e:
                 print(e)
                 print('Error in find_pen_position_subpixel_crop()')
@@ -736,7 +744,10 @@ class IRPen:
                 cX = 0
                 cY = 0
 
-        position = (int(top_left_scaled[0] + cX), int(top_left_scaled[1] + cY))
+        # print(cX, cY)
+
+        # position = (int(top_left_scaled[0] + cX), int(top_left_scaled[1] + cY))
+        position = (top_left_scaled[0] + cX, top_left_scaled[1] + cY)
 
         # thresh_large_preview = cv2.drawContours(thresh_large_preview, [smallest_contour], 0, (0, 0, 255), 1)
         # thresh_large_preview = cv2.circle(thresh_large_preview, min_center, round(min_radius), (0, 255, 0), 1)
@@ -750,102 +761,102 @@ class IRPen:
 
     # 3 - 5 ms
 
-    def find_pen_position_subpixel_old(self, ir_image):
-
-        if len(ir_image.shape) == 3:
-            ir_image_grey = cv2.cvtColor(ir_image, cv2.COLOR_BGR2GRAY)
-        else:
-            ir_image_grey = ir_image
-        _, thresh = cv2.threshold(ir_image_grey, np.max(ir_image_grey) - 1, 255, cv2.THRESH_BINARY)
-
-        # TODO: resize only cropped area
-        thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
-
-        contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        contours = contours[0] if len(contours) == 2 else contours[1]
-        min_radius = ir_image_grey.shape[0]
-        smallest_contour = contours[0]
-
-        # print(len(contours))
-        for contour in contours:
-            (x, y), radius = cv2.minEnclosingCircle(contour)
-            if radius < min_radius:
-                min_radius = radius
-                smallest_contour = contour
-
-        # Find the center of the contour using OpenCV Moments
-        M = cv2.moments(smallest_contour)
-
-        # calculate x,y coordinate of center
-        cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
-
-        position = (cX, cY)
-
-        return position, min_radius
-
-        # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation=cv2.INTER_AREA)
-        # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
-        # cv2.imshow('large', left_ir_image_large)
-
-    # Finds the exact center
-    def find_pen_position_old(self, img):
-        _, thresh = cv2.threshold(img, np.max(img) - 30, 255, cv2.THRESH_BINARY)
-        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = contours[0] if len(contours) == 2 else contours[1]
-        position = (0, 0)
-        min_radius = img.shape[0]
-        for contour in contours:
-            (x, y), radius = cv2.minEnclosingCircle(contour)
-            if radius < min_radius:
-                min_radius = radius
-                position = (int(x), int(y))
-        return min_radius, position
-
-    def find_pen_orientation_old(self, image):
-        (image_height, image_width) = image.shape
-        step_w = int(image_width / 10)
-        step_h = int(image_height / 10)
-
-        samples = []
-        for x in range(3 * step_w, (image_width - 3 * step_w), step_w):
-            for y in range(3 * step_h, (image_height - 3 * step_h), step_h):
-                samples.append(image[y, x])
-                
-        _, thresh = cv2.threshold(image, np.median(samples) * 1.2, 255, cv2.THRESH_BINARY)
-        
-        #y_nonzero, x_nonzero = np.nonzero(roi)
-        #x1 = np.min(x_nonzero)
-        #x2 = np.max(x_nonzero)
-        #y1 = np.min(y_nonzero)
-        #y2 = np.max(y_nonzero)
-        
-        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        if len(contours) < 1:
-            return -1, -1
-
-        contours = contours[0] if len(contours) == 2 else contours[1]
-
-        #cntr = contours[0]
-        #x,y,w,h = cv2.boundingRect(cntr)
-        #hull = cv2.convexHull(contours[0])
-        
-        [vx, vy, x, y] = cv2.fitLine(contours, cv2.DIST_L2, 0, 0.01, 0.01)
-        
-        rows, cols = image.shape[:2]
-        y_left = int((-x*vy/vx) + y)
-        y_right = int(((cols-x)*vy/vx)+y)
-        return y_left, y_right
+    # def find_pen_position_subpixel_old(self, ir_image):
+    #
+    #     if len(ir_image.shape) == 3:
+    #         ir_image_grey = cv2.cvtColor(ir_image, cv2.COLOR_BGR2GRAY)
+    #     else:
+    #         ir_image_grey = ir_image
+    #     _, thresh = cv2.threshold(ir_image_grey, np.max(ir_image_grey) - 1, 255, cv2.THRESH_BINARY)
+    #
+    #     # TODO: resize only cropped area
+    #     thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
+    #
+    #     contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #
+    #     contours = contours[0] if len(contours) == 2 else contours[1]
+    #     min_radius = ir_image_grey.shape[0]
+    #     smallest_contour = contours[0]
+    #
+    #     # print(len(contours))
+    #     for contour in contours:
+    #         (x, y), radius = cv2.minEnclosingCircle(contour)
+    #         if radius < min_radius:
+    #             min_radius = radius
+    #             smallest_contour = contour
+    #
+    #     # Find the center of the contour using OpenCV Moments
+    #     M = cv2.moments(smallest_contour)
+    #
+    #     # calculate x,y coordinate of center
+    #     cX = int(M["m10"] / M["m00"])
+    #     cY = int(M["m01"] / M["m00"])
+    #
+    #     position = (cX, cY)
+    #
+    #     return position, min_radius
+    #
+    #     # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation=cv2.INTER_AREA)
+    #     # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
+    #     # cv2.imshow('large', left_ir_image_large)
+    #
+    # # Finds the exact center
+    # def find_pen_position_old(self, img):
+    #     _, thresh = cv2.threshold(img, np.max(img) - 30, 255, cv2.THRESH_BINARY)
+    #     contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #     contours = contours[0] if len(contours) == 2 else contours[1]
+    #     position = (0, 0)
+    #     min_radius = img.shape[0]
+    #     for contour in contours:
+    #         (x, y), radius = cv2.minEnclosingCircle(contour)
+    #         if radius < min_radius:
+    #             min_radius = radius
+    #             position = (int(x), int(y))
+    #     return min_radius, position
+    #
+    # def find_pen_orientation_old(self, image):
+    #     (image_height, image_width) = image.shape
+    #     step_w = int(image_width / 10)
+    #     step_h = int(image_height / 10)
+    #
+    #     samples = []
+    #     for x in range(3 * step_w, (image_width - 3 * step_w), step_w):
+    #         for y in range(3 * step_h, (image_height - 3 * step_h), step_h):
+    #             samples.append(image[y, x])
+    #
+    #     _, thresh = cv2.threshold(image, np.median(samples) * 1.2, 255, cv2.THRESH_BINARY)
+    #
+    #     #y_nonzero, x_nonzero = np.nonzero(roi)
+    #     #x1 = np.min(x_nonzero)
+    #     #x2 = np.max(x_nonzero)
+    #     #y1 = np.min(y_nonzero)
+    #     #y2 = np.max(y_nonzero)
+    #
+    #     contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #
+    #     if len(contours) < 1:
+    #         return -1, -1
+    #
+    #     contours = contours[0] if len(contours) == 2 else contours[1]
+    #
+    #     #cntr = contours[0]
+    #     #x,y,w,h = cv2.boundingRect(cntr)
+    #     #hull = cv2.convexHull(contours[0])
+    #
+    #     [vx, vy, x, y] = cv2.fitLine(contours, cv2.DIST_L2, 0, 0.01, 0.01)
+    #
+    #     rows, cols = image.shape[:2]
+    #     y_left = int((-x*vy/vx) + y)
+    #     y_right = int(((cols-x)*vy/vx)+y)
+    #     return y_left, y_right
 
 
     def merge_pen_events_single(self, new_pen_events):
         now = round(time.time() * 1000)  # Get current timestamp
 
         if len(self.active_pen_events) == 0 and len(new_pen_events) == 1:
-            print('New event')
-            # pass
+            # print('New event')
+            pass
 
         elif len(self.active_pen_events) == 1 and len(new_pen_events) == 0:
             active_pen_event = self.active_pen_events[0]
@@ -863,7 +874,7 @@ class IRPen:
                     self.stored_lines.append(np.array(active_pen_event.history))
 
         elif len(self.active_pen_events) == 1 and len(new_pen_events) == 1:
-            print('Merge new and old')
+            # print('Merge new and old')
             last_pen_event = self.active_pen_events[0]
             new_pen_event = new_pen_events[0]
 
@@ -893,9 +904,11 @@ class IRPen:
                 new_pen_event.history = last_pen_event.history
 
                 # Apply smoothing to the points by taking their previous positions into account
-                new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - last_pen_event.x) + last_pen_event.x)
-                new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - last_pen_event.y) + last_pen_event.y)
+                # new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - last_pen_event.x) + last_pen_event.x)
+                # new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - last_pen_event.y) + last_pen_event.y)
 
+                new_pen_event.x = SMOOTHING_FACTOR * (new_pen_event.x - last_pen_event.x) + last_pen_event.x
+                new_pen_event.y = SMOOTHING_FACTOR * (new_pen_event.y - last_pen_event.y) + last_pen_event.y
 
         elif len(self.active_pen_events) == 0 and len(new_pen_events) == 0:
             # print('Nothing to do')
@@ -908,7 +921,6 @@ class IRPen:
 
         # Now we have al list of new events that need their own unique ID. Those are assigned now
         final_pen_events = self.assign_new_ids(new_pen_events)
-        print(final_pen_events)
 
         for final_pen_event in final_pen_events:
             # Add current position to the history list, but ignore hover events
@@ -937,176 +949,175 @@ class IRPen:
                     print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
                     if len(final_pen_event.history) > 0:
                         self.stored_lines.append(np.array(final_pen_event.history))
-                    print(final_pen_event.state, final_pen_event.state_history[-5:])
+                    # print(final_pen_event.state, final_pen_event.state_history[-5:])
                     print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id, len(final_pen_event.history)))
                     final_pen_events = []
 
-
         return final_pen_events
 
-    def merge_pen_events(self, new_pen_events):
-        now = round(time.time() * 1000)  # Get current timestamp
-
-        # # Keep track of the current state
-        # # TODO: Do this already when the pen event is created
-        # for new_pen_event in new_pen_events:
-        #     new_pen_event.state_history = [new_pen_event.state]
-
-        # Iterate over copy of list
-        # If a final_pen_event has been declared a "Click Event" in the last frame, this event is now over, and we can delete it.
-        for active_pen_event in self.active_pen_events[:]:
-            if active_pen_event.state == State.CLICK:
-                self.process_click_events(active_pen_event)
-
-        # Compare all new_pen_events and active_pen_events and pair them by shortest distance to each other
-        shortest_distance_point_pairs = self.calculate_distances_between_all_points(self.active_pen_events,
-                                                                                    new_pen_events, as_objects=True)
-
-        for entry in shortest_distance_point_pairs:
-            last_pen_event = self.active_pen_events[entry[0]]
-            new_pen_event = new_pen_events[entry[1]]
-
-            # We will reset the ID of all already paired events later. This check here will make sure that we do not
-            # match an event multiple times
-            if last_pen_event.id == -1:
-                continue
-
-            if new_pen_event.state == State.HOVER and len(last_pen_event.history) > 0 and State.DRAG not in last_pen_event.state_history[:-3]:
-                # print('No State.DRAG for at least 3 frames')
-                pass
-
-            # TODO: Rework this check
-            if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
-                # print('Pen Event {} turned from State.DRAG into State.HOVER'.format(last_pen_event.id))
-                # new_pen_event.state_history.append(new_pen_event.state)
-                # We now want to assign a new ID
-                # TODO: Check why this event is called more than once
-                # Maybe set state of old event to missing?
-                continue
-                # pass
-
-            new_pen_event.state_history = last_pen_event.state_history
-            new_pen_event.state_history.append(new_pen_event.state)
-
-            # print(new_pen_event.state_history[-4:])
-
-            # Move ID and other important information from the active touch final_pen_event into the new
-            # touch final_pen_event
-            if State.HOVER in new_pen_event.state_history[-4:-2] and not State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:  #  last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
-                pass
-                # print('Pen Event {} turned from State.HOVER into State.DRAG'.format(last_pen_event.id))
-
-            if HOVER_WINS:
-                # Overwrite the current state to hover
-                if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
-                    # print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
-                    new_pen_event.state = State.HOVER
-                else:
-                    # print('Turning {} into a Drag event'.format(new_pen_event.state))
-                    # if State.HOVER in new_pen_event.state_history[-4:-2]:
-                    #     new_pen_event.state = State.NEW
-                    # else:
-                    # TODO: CHANGE this to allow for different types of drag events
-                    # new_pen_event.state = State.DRAG  # last_pen_event.state
-                    if new_pen_event.state != State.DRAG:
-                        pass
-
-            # elif new_pen_event.state != State.HOVER:   # last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
-            #     print('HOVER EVENT turned into TOUCH EVENT')
-            #     print('Check state history:', last_pen_event.state_history[-2:])
-            #     if State.HOVER in last_pen_event.state_history[-2:]:
-            #         print('Hover wins')
-            #         new_pen_event.state_history.append(new_pen_event.state)
-            #         new_pen_event.state = State.HOVER
-            #     else:
-            #         new_pen_event.state_history.append(new_pen_event.state)
-            # else:
-            #     new_pen_event.state = last_pen_event.state
-            #     new_pen_event.state_history.append(new_pen_event.state)
-
-            new_pen_event.id = last_pen_event.id
-            new_pen_event.first_appearance = last_pen_event.first_appearance
-            new_pen_event.history = last_pen_event.history
-
-            # Apply smoothing to the points by taking their previous positions into account
-            new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - last_pen_event.x) + last_pen_event.x)
-            new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - last_pen_event.y) + last_pen_event.y)
-
-            # Set the ID of the last_pen_event back to -1 so that it is ignored in all future checks
-            # We later want to only look at the remaining last_pen_event that did not have a corresponding new_pen_event
-            last_pen_event.id = -1
-
-        # TODO: Maybe already do this earlier
-        for new_pen_event in new_pen_events:
-            new_pen_event.missing = False
-            new_pen_event.last_seen_timestamp = now
-
-        # Check all active_pen_events that do not have a match found after comparison with the new_pen_events
-        # It will be determined now if an event is over or not
-        for active_pen_event in self.active_pen_events:
-            # Skip all active_pen_events with ID -1. For those we already have found a match
-            if active_pen_event.id == -1:
-                continue
-
-            time_since_last_seen = now - active_pen_event.last_seen_timestamp
-
-            if not active_pen_event.missing or time_since_last_seen < TIME_POINT_MISSING_THRESHOLD_MS:
-                if not active_pen_event.missing:
-                    active_pen_event.last_seen_timestamp = now
-
-                active_pen_event.missing = True
-                new_pen_events.append(active_pen_event)
-
-            else:
-                # TODO: Rework these checks for our new approach
-                if active_pen_event.state == State.NEW:
-                    # We detected a click event, but we do not remove it yet because it also could be a double click.
-                    # We will check this the next time this function is called.
-                    # print('Click event candidate found')
-                    active_pen_event.state = State.CLICK
-                    new_pen_events.append(active_pen_event)
-                elif active_pen_event.state == State.DRAG:
-                    # End of a drag event
-                    # print('DRAG Event ended for Pen Event {}'.format(active_pen_event.id))
-                    self.pen_events_to_remove.append(active_pen_event)
-                    # print('Adding {} points of Event {} to the stored_lines list'.format(len(active_pen_event.history),
-                    #                                                                      active_pen_event.id))
-                    self.stored_lines.append(np.array(active_pen_event.history))
-                    # self.new_pen_events.append(active_pen_event.history)
-                elif active_pen_event.state == State.HOVER:
-                    # End of a Hover event
-                    # print('HOVER Event ended for Pen Event {}'.format(active_pen_event.id))
-                    self.pen_events_to_remove.append(active_pen_event)
-
-                    if len(active_pen_event.history) > 0:
-                        # print('Adding {} points of Event {} to the stored_lines list'.format(
-                        #     len(active_pen_event.history),
-                        #     active_pen_event.id))
-                        self.stored_lines.append(np.array(active_pen_event.history))
-
-
-        # Now we have al list of new events that need their own unique ID. Those are assigned now
-        final_pen_events = self.assign_new_ids(new_pen_events)
-
-        for final_pen_event in final_pen_events:
-            # Add current position to the history list, but ignore hover events
-            if final_pen_event.state != State.HOVER:
-                final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
-
-            # final_pen_event.state_history.append(final_pen_event.state)
-
-            time_since_first_appearance = now - final_pen_event.first_appearance
-            if final_pen_event.state != State.CLICK and final_pen_event.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
-                if final_pen_event.state == State.NEW:
-                    # Start of a drag event
-                    print('DRAG Event started for Pen Event {}'.format(final_pen_event.id))
-                    final_pen_event.state = State.DRAG
-                # elif final_pen_event.state == State.HOVER:
-                #     print('DETECTED Hover EVENT!')
-
-        print(final_pen_events)
-
-        return final_pen_events
+    # def merge_pen_events(self, new_pen_events):
+    #     now = round(time.time() * 1000)  # Get current timestamp
+    #
+    #     # # Keep track of the current state
+    #     # # TODO: Do this already when the pen event is created
+    #     # for new_pen_event in new_pen_events:
+    #     #     new_pen_event.state_history = [new_pen_event.state]
+    #
+    #     # Iterate over copy of list
+    #     # If a final_pen_event has been declared a "Click Event" in the last frame, this event is now over, and we can delete it.
+    #     for active_pen_event in self.active_pen_events[:]:
+    #         if active_pen_event.state == State.CLICK:
+    #             self.process_click_events(active_pen_event)
+    #
+    #     # Compare all new_pen_events and active_pen_events and pair them by shortest distance to each other
+    #     shortest_distance_point_pairs = self.calculate_distances_between_all_points(self.active_pen_events,
+    #                                                                                 new_pen_events, as_objects=True)
+    #
+    #     for entry in shortest_distance_point_pairs:
+    #         last_pen_event = self.active_pen_events[entry[0]]
+    #         new_pen_event = new_pen_events[entry[1]]
+    #
+    #         # We will reset the ID of all already paired events later. This check here will make sure that we do not
+    #         # match an event multiple times
+    #         if last_pen_event.id == -1:
+    #             continue
+    #
+    #         if new_pen_event.state == State.HOVER and len(last_pen_event.history) > 0 and State.DRAG not in last_pen_event.state_history[:-3]:
+    #             # print('No State.DRAG for at least 3 frames')
+    #             pass
+    #
+    #         # TODO: Rework this check
+    #         if new_pen_event.state == State.HOVER and State.HOVER not in last_pen_event.state_history[-3:]:
+    #             # print('Pen Event {} turned from State.DRAG into State.HOVER'.format(last_pen_event.id))
+    #             # new_pen_event.state_history.append(new_pen_event.state)
+    #             # We now want to assign a new ID
+    #             # TODO: Check why this event is called more than once
+    #             # Maybe set state of old event to missing?
+    #             continue
+    #             # pass
+    #
+    #         new_pen_event.state_history = last_pen_event.state_history
+    #         new_pen_event.state_history.append(new_pen_event.state)
+    #
+    #         # print(new_pen_event.state_history[-4:])
+    #
+    #         # Move ID and other important information from the active touch final_pen_event into the new
+    #         # touch final_pen_event
+    #         if State.HOVER in new_pen_event.state_history[-4:-2] and not State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:  #  last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
+    #             pass
+    #             # print('Pen Event {} turned from State.HOVER into State.DRAG'.format(last_pen_event.id))
+    #
+    #         if HOVER_WINS:
+    #             # Overwrite the current state to hover
+    #             if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
+    #                 # print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
+    #                 new_pen_event.state = State.HOVER
+    #             else:
+    #                 # print('Turning {} into a Drag event'.format(new_pen_event.state))
+    #                 # if State.HOVER in new_pen_event.state_history[-4:-2]:
+    #                 #     new_pen_event.state = State.NEW
+    #                 # else:
+    #                 # TODO: CHANGE this to allow for different types of drag events
+    #                 # new_pen_event.state = State.DRAG  # last_pen_event.state
+    #                 if new_pen_event.state != State.DRAG:
+    #                     pass
+    #
+    #         # elif new_pen_event.state != State.HOVER:   # last_pen_event.state == State.HOVER and new_pen_event.state != State.HOVER:
+    #         #     print('HOVER EVENT turned into TOUCH EVENT')
+    #         #     print('Check state history:', last_pen_event.state_history[-2:])
+    #         #     if State.HOVER in last_pen_event.state_history[-2:]:
+    #         #         print('Hover wins')
+    #         #         new_pen_event.state_history.append(new_pen_event.state)
+    #         #         new_pen_event.state = State.HOVER
+    #         #     else:
+    #         #         new_pen_event.state_history.append(new_pen_event.state)
+    #         # else:
+    #         #     new_pen_event.state = last_pen_event.state
+    #         #     new_pen_event.state_history.append(new_pen_event.state)
+    #
+    #         new_pen_event.id = last_pen_event.id
+    #         new_pen_event.first_appearance = last_pen_event.first_appearance
+    #         new_pen_event.history = last_pen_event.history
+    #
+    #         # Apply smoothing to the points by taking their previous positions into account
+    #         new_pen_event.x = int(SMOOTHING_FACTOR * (new_pen_event.x - last_pen_event.x) + last_pen_event.x)
+    #         new_pen_event.y = int(SMOOTHING_FACTOR * (new_pen_event.y - last_pen_event.y) + last_pen_event.y)
+    #
+    #         # Set the ID of the last_pen_event back to -1 so that it is ignored in all future checks
+    #         # We later want to only look at the remaining last_pen_event that did not have a corresponding new_pen_event
+    #         last_pen_event.id = -1
+    #
+    #     # TODO: Maybe already do this earlier
+    #     for new_pen_event in new_pen_events:
+    #         new_pen_event.missing = False
+    #         new_pen_event.last_seen_timestamp = now
+    #
+    #     # Check all active_pen_events that do not have a match found after comparison with the new_pen_events
+    #     # It will be determined now if an event is over or not
+    #     for active_pen_event in self.active_pen_events:
+    #         # Skip all active_pen_events with ID -1. For those we already have found a match
+    #         if active_pen_event.id == -1:
+    #             continue
+    #
+    #         time_since_last_seen = now - active_pen_event.last_seen_timestamp
+    #
+    #         if not active_pen_event.missing or time_since_last_seen < TIME_POINT_MISSING_THRESHOLD_MS:
+    #             if not active_pen_event.missing:
+    #                 active_pen_event.last_seen_timestamp = now
+    #
+    #             active_pen_event.missing = True
+    #             new_pen_events.append(active_pen_event)
+    #
+    #         else:
+    #             # TODO: Rework these checks for our new approach
+    #             if active_pen_event.state == State.NEW:
+    #                 # We detected a click event, but we do not remove it yet because it also could be a double click.
+    #                 # We will check this the next time this function is called.
+    #                 # print('Click event candidate found')
+    #                 active_pen_event.state = State.CLICK
+    #                 new_pen_events.append(active_pen_event)
+    #             elif active_pen_event.state == State.DRAG:
+    #                 # End of a drag event
+    #                 # print('DRAG Event ended for Pen Event {}'.format(active_pen_event.id))
+    #                 self.pen_events_to_remove.append(active_pen_event)
+    #                 # print('Adding {} points of Event {} to the stored_lines list'.format(len(active_pen_event.history),
+    #                 #                                                                      active_pen_event.id))
+    #                 self.stored_lines.append(np.array(active_pen_event.history))
+    #                 # self.new_pen_events.append(active_pen_event.history)
+    #             elif active_pen_event.state == State.HOVER:
+    #                 # End of a Hover event
+    #                 # print('HOVER Event ended for Pen Event {}'.format(active_pen_event.id))
+    #                 self.pen_events_to_remove.append(active_pen_event)
+    #
+    #                 if len(active_pen_event.history) > 0:
+    #                     # print('Adding {} points of Event {} to the stored_lines list'.format(
+    #                     #     len(active_pen_event.history),
+    #                     #     active_pen_event.id))
+    #                     self.stored_lines.append(np.array(active_pen_event.history))
+    #
+    #
+    #     # Now we have al list of new events that need their own unique ID. Those are assigned now
+    #     final_pen_events = self.assign_new_ids(new_pen_events)
+    #
+    #     for final_pen_event in final_pen_events:
+    #         # Add current position to the history list, but ignore hover events
+    #         if final_pen_event.state != State.HOVER:
+    #             final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
+    #
+    #         # final_pen_event.state_history.append(final_pen_event.state)
+    #
+    #         time_since_first_appearance = now - final_pen_event.first_appearance
+    #         if final_pen_event.state != State.CLICK and final_pen_event.state != State.DOUBLE_CLICK and time_since_first_appearance > CLICK_THRESH_MS:
+    #             if final_pen_event.state == State.NEW:
+    #                 # Start of a drag event
+    #                 print('DRAG Event started for Pen Event {}'.format(final_pen_event.id))
+    #                 final_pen_event.state = State.DRAG
+    #             # elif final_pen_event.state == State.HOVER:
+    #             #     print('DETECTED Hover EVENT!')
+    #
+    #     print(final_pen_events)
+    #
+    #     return final_pen_events
 
     def assign_new_ids(self, new_pen_events):
         final_pen_events = []
@@ -1183,6 +1194,8 @@ class IRPenDebugger:
 
     active_pen_events = []
 
+    uds_initialized = False
+
     def __init__(self):
         from flir_blackfly_s import FlirBlackflyS
 
@@ -1192,6 +1205,32 @@ class IRPenDebugger:
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
 
+    # id: id of the rect (writing to an existing id should move the rect)
+    # state: alive = 1, dead = 0; use it to remove unused rects!
+    # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
+    def send_rect(self, id, state, coord_list):
+        if not self.uds_initialized:
+            return 0
+
+        message = f'r {id} '
+        for coords in coord_list:
+            message += f'{coords[0]} {coords[1] }'
+        message += f'{state} '
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            self.sock.send(message.encode())
+
+        return 1
+
+    def clear_rects(self):
+        if not self.uds_initialized:
+            return 0
+        if ENABLE_UNIX_SOCKET:
+            self.sock.send('c '.encode())
+        return 1
+
     def debug_mode_thread(self):
         if ENABLE_FIFO_PIPE:
             pipe_name = 'pipe_test'
@@ -1199,32 +1238,39 @@ class IRPenDebugger:
                 os.mkfifo(pipe_name)
             self.pipeout = os.open(pipe_name, os.O_WRONLY)
 
+        if ENABLE_UNIX_SOCKET:
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+            print('connecting to %s' % UNIX_SOCK_NAME)
+            try:
+                self.sock.connect(UNIX_SOCK_NAME)
+            except socket.error as msg:
+                print(msg)
+                sys.exit(1)
+            self.uds_initialized = True
+
         if DEBUG_MODE:
             cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
             cv2.resizeWindow('ROI', 1000, 500)
 
         while True:
-            if ENABLE_FIFO_PIPE:
-                # if LATENCY_MEASURING_MODE:
-                #     if self.pen_present:
-                #         message = '0 0 0 1 '
-                #     else:
-                #         message = '0 0 0 0 '
-                #     os.write(self.pipeout, bytes(message, 'utf8'))
-                #     self.active_pen_events = []
-                # else:
+            if SEND_TO_FRONTEND:
                 if len(self.active_pen_events) > 0:
                     # if len(self.active_pen_events[0].history) > 0:
-                    message = '{} {} {} {} '.format(self.active_pen_events[0].id,
-                                                    self.active_pen_events[0].x,
-                                                    self.active_pen_events[0].y,
+                    message = 'l {} {} {} {} '.format(self.active_pen_events[0].id,
+                                                    int(self.active_pen_events[0].x),
+                                                    int(self.active_pen_events[0].y),
                                                     0 if self.active_pen_events[0].state == State.HOVER else 1)
                     # print(message)
-                    os.write(self.pipeout, bytes(message, 'utf8'))
+                    if ENABLE_FIFO_PIPE:
+                        os.write(self.pipeout, bytes(message, 'utf8'))
+                    if ENABLE_UNIX_SOCKET:
+                        self.sock.send(message.encode())
                     self.active_pen_events = []
                 if not DEBUG_MODE:
                     # TODO: CHeck why we need this here. time.sleep() does not work here
                     key = cv2.waitKey(1)
+
 
             if DEBUG_MODE:
                 if len(self.rois) == 2:

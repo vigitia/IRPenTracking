@@ -235,7 +235,7 @@ class FlirBlackflyS:
                     print('Errors while applying settings to the cameras')
                     time.sleep(10)
 
-            self.load_camera_calibration_data(self.device_serial_numbers)
+            # self.load_camera_calibration_data(self.device_serial_numbers)
 
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)

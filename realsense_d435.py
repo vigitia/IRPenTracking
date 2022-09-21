@@ -357,7 +357,7 @@ class RealsenseD435Camera:
         # else:
         #     with self.read_lock:
         #         self.current_ir_image = left_ir_image_1
-        #         self.new_frames = True
+        #         self.frames = True
 
         # print(self.num_frame)
         # if self.num_frame == 200:

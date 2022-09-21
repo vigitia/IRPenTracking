@@ -79,7 +79,6 @@ class Run:
     #         self.process_frames()
     #
 
-
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
 
         self.process_frames(frames, matrices)
@@ -175,8 +174,8 @@ class Run:
             self.last_state = state
 
             # Check if the event happens within the projection area
-            # if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
-            if 0 < x <= WINDOW_WIDTH - 300 and 0 < y <= WINDOW_HEIGHT:
+            if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
+            # if 0 < x <= WINDOW_WIDTH - 300 and 0 < y <= WINDOW_HEIGHT:
                 print(x, y)
 
                 self.input_device.move_event(int(x), int(y))
