@@ -6,6 +6,22 @@ Source code for our paper "Using an Infrared Pen as an Input Device for Projecte
 
 TODO
 
+```
+pip3 install opencv-python
+pip3 install scikit-image
+pip3 install tensorflow
+
+```
+
+For RealsenseD435:
+pip3 install pyrealsense2
+
+For Flir BlackFly S
+TODO: Add guide for install Spinnaker SDK
+
+For HID Layer:
+sudo aot
+
 # Install SDL
 
 ```

@@ -20,6 +20,9 @@ from flir_blackfly_s import FlirBlackflyS
 WINDOW_WIDTH = 3840
 WINDOW_HEIGHT = 2160
 
+# WINDOW_WIDTH = 1920
+# WINDOW_HEIGHT = 1080
+
 MAX_MOVEMENT_PX = 5
 LONG_CLICK_TIME = 1.75  # 0.35
 

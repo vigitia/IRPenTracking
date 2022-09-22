@@ -38,7 +38,7 @@
 #define MODE_1080 0
 #define MODE_4K 1
 
-#define MODE MODE_4K
+#define MODE MODE_1080
 
 #if MODE == MODE_1080
     #define WINDOW_WIDTH 1920

@@ -54,7 +54,7 @@ GAIN_CALIBARATION_MODE = 20000
 NUM_FRAMES_WAIT_INITIALIZING = 30  # Let the camera warm up and let the auto white balance adjust
 
 DEBUG_MODE = False
-CALIBRATION_MODE = True
+CALIBRATION_MODE = False
 EXTRACT_PROJECTION_AREA = False
 
 
@@ -206,10 +206,6 @@ class RealsenseD435Camera:
         left_ir_image_1 = np.asanyarray(left_ir_image_1.get_data())
         left_ir_image_2 = np.asanyarray(left_ir_image_2.get_data())
 
-        if DEBUG_MODE:
-            cv2.imshow('Raw IR roi 1', left_ir_image_1)
-            cv2.imshow('Raw IR roi 2', left_ir_image_2)
-
         # Undistort camera images
         if len(self.rectify_maps) > 0:
             left_ir_image_1 = cv2.remap(left_ir_image_1, self.rectify_maps[0][0], self.rectify_maps[0][1], interpolation=cv2.INTER_LINEAR)
@@ -303,10 +299,10 @@ class CameraTester:
                         cv2.imshow(window_name_extracted, extracted_frame)
 
                     if CALIBRATION_MODE:
-                            calibration_finished = self.surface_selector.select_surface(frame, window_name)
+                        calibration_finished = self.surface_selector.select_surface(frame, window_name)
 
-                            if calibration_finished:
-                                print('[Surface Selector Node]: Calibration finished for {}'.format(window_name))
+                        if calibration_finished:
+                            print('[Surface Selector Node]: Calibration finished for {}'.format(window_name))
 
                 self.frames = []
 
@@ -326,5 +322,5 @@ if __name__ == '__main__':
     CameraTester()
 
 
-si
-sketching2022
+# si
+# sketching2022
