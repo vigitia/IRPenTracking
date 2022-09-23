@@ -26,7 +26,7 @@ pip3 install scikit-image
 pip3 install tensorflow
 ```
 
-For Flir BlackFly S cameras: Install Spinnaker SDK and PySpin by follwing the official guide: https://www.flir.com/products/spinnaker-sdk/
+For Flir BlackFly S cameras: Install Spinnaker SDK and PySpin by following the official guide: https://www.flir.com/products/spinnaker-sdk/
 
 For Intel Realsense D435 cameras (not recommended because of low camera resolution):
 ```pip3 install pyrealsense2```
@@ -56,8 +56,11 @@ Finally, set `CALIBRATION_MODE = False`
 
 # Step 3: Run the application
 
-If you want to use the pen as an Input device: 
-```python3 run_hid.py```
+If you want to use the pen as an Input device:
+
+Give permission: `sudo chmod +0666 /dev/uinput`
+
+Run the script, this will start everything: `python3 run_hid.py`
 
 If you want to use our simple drawing application instead:
 Start SDL frontend (low latency)
@@ -71,5 +74,16 @@ make
 Then start camera and pen tracking by running
 ```python3 ir_pen.py```
 
+
+---
+
+# Optional: Retrain the network
+
+If the provided CNN file does not work for you, you can make your own.
+Set `TRAINING_DATA_COLLECTION_MODE = True` in _ir_pen,py_. Now this script will save images.
+Collect a few thousand images for drawing and a few thousand for hovering.
+
+Then open the Jupyter Notebook _train_network.ipynb_ and update the path to your training data.
+Run all cells. It will output a new CNN file that you can use in _ir_pen.py_
 
 

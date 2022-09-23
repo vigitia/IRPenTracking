@@ -7,10 +7,7 @@ import datetime
 import threading
 import time
 
-import cv2
-
 from ir_pen import IRPen, State
-
 from pen_hid import InputSimulator
 
 from flir_blackfly_s import FlirBlackflyS
@@ -27,11 +24,9 @@ def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
             start_time = datetime.datetime.now()
-            # print("I " + prefix + "> " + str(start_time))
             retval = func(*args, **kwargs)
             end_time = datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
-            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
             print(prefix + "> " + str(run_time) + " ms", flush=True)
             return retval
         return wrapper
@@ -54,19 +49,9 @@ class Run:
         self.input_device = InputSimulator(WINDOW_WIDTH, WINDOW_HEIGHT)
 
         # self.realsense_d435_camera = RealsenseD435Camera()
-        # self.realsense_d435_camera.init_video_capture()
-        # self.realsense_d435_camera.start()
-
-        # self.flir_blackfly_s = FlirBlackflyS()
-        # self.flir_blackfly_s.start()
-
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
-        # cv2.namedWindow("preview", cv2.WND_PROP_FULLSCREEN)
-        # cv2.setWindowProperty("preview", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
-        # self.loop()
-
+        # Workaround so that this script does not terminate itself
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
 
@@ -74,45 +59,14 @@ class Run:
         while True:
             time.sleep(1)
 
-    # def loop(self):
-    #     while True:
-    #         self.process_frames()
-    #
-
+    # This function will be called by the camera script if new frames are available
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
-
         self.process_frames(frames, matrices)
-        #
-        # if len(frames) > 0:
-        #     # self.frame_counter += 1
-        #     # print('Received {} new frames from Flir Blackfly S'.format(len(frames)))
-        #     print('run', frames[0].shape)
-        #
-        #     _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
-        #     if brightest > 100:
-        #         self.input_device.click_event(self.current_click_type, 'draw')
-        #     else:
-        #         self.input_device.click_event(self.current_click_type, 'hover')
 
     def process_frames(self, frames, matrices):
-        # ir_image_table = self.realsense_d435_camera.get_ir_image()
-        # if ir_image_table is not None:
-        # frames, matrices = self.flir_blackfly_s.get_camera_frames()
 
         if len(frames) > 0:
-
-            # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(frames[0])
-            # if brightest > 100:
-            #     self.input_device.click_event(self.current_click_type, 'draw')
-            # else:
-            #     self.input_device.click_event(self.current_click_type, 'hover')
-            #
-            # return
-
             active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(frames, matrices)
-
-            # cv2.waitKey(1)
-            # return
 
             state = 'hover'
             draw_just_started = False
@@ -120,7 +74,9 @@ class Run:
 
             x = 0
             y = 0
-            # for active_pen_event in active_pen_events:
+
+            # If there are multiple pen events, currently we only use the first one
+            # TODO: Deal with multiple pens
             if len(active_pen_events) > 0:
 
                 active_pen_event = active_pen_events[0]
@@ -175,19 +131,13 @@ class Run:
 
             # Check if the event happens within the projection area
             if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
-            # if 0 < x <= WINDOW_WIDTH - 300 and 0 < y <= WINDOW_HEIGHT:
                 print(x, y)
 
                 self.input_device.move_event(int(x), int(y))
 
-                # if self.logging_draw_events == False:
-                # if self.current_click_type == 'draw':
-
                 if draw_just_started:
                     self.input_device.click_event(self.current_click_type, 'draw')
                 elif draw_just_ended:
-                    # print(self.current_click_type, 'CLICK')
-                    #self.input_device.click_event(self.current_click_type, 'draw')
                     self.input_device.click_event(self.current_click_type, 'hover')
                     self.current_click_type = 'left'
                 else:
@@ -197,11 +147,6 @@ class Run:
             else:
                 # print(x, y, ' -> Outside screen borders')
                 pass
-
-            # if self.STATE == 'AWAY':
-            # elif self.STATE == 'HOVER':
-            # elif self.STATE == 'WAIT_FOR_LEFTCLICK':
-            # elif self.STATE == 'DRAW':
 
 
 if __name__ == '__main__':

@@ -132,26 +132,9 @@ dmypy.json
 *.swp
 *.swo
 
-out2/
-out3/
-
 .idea/
 
-calibration_images/
-output_images/
-
-ROS2/build
-ROS2/install
-ROS2/log
-ROS2/config.ini
-
-
-
-
-additional_training_images/
-
-sdl_frontend/sdl_frontend
 sdl_frontend/screenshots/
+sdl_frontend/sdl_frontend
 
-evaluation/
 *.yml

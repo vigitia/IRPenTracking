@@ -2,6 +2,7 @@
 from evdev import UInput, ecodes as e, AbsInfo, InputDevice
 import time
 
+
 class InputSimulator:
 
     left_pressed = False

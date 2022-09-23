@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import datetime
 import os
 import sys
 import threading
 import time
+import datetime
 
 import PySpin
 import cv2
@@ -151,12 +151,7 @@ class FlirBlackflyS:
     cam_list = []
 
     device_event_handlers = []
-
     device_serial_numbers = []
-
-    # newest_frames = []
-    # matrices = []
-    # new_frames_available = False
 
     start_time = time.time()
     frame_counter = 0

@@ -12,7 +12,7 @@ import time
 import datetime
 
 from surface_selector import SurfaceSelector
-from table_extraction_service import TableExtractionService
+from surface_extractor import SurfaceExtractor
 
 
 def timeit(prefix):
@@ -60,7 +60,7 @@ EXTRACT_PROJECTION_AREA = False
 
 CALIBRATION_DATA_PATH = ''
 
-surface_extractor = TableExtractionService()
+surface_extractor = SurfaceExtractor()
 
 class RealsenseD435Camera:
 
@@ -89,8 +89,8 @@ class RealsenseD435Camera:
         self.subscriber = subscriber
 
         global surface_extractor
-        matrix_1 = table_extractor.get_homography(IR_RES_X, IR_RES_Y, DEVICE_ID_LEFT)
-        matrix_2 = table_extractor.get_homography(IR_RES_X, IR_RES_Y, DEVICE_ID_RIGHT)
+        matrix_1 = surface_extractor.get_homography(IR_RES_X, IR_RES_Y, DEVICE_ID_LEFT)
+        matrix_2 = surface_extractor.get_homography(IR_RES_X, IR_RES_Y, DEVICE_ID_RIGHT)
         self.matrices = [matrix_1, matrix_2]
 
         self.init_video_capture()
@@ -297,7 +297,7 @@ class CameraTester:
 
                     if EXTRACT_PROJECTION_AREA:
                         global surface_extractor
-                        extracted_frame = table_extractor.extract_table_area(frame, window_name)
+                        extracted_frame = surface_extractor.extract_table_area(frame, window_name)
                         extracted_frame = cv2.resize(extracted_frame, (3840, 2160))
                         extracted_frames.append(extracted_frame)
                         cv2.imshow(window_name_extracted, extracted_frame)
@@ -324,7 +324,3 @@ class CameraTester:
 
 if __name__ == '__main__':
     CameraTester()
-
-
-si
-sketching2022
