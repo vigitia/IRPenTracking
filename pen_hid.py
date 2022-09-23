@@ -2,7 +2,12 @@
 from evdev import UInput, ecodes as e, AbsInfo, InputDevice
 import time
 
+
 class InputSimulator:
+
+    left_pressed = False
+    right_pressed = False
+
     def __init__(self, w, h):
         # specify capabilities for our virtual input device
         self.capabilities = {
@@ -16,6 +21,10 @@ class InputSimulator:
 
         self.device = UInput(self.capabilities, name='mouse', version=0x3)
         self.was_pressed = False
+
+    def sync_event(self):
+        self.device.syn()
+        #time.sleep(0.001)
 
     def input_event(self, x, y, state):
         self.device.write(e.EV_ABS, e.ABS_X, x)
@@ -32,11 +41,48 @@ class InputSimulator:
         self.device.syn()
         time.sleep(0.01)
 
+    def move_event(self, x, y):
+        self.device.write(e.EV_ABS, e.ABS_X, x)
+        self.device.write(e.EV_ABS, e.ABS_Y, y)
+
+    def click_event(self, btn, state):
+        if btn == 'left':
+            if self.right_pressed:
+                print('right release')
+                self.device.write(e.EV_KEY, e.BTN_RIGHT, 0)
+                self.was_pressed = False
+                self.right_pressed = False
+
+            button = e.BTN_LEFT
+        else:
+            if self.left_pressed:
+                print('left release')
+                self.device.write(e.EV_KEY, e.BTN_LEFT, 0)
+                self.was_pressed = False
+                self.left_pressed = False
+
+            button = e.BTN_RIGHT
+
+        if state == 'draw':
+            # print(btn + ' click')
+            self.device.write(e.EV_KEY, button, 1)
+            self.was_pressed = True
+            if btn == 'left':
+                self.left_pressed = True
+            elif btn == 'right':
+                self.right_pressed = True
+        else:
+            if self.was_pressed == True:
+                print(btn + ' release')
+                self.device.write(e.EV_KEY, button, 0)
+                self.was_pressed = False
+
     def close(self):
         time.sleep(0.1)
         self.device.close()
 
+
 if __name__ == '__main__':
     input_device = InputSimulator(1920, 1080)
     input_device.input_event(1, 0, 'draw')
-    close()
+    input_device.close()

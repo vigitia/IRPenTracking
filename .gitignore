@@ -132,6 +132,9 @@ dmypy.json
 *.swp
 *.swo
 
-out2/
-
 .idea/
+
+sdl_frontend/screenshots/
+sdl_frontend/sdl_frontend
+
+*.yml
