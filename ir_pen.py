@@ -14,6 +14,9 @@ import datetime
 from scipy.spatial import distance
 from skimage.feature import peak_local_max
 
+from logitech_brio import LogitechBrio
+from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
+
 from cv2 import cv2
 
 MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
@@ -1040,8 +1043,27 @@ class IRPenDebugger:
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
+        self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
+
+        self.logitech_brio_camera = LogitechBrio(self)
+        self.logitech_brio_camera.init_video_capture()
+        self.logitech_brio_camera.start()
+
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
+
+    current_id = -1
+    def on_new_brio_frame(self, frame, homography_matrix):
+        # print(frame.shape)
+
+        highlight_rectangles = self.analogue_digital_document.get_highlight_rectangles(frame)
+
+        for rectangle in highlight_rectangles:
+            self.current_id += 1
+            self.send_rect(self.current_id, 1, rectangle)
+
+        print('Final rectangles:', highlight_rectangles)
+
 
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
@@ -1052,8 +1074,11 @@ class IRPenDebugger:
 
         message = f'r {id} '
         for coords in coord_list:
-            message += f'{coords[0]} {coords[1]}'
+            # message += f'{coords[0]} {coords[1]}'
+            message += f'{coords} '
         message += f'{state} '
+
+        # print('message', message)
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))

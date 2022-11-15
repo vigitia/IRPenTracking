@@ -6,10 +6,12 @@ from PDFAnnotationsService import PDFAnnotationsService
 from FiducialsDetectorService import FiducialsDetectorService
 from logitech_brio import LogitechBrio
 
-from scipy.spatial import distance
+# from scipy.spatial import distance
 
 PDF_WIDTH = 595.446
 PDF_HEIGHT = 841.691
+
+DEBUG_MODE = False
 
 
 class AnalogueDigitalDocumentsDemo:
@@ -20,11 +22,11 @@ class AnalogueDigitalDocumentsDemo:
         self.pdf_annotations_service = PDFAnnotationsService()
         self.fiducials_detection_service = FiducialsDetectorService()
 
-        self.logitech_brio_camera = LogitechBrio(self)
-        self.logitech_brio_camera.init_video_capture()
-        self.logitech_brio_camera.start()
+        # self.logitech_brio_camera = LogitechBrio(self)
+        # self.logitech_brio_camera.init_video_capture()
+        # self.logitech_brio_camera.start()
 
-    def on_new_brio_frame(self, frame, homography_matrix):
+    def get_highlight_rectangles(self, frame):
         highlights, notes, freehand_lines = self.pdf_annotations_service.get_annotations()
 
         # Detect ArUco markers
@@ -33,16 +35,28 @@ class AnalogueDigitalDocumentsDemo:
         # Locate the document. Order of document_corner_points TLC, BLC, BRC, TRC
         document_found, document_corner_points = self.locate_document(frame, aruco_markers)
 
+        highlight_rectangles = []
+
         if document_found:
-            frame = self.pdf_points_to_real_world(frame, highlights, document_corner_points)
+            frame, highlight_rectangles = self.pdf_points_to_real_world(frame, highlights, document_corner_points)
 
-            # frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]), (document_corner_points[2], document_corner_points[3]), (0, 0, 0), thickness=3)
-            # frame = cv2.line(frame, (document_corner_points[2], document_corner_points[3]), (document_corner_points[4], document_corner_points[5]), (0, 0, 0), thickness=3)
-            # frame = cv2.line(frame, (document_corner_points[4], document_corner_points[5]), (document_corner_points[6], document_corner_points[7]), (0, 0, 0), thickness=3)
-            # frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]), (document_corner_points[6], document_corner_points[7]), (0, 0, 0), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
+                             (document_corner_points[2], document_corner_points[3]), (0, 0, 255), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[2], document_corner_points[3]),
+                             (document_corner_points[4], document_corner_points[5]), (0, 0, 255), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[4], document_corner_points[5]),
+                             (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
+                             (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
 
-        cv2.imshow('Logitech Brio', frame)
-        cv2.waitKey(1)
+        if DEBUG_MODE:
+            cv2.imshow('Logitech Brio', frame)
+            cv2.waitKey(1)
+
+        return highlight_rectangles
+
+    def on_new_brio_frame(self, frame, homography_matrix):
+        self.get_highlight_rectangles(frame)
 
     def pdf_points_to_real_world(self, frame, highlights, document_corner_points):
 
@@ -50,14 +64,15 @@ class AnalogueDigitalDocumentsDemo:
 
         all_highlight_points = []
 
-        for highlight in highlights:
-            highlight_points = self.list_to_points_list(highlight['quad_points'][0])
-            # for highlight_point in highlight_points:
-            #     cv2.circle(frame, highlight_point, 5, (0, 0, 0), -1)
+        for highlight_object in highlights:
+            highlight_group = highlight_object['quad_points']
+            for highlight_list in highlight_group:
+                highlight_points = self.list_to_points_list(highlight_list)
+                all_highlight_points.append(highlight_points)
 
-            all_highlight_points.append(highlight_points)
+        # print(all_highlight_points)
 
-        print(all_highlight_points)
+        highlight_rectangles = []
 
         for highlight_group in all_highlight_points:
             points_to_be_transformed = np.array([highlight_group], dtype=np.float32)
@@ -67,16 +82,18 @@ class AnalogueDigitalDocumentsDemo:
             # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
             flat_list = [item for sublist in transformed_points for item in sublist]
 
+            # Convert floats to int
+            for i, coordinate in enumerate(flat_list):
+                flat_list[i] = int(coordinate)
+            highlight_rectangles.append(flat_list)
+
             points_tuple_list = self.list_to_points_list(flat_list)
-            cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
-            # cv2.rectangle(frame, points_tuple_list[0], points_tuple_list[2], (0, 255, 255), -1)
+            if DEBUG_MODE:
+                cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
 
-            # for point in points_tuple_list:
-            #     cv2.circle(frame, point, 5, (0, 0, 0), -1)
+            # print('points_list after transform', points_tuple_list)
 
-            print('points_list after transform', points_tuple_list)
-
-        return frame
+        return frame, highlight_rectangles
 
     def list_to_points_list(self, list_of_x_y_coords):
         points_list = []
@@ -90,27 +107,24 @@ class AnalogueDigitalDocumentsDemo:
 
         return points_list
 
-
-    def transform_pdf_point_to_real_world_document(self, pdf_x, pdf_y, document_corner_points):
-
-        # Calculate distance between top left corner and top right corner
-        doc_width = distance.euclidean((document_corner_points[0], document_corner_points[1]),
-                                       (document_corner_points[6], document_corner_points[7]))
-
-        # Calculate distance between top left corner and bottom left corner
-        doc_height = distance.euclidean((document_corner_points[0], document_corner_points[1]),
-                                        (document_corner_points[2], document_corner_points[3]))
-
-        width_fraction = doc_width / PDF_WIDTH
-        height_fraction = doc_height / PDF_HEIGHT
-
-        x_new = pdf_x * width_fraction
-        y_new = pdf_y * height_fraction
-
-        x_axis_normalized = None
-        y_axis_normalized = None
-
-
+    # def transform_pdf_point_to_real_world_document(self, pdf_x, pdf_y, document_corner_points):
+    #
+    #     # Calculate distance between top left corner and top right corner
+    #     doc_width = distance.euclidean((document_corner_points[0], document_corner_points[1]),
+    #                                    (document_corner_points[6], document_corner_points[7]))
+    #
+    #     # Calculate distance between top left corner and bottom left corner
+    #     doc_height = distance.euclidean((document_corner_points[0], document_corner_points[1]),
+    #                                     (document_corner_points[2], document_corner_points[3]))
+    #
+    #     width_fraction = doc_width / PDF_WIDTH
+    #     height_fraction = doc_height / PDF_HEIGHT
+    #
+    #     x_new = pdf_x * width_fraction
+    #     y_new = pdf_y * height_fraction
+    #
+    #     x_axis_normalized = None
+    #     y_axis_normalized = None
 
     # Check if a point is on which side of a line. Return True if on right side, return False if on left side
     # https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
@@ -141,13 +155,13 @@ class AnalogueDigitalDocumentsDemo:
 
         pdf_res = np.float32([[0, 0], [0, PDF_HEIGHT], [PDF_WIDTH, PDF_HEIGHT], [PDF_WIDTH, 0]])
 
-        # This matrix will be used to transform the points into the correct coordinate space for the pdf
-        # (with origin in the bottom left corner and the correct resolution of the pdf)
-
         if to_pdf:
             matrix = cv2.getPerspectiveTransform(document_corners, pdf_res)
         else:
             matrix = cv2.getPerspectiveTransform(pdf_res, document_corners)
+
+        # This matrix will be used to transform the points into the correct coordinate space for the pdf
+        # (with origin in the bottom left corner and the correct resolution of the pdf)
 
         return matrix
 
@@ -193,7 +207,7 @@ class AnalogueDigitalDocumentsDemo:
     def locate_document(self, color_image_table, aruco_markers):
         document_corner_points = self.document_locator_service.locate_document(color_image_table, aruco_markers)
         document_found = len(document_corner_points) > 0
-        print(document_corner_points)
+        # print(document_corner_points)
 
         if len(document_corner_points) % 4 != 0:
             print('NOT 8!')

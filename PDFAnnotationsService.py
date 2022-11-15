@@ -81,7 +81,8 @@ class PDFAnnotationsService:
                             # 'rect': self.sort_points(self.translate_points(annot_dict['/Rect'])),
                             'quad_points': self.__sort_points(self.__translate_points(annot_dict['/QuadPoints'])),
                             'color': annot_dict['/C'],
-                            'annotator': annot_dict['/T']
+                            'annotator': annot_dict['/T'],
+                            'timestamp': annot_dict['/M']
                         }
                         # print(highlight)
                         self.highlights.append(highlight)
