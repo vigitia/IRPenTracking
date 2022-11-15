@@ -43,12 +43,14 @@
 #if MODE == MODE_1080
     #define WINDOW_WIDTH 1920
     #define WINDOW_HEIGHT 1080
-    #define CROSSES_PATH "crosses_dots_1080.png"
+    #define CROSSES_PATH "evaluation/crosses_dots_1080.png"
 #else
     #define WINDOW_WIDTH 3840
     #define WINDOW_HEIGHT 2160
-    #define CROSSES_PATH "crosses_dots_4k.png"
+    #define CROSSES_PATH "evaluation/crosses_dots_4k.png"
 #endif
+
+#define IMAGE_PATH "image.png"
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -67,7 +69,7 @@ const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.1);
 const int TEXTBOX_OFFSET = (int)(WINDOW_HEIGHT * 0.1);
 
 char* SCREENSHOT_PATH = "screenshots/";
-const char* PHRASES_PATH = "../phrase_set/phrases.txt";
+const char* PHRASES_PATH = "evaluation/phrases.txt";
 
 using namespace std;
 
@@ -85,7 +87,8 @@ enum Modes {
     cross,
     save,
     latency,
-    particle
+    particle,
+    image
 };
 
 Modes currentMode = draw;
@@ -126,6 +129,8 @@ uint32_t highlightColor = 0x9900FFFF;
 SDL_Surface* textSurface;
 SDL_Surface* crossesSurface;
 SDL_Texture* crossesTexture;
+SDL_Surface* imageSurface;
+SDL_Texture* imageTexture;
 
 bool isSaving = false;
 
@@ -449,6 +454,12 @@ void renderCrosses(SDL_Renderer* renderer)
     SDL_RenderCopy(renderer, crossesTexture, NULL, &crossesRect);
 }
 
+void renderImage(SDL_Renderer* renderer)
+{
+    SDL_Rect imageRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+    SDL_RenderCopy(renderer, imageTexture, NULL, &imageRect);
+}
+
 void renderPhrase(SDL_Renderer* renderer)
 {
     int w = textSurface->w;
@@ -546,6 +557,7 @@ void render(SDL_Renderer* renderer)
 
     renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
+    if(currentMode == image) renderImage(renderer);
     if(SHOW_LINES) renderLines(renderer);
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER && currentMode != cross) renderHoverIndicator(renderer);
@@ -650,11 +662,13 @@ int main(int argc, char* argv[])
     textSurface = TTF_RenderText_Solid( font, "Hello World!", textColor );
 
     crossesSurface = loadSurface(CROSSES_PATH);
+    imageSurface = loadSurface(IMAGE_PATH);
 
     SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
 
     crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
+    imageTexture = SDL_CreateTextureFromSurface( renderer, imageSurface );
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -695,6 +709,9 @@ int main(int argc, char* argv[])
                         saveImage();
                         clearScreen();
                         currentMode = cross;
+                        break;
+                    case SDLK_u:
+                        currentMode = image;
                         break;
                     case SDLK_t:
                         currentMode = latency;

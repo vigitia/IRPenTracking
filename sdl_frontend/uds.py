@@ -8,7 +8,7 @@ import random
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 # Connect the socket to the port where the server is listening
-server_address = '/tmp/sock.uds'
+server_address = '../uds_test'
 print('connecting to %s' % server_address)
 try:
     sock.connect(server_address)
@@ -42,6 +42,7 @@ y = int(y_max / 2)
 delta = 20
 
 while True:
+    #time.sleep(0.1)
     time.sleep(0.01)
     num_points += 1
     x += random.randint(-delta, delta)
@@ -60,7 +61,7 @@ while True:
     #x = random.randint(x_min, x_max)
     #y = random.randint(y_min, y_max)
 
-    sock.send(f'{line_id} {x} {y} 1 '.encode())
+    sock.send(f'l {line_id} {x} {y} 1 '.encode())
     print(f'{line_id} {x} {y}')
 
     if num_points > 2:
