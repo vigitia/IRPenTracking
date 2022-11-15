@@ -16,37 +16,31 @@ from skimage.feature import peak_local_max
 
 from cv2 import cv2
 
-MODEL_PATH = 'cnn'
-CROP_IMAGE_SIZE = 48
+MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
+CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel
 
-# Simple Smoothing
+# Simple Smoothing of the output points. 1 -> No smoothing; 0.5 -> Calculate a new point and use 50% of the previous
+# points and 50% of the new points location.
 SMOOTHING_FACTOR = 0.2  # Value between 0 and 1, depending on if the old or the new value should count more.
 
-
-# Amount of time a point can be missing until the event "on click/drag stop" will be fired
+# Amount of time a pen can be missing until the pen event will be ended
 TIME_POINT_MISSING_THRESHOLD_MS = 15
 
-# Point needs to appear and disappear within this timeframe in ms to count as a click (vs. a drag event)
-CLICK_THRESH_MS = 10
-
-# Hover will be selected over Draw if Hover Event is within the last X event states
+# Hover will be selected over Draw if Hover Event is within the last X event states.
+# Enable this if too many unwanted short lines appear while drawing
 HOVER_WINS = False
 NUM_HOVER_EVENTS_TO_END_LINE = 6  # We expect at least X Hover Events in a row to end that pen event
-KERNEL_SIZE_HOVER_WINS = 3
+NUM_CHECK_LAST_EVENT_STATES = 3  # Check the last X Pen Events if they contain a hover event
 
-MIN_BRIGHTNESS_FOR_PREDICTION = 50
+MIN_BRIGHTNESS_FOR_PREDICTION = 50  # A spot in the camera image needs to have at least X brightness to be considered.
 
-# MAX_DISTANCE_DRAW = 50000
 MAX_DISTANCE_FOR_MERGE = 500  # Maximum Distance between two points for them to be able to merge
 
-# Removes all points that are not within the screen coordinates (e.g. 3840x2160)
-REMOVE_EVENTS_OUTSIDE_BORDER = False  # TODO!
-
 USE_MAX_DISTANCE_DRAW = False
-MAX_DISTANCE_DRAW = 500
+MAX_DISTANCE_DRAW = 500  # Maximum allowed distance in pixel between two points in order to be considered for the same line ID
 
-DEBUG_MODE = False
-SEND_TO_FRONTEND = True
+DEBUG_MODE = False  # Enable for Debug print statements and preview windows
+SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
 ENABLE_FIFO_PIPE = False
 ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
@@ -59,45 +53,49 @@ WINDOW_HEIGHT = 2160
 CAMERA_WIDTH = 1920  # 848
 CAMERA_HEIGHT = 1200  # 480
 
+# Allowed states for CNN prediction
 STATES = ['draw', 'hover', 'hover_far', 'undefined']
 
+# Enable to collect training images if you want to retrain the CNN (see train_network.ipynb)
 TRAINING_DATA_COLLECTION_MODE = False
 ACTIVE_LEARNING_COLLECTION_MODE = False
 TRAIN_STATE = 'hover_far_1_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
-TRAIN_PATH = 'out3/2022-08-19'
+TRAIN_PATH = 'training_images/2022-08-19'
 TRAIN_IMAGE_COUNT = 3000
 
 
+# Decorator to print the run time of a single function
+# Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
             start_time = datetime.datetime.now()
-            # print("I " + prefix + "> " + str(start_time))
-            retval = func(*args, **kwargs)
+            return_value = func(*args, **kwargs)
             end_time = datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
-            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
             print(prefix + "> " + str(run_time) + " ms", flush=True)
-            return retval
+            return return_value
+
         return wrapper
+
     return timeit_decorator
 
 
 # Enum to define State of a Point
 class State(Enum):
-    NEW = -1  # A new event where it is not yet sure if it will just be a click event or a drag event
+    NEW = -1  # A new event where it is not yet sure what state it will have
     CLICK = 0
     DRAG = 1
     DOUBLE_CLICK = 2
     HOVER = 3
 
 
+# Representation of a single pen event
 class PenEvent:
 
     def __init__(self, x, y, state=State.NEW):
-
-        self.x = x# int(x)
-        self.y = y # int(y)
+        self.x = x
+        self.y = y
         self.id = -1
 
         self.missing = False
@@ -106,9 +104,7 @@ class PenEvent:
         self.first_appearance = round(time.time() * 1000)
         self.state = state
         self.history = []  # All logged x and y positions as tuples
-        self.state_history = [state]  # All logged states (Hover, draw, ...)
-
-        # self.alive = True  # A pen event is alive if it is not missing
+        self.state_history = [state]  # All logged states (Hover, Draw, ...)
 
     def get_coordinates(self):
         return tuple([self.x, self.y])
@@ -119,7 +115,6 @@ class PenEvent:
 
 
 class IRPen:
-
     active_pen_events = []
     new_pen_events = []
 
@@ -146,7 +141,7 @@ class IRPen:
         # Init Keras
         keras.backend.clear_session()
         self.keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
-        #self.keras_lite_model = keras.models.load_model(MODEL_PATH)
+        # self.keras_lite_model = keras.models.load_model(MODEL_PATH)
 
         if TRAINING_DATA_COLLECTION_MODE or ACTIVE_LEARNING_COLLECTION_MODE:
             if not os.path.exists(os.path.join(TRAIN_PATH, TRAIN_STATE)):
@@ -163,30 +158,25 @@ class IRPen:
 
         self.saved_image_counter += 1
         if self.saved_image_counter % num_wait_frames == 0:
-            # if camera_id == 0:
-            #     if self.num_saved_images_cam_0 > self.num_saved_images_cam_1:
-            #         return
-            #     self.num_saved_images_cam_0 += 1
-            # elif camera_id == 1:
-            #     if self.num_saved_images_cam_1 > self.num_saved_images_cam_0:
-            #         return
-            #     self.num_saved_images_cam_1 += 1
 
-            cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{int(self.saved_image_counter / num_wait_frames)}_{pos[0]}_{pos[1]}.png', img)
-            print(f'saving frame {int(self.saved_image_counter / num_wait_frames)}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
+            cv2.imwrite(
+                f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{int(self.saved_image_counter / num_wait_frames)}_{pos[0]}_{pos[1]}.png',
+                img)
+            print(
+                f'saving frame {int(self.saved_image_counter / num_wait_frames)}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
             if camera_id == 0:
                 self.num_saved_images_cam_0 += 1
             elif camera_id == 1:
                 self.num_saved_images_cam_1 += 1
 
         if self.saved_image_counter / num_wait_frames >= TRAIN_IMAGE_COUNT:
-            print('FINISHED COLLECTING TRAINING IMAGES. Saved {} images from cam 0 and {} images from cam 1'.format(self.num_saved_images_cam_0, self.num_saved_images_cam_1))
+            print('FINISHED COLLECTING TRAINING IMAGES. Saved {} images from cam 0 and {} images from cam 1'.format(
+                self.num_saved_images_cam_0, self.num_saved_images_cam_1))
             time.sleep(10)
             sys.exit(0)
 
     def transform_coords_to_output_res(self, x, y, transform_matrix):
         try:
-            #print(transform_matrix)
             coords = np.array([x, y, 1])
 
             transformed_coords = transform_matrix.dot(coords)
@@ -194,12 +184,14 @@ class IRPen:
             # transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
             #                       int(transformed_coords[1] / transformed_coords[2]))
 
-            transformed_coords = (transformed_coords[0] / transformed_coords[2], transformed_coords[1] / transformed_coords[2])
+            transformed_coords = (
+            transformed_coords[0] / transformed_coords[2], transformed_coords[1] / transformed_coords[2])
 
             return transformed_coords
         except Exception as e:
             print(e)
             print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
+            print('This error could also appear if CALIBRATION_MODE is still enabled in flir_blackfly_s.py')
             time.sleep(5)
             sys.exit(1)
 
@@ -208,7 +200,6 @@ class IRPen:
         new_pen_events = []
 
         self.new_pen_events = []
-        # self.stored_lines = []
         self.pen_events_to_remove = []
 
         brightness_values = []
@@ -260,45 +251,24 @@ class IRPen:
         #
         #     return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances
 
-        # 8 ms
         for i, frame in enumerate(camera_frames):
             # TODO: Get here all spots and not just one
 
-            #frame[46][565] = 0
-            #frame[681][597] = 0
-
-            # crop 1: 0.5 ms
-            # crop 2: 0.5 - 1 ms (Ausreißer bis 6 ms)
             pen_event_roi, brightest, (x, y) = self.crop_image(frame)
 
-            # TODO: Remove
-            # if (x,y) == (46, 565) or (x,y) == (681, 597):
-            #     # print('Dead pixel')
-            #     print('PIXEL', x, y)
-            #     brightest = 0
-            # else:
-
-            # print(transform_matrices)
-
-            if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
+            if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and \
+                    pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
                 if TRAINING_DATA_COLLECTION_MODE:
                     self.save_training_image(pen_event_roi, (x, y), i)
                     continue
 
                 rois.append(pen_event_roi)
-
                 transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
-
-                # print(f'camera {i}: before {(x, y)}; after {transformed_coords}')
-
                 roi_coords.append(transformed_coords)
 
-                # brightness_values.append(brightest)
                 brightness_values.append(np.sum(pen_event_roi))
 
                 (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
-
-                # print('2', (x, y), radius)
 
                 subpixel_coords.append((x, y))
                 debug_distances.append((x, y))
@@ -310,13 +280,11 @@ class IRPen:
             if prediction == 'draw':
                 # print('One point draw')
                 new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], State.DRAG)
-                # new_ir_pen_event.state = State.DRAG
                 new_pen_events.append(new_ir_pen_event)
 
             elif prediction == 'hover':
                 # print('One point hover')
                 new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], State.HOVER)
-                # new_ir_pen_event.state = State.HOVER
                 new_pen_events.append(new_ir_pen_event)
             else:
                 print('Error: Unknown state')
@@ -330,10 +298,9 @@ class IRPen:
             distance_between_points = distance.euclidean(subpixel_coords[0],
                                                          subpixel_coords[1])
 
-            #print('DISTANCE:', distance_between_points, flush=True)
+            # print('DISTANCE:', distance_between_points, flush=True)
 
-            max_distance_draw = MAX_DISTANCE_DRAW
-            if USE_MAX_DISTANCE_DRAW and distance_between_points > max_distance_draw:
+            if USE_MAX_DISTANCE_DRAW and distance_between_points > MAX_DISTANCE_DRAW:
                 print('Distance too large -> Hover', distance_between_points)
                 # Calculate center between the two points
 
@@ -376,20 +343,17 @@ class IRPen:
             else:
                 new_pen_events[-1] = PenEvent(center_x, center_y, State.DRAG)
 
-        # AS: for distance/velocity calculation
+        # For distance/velocity calculation
         # current_frame_time = time.time()
         # delta_time = current_frame_time - self.last_frame_time
         # dist = distance.euclidean((center_x, center_y),
         #                           self.last_coords)
         # self.last_coords = (center_x, center_y)
         # self.last_frame_time = current_frame_time
-        #print('LOG {}, {}'.format(distance_between_points, abs(dist) / delta_time), flush=True)
+        # print('LOG {}, {}'.format(distance_between_points, abs(dist) / delta_time), flush=True)
 
         # This function needs to be called even if there are no new pen events to update all existing events
-        # self.active_pen_events = self.merge_pen_events(new_pen_events)
-        # print('New events:', new_pen_events)
         self.active_pen_events = self.merge_pen_events_single(new_pen_events)
-
         self.rois = rois
 
         return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances, rois
@@ -411,11 +375,9 @@ class IRPen:
             else:
                 cv2.circle(zeros, point_right_cam, 20, (0, 0, 255), -1)
 
-        # print(' ')
-        # print(subpixel_coords)
-
         # Deal with single points first
-        if len(subpixel_coords[0]) == 0 and len(subpixel_coords[1]) > 0 or len(subpixel_coords[0]) > 0 and len(subpixel_coords[1]) == 0:
+        if len(subpixel_coords[0]) == 0 and len(subpixel_coords[1]) > 0 or len(subpixel_coords[0]) > 0 and len(
+                subpixel_coords[1]) == 0:
             for i, point in enumerate(subpixel_coords[0]):
                 print('Single point at', point)
                 new_pen_events.append(self.generate_new_pen_event(predictions[0][i], point[0], point[1]))
@@ -440,7 +402,8 @@ class IRPen:
                             if dist > 50:
                                 continue
 
-                        (center_x, center_y) = self.get_center(subpixel_coords[0][entry[0]], subpixel_coords[1][entry[1]])
+                        (center_x, center_y) = self.get_center(subpixel_coords[0][entry[0]],
+                                                               subpixel_coords[1][entry[1]])
                         cv2.line(zeros, subpixel_coords[0][entry[0]], subpixel_coords[1][entry[1]], (255, 255, 255), 3)
                         used_left.append(entry[0])
                         used_right.append(entry[1])
@@ -449,12 +412,13 @@ class IRPen:
                         prediction_a = predictions[0][entry[0]]
                         prediction_b = predictions[1][entry[1]]
 
-                        new_pen_events.append(self.generate_new_pen_event(prediction_a, center_x,center_y))
+                        new_pen_events.append(self.generate_new_pen_event(prediction_a, center_x, center_y))
 
             for i in range(len(subpixel_coords[0])):
                 if i not in used_left:
                     print('Point {} on cam 0 remains'.format(i))
-                    new_pen_events.append(self.generate_new_pen_event(predictions[0][i], subpixel_coords[0][i][0], subpixel_coords[0][i][1]))
+                    new_pen_events.append(self.generate_new_pen_event(predictions[0][i], subpixel_coords[0][i][0],
+                                                                      subpixel_coords[0][i][1]))
 
             for i in range(len(subpixel_coords[1])):
                 if i not in used_right:
@@ -462,9 +426,7 @@ class IRPen:
                     new_pen_events.append(self.generate_new_pen_event(predictions[1][i], subpixel_coords[1][i][0],
                                                                       subpixel_coords[1][i][1]))
 
-
-
-            #print(shortest_distance_point_pairs)
+            # print(shortest_distance_point_pairs)
         # print(new_pen_events)
 
         # for point_left_cam in subpixel_coords[0]:
@@ -502,43 +464,6 @@ class IRPen:
         x_dist = abs(x1 - x2) / 2
         y_dist = abs(y1 - y2) / 2
         return min(x1, x2) + x_dist, min(y1, y2) + y_dist
-
-    # @timeit('All ROIs')
-    # TOO SLOW :(
-    # def get_all_rois_bad(self, img, size=CROP_IMAGE_SIZE):
-    #     start_time = datetime.datetime.now()
-    #     _, img = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
-    #
-    #     end_time = datetime.datetime.now()
-    #     run_time = (end_time - start_time).microseconds / 1000.0
-    #     print('RUN TIME:', run_time)
-    #     peaks = peak_local_max(img, min_distance=10, threshold_abs=50)
-    #
-    #     rois = []
-    #     roi_coords = []
-    #     margin = int(size / 2)
-    #     max_brightness_values = []
-    #
-    #     for point in peaks:
-    #         x = point[1]
-    #         y = point[0]
-    #
-    #         # Dead pixel fix
-    #         if x == 46 and y == 565:
-    #             # TODO: Find solution for dead pixel
-    #             continue
-    #
-    #         roi = img[y - margin: y + margin, x - margin: x + margin]
-    #         if roi.shape[0] != size or roi.shape[1] != size:
-    #             print('WRONG SHAPE')
-    #             # TODO: FIX THIS
-    #             return rois, roi_coords, max_brightness_values
-    #         rois.append(roi)
-    #         roi_coords.append((x, y))
-    #         _, brightest, _, _ = cv2.minMaxLoc(roi)
-    #         max_brightness_values.append(int(brightest))
-    #
-    #     return rois, roi_coords, max_brightness_values
 
     def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
 
@@ -665,12 +590,12 @@ class IRPen:
                 print(f'saving frame {self.active_learning_counter}')
                 self.active_learning_counter += 1
 
-        #print(state)
+        # print(state)
         if state == 'hover_far':
             state = 'hover'
         return state, confidence
 
-    # TODO: Offset fixen
+    # TODO: Fix possible offset
     def find_pen_position_subpixel_crop(self, roi, center_original):
         w = roi.shape[0]
         h = roi.shape[1]
@@ -755,98 +680,7 @@ class IRPen:
 
         return position, min_radius
 
-    # 3 - 5 ms
-
-    # def find_pen_position_subpixel_old(self, ir_image):
-    #
-    #     if len(ir_image.shape) == 3:
-    #         ir_image_grey = cv2.cvtColor(ir_image, cv2.COLOR_BGR2GRAY)
-    #     else:
-    #         ir_image_grey = ir_image
-    #     _, thresh = cv2.threshold(ir_image_grey, np.max(ir_image_grey) - 1, 255, cv2.THRESH_BINARY)
-    #
-    #     # TODO: resize only cropped area
-    #     thresh_large = cv2.resize(thresh, (WINDOW_WIDTH, WINDOW_HEIGHT), interpolation=cv2.INTER_LINEAR)
-    #
-    #     contours = cv2.findContours(thresh_large, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #
-    #     contours = contours[0] if len(contours) == 2 else contours[1]
-    #     min_radius = ir_image_grey.shape[0]
-    #     smallest_contour = contours[0]
-    #
-    #     # print(len(contours))
-    #     for contour in contours:
-    #         (x, y), radius = cv2.minEnclosingCircle(contour)
-    #         if radius < min_radius:
-    #             min_radius = radius
-    #             smallest_contour = contour
-    #
-    #     # Find the center of the contour using OpenCV Moments
-    #     M = cv2.moments(smallest_contour)
-    #
-    #     # calculate x,y coordinate of center
-    #     cX = int(M["m10"] / M["m00"])
-    #     cY = int(M["m01"] / M["m00"])
-    #
-    #     position = (cX, cY)
-    #
-    #     return position, min_radius
-    #
-    #     # left_ir_image_large = cv2.resize(left_ir_image.copy(), (3840, 2160), interpolation=cv2.INTER_AREA)
-    #     # cv2.circle(left_ir_image_large, position, 1, (0, 0, 0))
-    #     # cv2.imshow('large', left_ir_image_large)
-    #
-    # # Finds the exact center
-    # def find_pen_position_old(self, img):
-    #     _, thresh = cv2.threshold(img, np.max(img) - 30, 255, cv2.THRESH_BINARY)
-    #     contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #     contours = contours[0] if len(contours) == 2 else contours[1]
-    #     position = (0, 0)
-    #     min_radius = img.shape[0]
-    #     for contour in contours:
-    #         (x, y), radius = cv2.minEnclosingCircle(contour)
-    #         if radius < min_radius:
-    #             min_radius = radius
-    #             position = (int(x), int(y))
-    #     return min_radius, position
-    #
-    # def find_pen_orientation_old(self, image):
-    #     (image_height, image_width) = image.shape
-    #     step_w = int(image_width / 10)
-    #     step_h = int(image_height / 10)
-    #
-    #     samples = []
-    #     for x in range(3 * step_w, (image_width - 3 * step_w), step_w):
-    #         for y in range(3 * step_h, (image_height - 3 * step_h), step_h):
-    #             samples.append(image[y, x])
-    #
-    #     _, thresh = cv2.threshold(image, np.median(samples) * 1.2, 255, cv2.THRESH_BINARY)
-    #
-    #     #y_nonzero, x_nonzero = np.nonzero(roi)
-    #     #x1 = np.min(x_nonzero)
-    #     #x2 = np.max(x_nonzero)
-    #     #y1 = np.min(y_nonzero)
-    #     #y2 = np.max(y_nonzero)
-    #
-    #     contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #
-    #     if len(contours) < 1:
-    #         return -1, -1
-    #
-    #     contours = contours[0] if len(contours) == 2 else contours[1]
-    #
-    #     #cntr = contours[0]
-    #     #x,y,w,h = cv2.boundingRect(cntr)
-    #     #hull = cv2.convexHull(contours[0])
-    #
-    #     [vx, vy, x, y] = cv2.fitLine(contours, cv2.DIST_L2, 0, 0.01, 0.01)
-    #
-    #     rows, cols = image.shape[:2]
-    #     y_left = int((-x*vy/vx) + y)
-    #     y_right = int(((cols-x)*vy/vx)+y)
-    #     return y_left, y_right
-
-
+    # Simplified function when only one pen can be present at the time
     def merge_pen_events_single(self, new_pen_events):
         now = round(time.time() * 1000)  # Get current timestamp
 
@@ -863,9 +697,10 @@ class IRPen:
             if time_since_last_seen < TIME_POINT_MISSING_THRESHOLD_MS:
                 new_pen_events.append(active_pen_event)
             else:
-                print('PEN Event {} ({} points) gets deleted due to inactivity with state {}'.format(active_pen_event.id,
-                                                                                                     len(active_pen_event.history),
-                                                                                                     active_pen_event.state))
+                print(
+                    'PEN Event {} ({} points) gets deleted due to inactivity with state {}'.format(active_pen_event.id,
+                                                                                                   len(active_pen_event.history),
+                                                                                                   active_pen_event.state))
                 if len(active_pen_event.history) > 0:
                     self.stored_lines.append(np.array(active_pen_event.history))
 
@@ -879,8 +714,9 @@ class IRPen:
 
             if distance_between_points > MAX_DISTANCE_FOR_MERGE:
                 print('Distance too large. End active event and start new')
-                print('PEN Event {} ({} points) gets deleted because distance to new event is too large'.format(last_pen_event.id,
-                                                                                                   len(last_pen_event.history)))
+                print('PEN Event {} ({} points) gets deleted because distance to new event is too large'.format(
+                    last_pen_event.id,
+                    len(last_pen_event.history)))
 
                 if len(last_pen_event.history) > 0:
                     self.stored_lines.append(np.array(last_pen_event.history))
@@ -893,8 +729,11 @@ class IRPen:
                 new_pen_event.last_seen_timestamp = now
 
                 if HOVER_WINS:  # Overwrite the current state to hover
-                    if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[-KERNEL_SIZE_HOVER_WINS:]:
-                        print('Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(last_pen_event.id, new_pen_event.state, KERNEL_SIZE_HOVER_WINS))
+                    if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[
+                                                                             -NUM_CHECK_LAST_EVENT_STATES:]:
+                        print(
+                            'Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(
+                                last_pen_event.id, new_pen_event.state, NUM_CHECK_LAST_EVENT_STATES))
                         new_pen_event.state = State.HOVER
 
                 new_pen_event.history = last_pen_event.history
@@ -941,16 +780,19 @@ class IRPen:
                 # if final_pen_event.state_history[-1] == State.HOVER:
 
                 # print(NUM_HOVER_EVENTS_TO_END_LINE, final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER))
-                if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
+                if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(
+                        State.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
                     print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
                     if len(final_pen_event.history) > 0:
                         self.stored_lines.append(np.array(final_pen_event.history))
                     # print(final_pen_event.state, final_pen_event.state_history[-5:])
-                    print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id, len(final_pen_event.history)))
+                    print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
+                                                                                            len(final_pen_event.history)))
                     final_pen_events = []
 
         return final_pen_events
 
+    # Function to merge the events, even when multiple pens are present at the same time
     # def merge_pen_events(self, new_pen_events):
     #     now = round(time.time() * 1000)  # Get current timestamp
     #
@@ -1210,7 +1052,7 @@ class IRPenDebugger:
 
         message = f'r {id} '
         for coords in coord_list:
-            message += f'{coords[0]} {coords[1] }'
+            message += f'{coords[0]} {coords[1]}'
         message += f'{state} '
 
         if ENABLE_FIFO_PIPE:
@@ -1254,9 +1096,9 @@ class IRPenDebugger:
                 if len(self.active_pen_events) > 0:
                     # if len(self.active_pen_events[0].history) > 0:
                     message = 'l {} {} {} {} '.format(self.active_pen_events[0].id,
-                                                    int(self.active_pen_events[0].x),
-                                                    int(self.active_pen_events[0].y),
-                                                    0 if self.active_pen_events[0].state == State.HOVER else 1)
+                                                      int(self.active_pen_events[0].x),
+                                                      int(self.active_pen_events[0].y),
+                                                      0 if self.active_pen_events[0].state == State.HOVER else 1)
                     # print(message)
                     if ENABLE_FIFO_PIPE:
                         os.write(self.pipeout, bytes(message, 'utf8'))
@@ -1266,7 +1108,6 @@ class IRPenDebugger:
                 if not DEBUG_MODE:
                     # TODO: CHeck why we need this here. time.sleep() does not work here
                     key = cv2.waitKey(1)
-
 
             if DEBUG_MODE:
                 if len(self.rois) == 2:

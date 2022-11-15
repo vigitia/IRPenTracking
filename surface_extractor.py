@@ -10,9 +10,16 @@ import configparser
 
 CONFIG_FILE_NAME = 'config.ini'
 
-FLIP_IMAGE = False
+FLIP_IMAGE = False  # Flip the output image 180° -> Needed if cameras see the projection area upside down
+
 
 class SurfaceExtractor:
+    """ SurfaceExtractor
+
+        This script allows you to extract a rectangular area from a camera frame based on coordinates in a config file,
+        of just get the homography values if you want to do this transformation by yourself later on.
+
+    """
     config = {}
 
     # TODO: reload config file

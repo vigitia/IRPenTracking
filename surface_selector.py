@@ -18,13 +18,13 @@ CONFIG_FILE_NAME = 'config.ini'
 class SurfaceSelector:
     """ SurfaceSelector
 
-        This class allows you to select the corners of the projection surface using a simple GUI.
+        This class allows you to select the corners of the projection surface.
+        The camera feeds will be shown in preview windows. Simply click on the for corners using your mouse.
 
     """
 
     last_mouse_click_coordinates = {}
 
-    # TODO: Add support for differently shaped tables (not just rectangles)
     table_corner_top_left = (0, 0)
     table_corner_top_right = (0, 0)
     table_corner_bottom_left = (0, 0)
