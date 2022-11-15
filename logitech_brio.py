@@ -68,7 +68,7 @@ class LogitechBrio:
 
             # If a new frame is available, store it in the corresponding variable
             if frame is not None:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 self.counter += 1
                 if frame.shape[0] < RES_Y or frame.shape[1] < RES_X:
                     print('output image shape: ', frame.shape)

@@ -52,8 +52,8 @@ class AnalogueDigitalDocumentsDemo:
 
         for highlight in highlights:
             highlight_points = self.list_to_points_list(highlight['quad_points'][0])
-            for highlight_point in highlight_points:
-                cv2.circle(frame, highlight_point, 5, (0, 0, 0), -1)
+            # for highlight_point in highlight_points:
+            #     cv2.circle(frame, highlight_point, 5, (0, 0, 0), -1)
 
             all_highlight_points.append(highlight_points)
 
@@ -68,8 +68,11 @@ class AnalogueDigitalDocumentsDemo:
             flat_list = [item for sublist in transformed_points for item in sublist]
 
             points_tuple_list = self.list_to_points_list(flat_list)
-            for point in points_tuple_list:
-                cv2.circle(frame, point, 5, (0, 0, 0), -1)
+            cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
+            # cv2.rectangle(frame, points_tuple_list[0], points_tuple_list[2], (0, 255, 255), -1)
+
+            # for point in points_tuple_list:
+            #     cv2.circle(frame, point, 5, (0, 0, 0), -1)
 
             print('points_list after transform', points_tuple_list)
 
@@ -136,14 +139,7 @@ class AnalogueDigitalDocumentsDemo:
                                        [document_corner_points[4], document_corner_points[5]],
                                        [document_corner_points[6], document_corner_points[7]]])
 
-        CAMERA_UPSIDE_DOWN = False
-        if CAMERA_UPSIDE_DOWN:
-            pdf_res = np.float32([[0, PDF_HEIGHT], [0, 0], [PDF_WIDTH, 0], [PDF_WIDTH, PDF_HEIGHT]])
-        else:
-            pdf_res = np.float32([[0, 0],
-                                  [0, PDF_HEIGHT],
-                                  [PDF_WIDTH, PDF_HEIGHT],
-                                  [PDF_WIDTH, 0]])
+        pdf_res = np.float32([[0, 0], [0, PDF_HEIGHT], [PDF_WIDTH, PDF_HEIGHT], [PDF_WIDTH, 0]])
 
         # This matrix will be used to transform the points into the correct coordinate space for the pdf
         # (with origin in the bottom left corner and the correct resolution of the pdf)

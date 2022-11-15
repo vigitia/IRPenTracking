@@ -6,8 +6,8 @@ from PyPDF2.generic import DictionaryObject, NumberObject, FloatObject, NameObje
 
 DEBUG_MODE = True
 
-FILENAME_INPUT = 'Agenda.pdf'
-FILENAME_OUTPUT = 'Agenda_out.pdf'
+FILENAME_INPUT = 'degginger.pdf'
+FILENAME_OUTPUT = 'degginger_out.pdf'
 FULL_PATH_INPUT = os.path.join(os.getcwd(), 'assets', FILENAME_INPUT)
 FULL_PATH_OUTPUT = os.path.join(os.getcwd(), 'assets', FILENAME_OUTPUT)
 
