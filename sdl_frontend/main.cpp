@@ -218,6 +218,17 @@ void parseMessage(char* buffer)
                 {
                     rects.erase(id);
                 }
+		else
+		{
+		    	rects[id].x[0] = x1;
+		    	rects[id].x[1] = x2;
+		    	rects[id].x[2] = x3;
+		    	rects[id].x[3] = x4;
+		    	rects[id].y[0] = y1;
+		    	rects[id].y[1] = y2;
+		    	rects[id].y[2] = y3;
+		    	rects[id].y[3] = y4;
+		}
             }
         }
     }
