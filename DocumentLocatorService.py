@@ -291,7 +291,7 @@ class DocumentLocatorService:
 
     def has_point_moved(self, old_point, new_point):
         dist = distance.euclidean((old_point[0], old_point[1]), (new_point[0], new_point[1]))
-        print(dist)
+        # print(dist)
         if dist > MAX_DIST_BETWEEN_POINTS:
             return True
         return False
