@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import threading
 from enum import Enum
@@ -1056,14 +1057,13 @@ class IRPenDebugger:
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
-        highlight_rectangles = self.analogue_digital_document.get_highlight_rectangles(frame)
+        highlight_rectangles, highlight_ids = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        for rectangle in highlight_rectangles:
-            self.current_id += 1
-            self.send_rect(self.current_id, 1, rectangle)
+        for i, rectangle in enumerate(highlight_rectangles):
+            # TODO: Send info for highlights that should be removed
+            self.send_rect(highlight_ids[i], 1, rectangle)
 
-        print('Final rectangles:', highlight_rectangles)
-
+        # print('Final rectangles:', highlight_rectangles)
 
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
@@ -1078,7 +1078,7 @@ class IRPenDebugger:
             message += f'{coords} '
         message += f'{state} '
 
-        # print('message', message)
+        print('message', message)
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))
@@ -1192,6 +1192,8 @@ class IRPenDebugger:
                 frames, matrices)
             self.rois = rois
             self.active_pen_events = active_pen_events
+
+            self.analogue_digital_document.on_new_finished_line(stored_lines)
 
 
 if __name__ == '__main__':
