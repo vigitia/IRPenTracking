@@ -1057,11 +1057,14 @@ class IRPenDebugger:
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
-        highlight_rectangles, highlight_ids = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
+        highlight_dict, highlights_removed = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        for i, rectangle in enumerate(highlight_rectangles):
+        if highlights_removed:
+            self.clear_rects()
+
+        for highlight_id, rectangle in highlight_dict.items():
             # TODO: Send info for highlights that should be removed
-            self.send_rect(highlight_ids[i], 1, rectangle)
+            self.send_rect(highlight_id, 1, rectangle)
 
         # print('Final rectangles:', highlight_rectangles)
 
@@ -1078,7 +1081,7 @@ class IRPenDebugger:
             message += f'{coords} '
         message += f'{state} '
 
-        print('message', message)
+        # print('message', message)
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))

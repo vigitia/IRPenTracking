@@ -19,75 +19,72 @@ DEBUG_MODE = False
 
 class AnalogueDigitalDocumentsDemo:
 
-    def __init__(self):
+    stored_lines = []
+    converted_document_corner_points = []  # Store current pos of document on table
 
+    highlight_dict = {}
+
+    def __init__(self):
         self.document_locator_service = DocumentLocatorService()
         self.pdf_annotations_service = PDFAnnotationsService()
         self.fiducials_detection_service = FiducialsDetectorService()
-
-        # self.logitech_brio_camera = LogitechBrio(self)
-        # self.logitech_brio_camera.init_video_capture()
-        # self.logitech_brio_camera.start()
 
     def get_highlight_rectangles(self, frame, transform_matrix):
         self.transform_matrix = transform_matrix
 
         highlights, notes, freehand_lines = self.pdf_annotations_service.get_annotations()
 
-        # Detect ArUco markers
+        # Detect ArUco markers in the camera frame
         aruco_markers = self.fiducials_detection_service.detect_fiducials(frame)
 
         # Locate the document. Order of document_corner_points TLC, BLC, BRC, TRC
         document_found, document_corner_points = self.locate_document(frame, aruco_markers)
 
-        highlight_rectangles = []
-        highlight_ids = []
+        # Convert the four corner points of the document into the projection space coordinate system
+        corner_points_tuple_list = self.list_to_points_list(document_corner_points)
+        self.converted_document_corner_points = self.transform_coords_to_output_res(corner_points_tuple_list)
+
+        highlights_removed = False
+        # TODO: CHECK DOCUMENT MISSING FOR SOME TIME
 
         if document_found:
-            frame, highlight_rectangles, highlight_ids = self.pdf_points_to_real_world(frame, highlights, document_corner_points)
+            all_highlight_points, highlight_ids = self.convert_hightlight_data(highlights)
+            # removed_highlight_ids = self.get_removed_highlight_ids(highlights)
+            highlights_removed = self.check_highlights_removed(highlight_ids)
 
-            if DEBUG_MODE:
-                frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
-                                 (document_corner_points[2], document_corner_points[3]), (0, 0, 255), thickness=3)
-                frame = cv2.line(frame, (document_corner_points[2], document_corner_points[3]),
-                                 (document_corner_points[4], document_corner_points[5]), (0, 0, 255), thickness=3)
-                frame = cv2.line(frame, (document_corner_points[4], document_corner_points[5]),
-                                 (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
-                frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
-                                 (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
+            self.highlight_dict = self.pdf_points_to_real_world(frame, all_highlight_points, highlight_ids, document_corner_points)
 
-        if DEBUG_MODE:
-            cv2.imshow('Logitech Brio', frame)
-            cv2.waitKey(1)
+        return self.highlight_dict, highlights_removed
 
-        return highlight_rectangles, highlight_ids
+    def check_highlights_removed(self, highlight_ids):
+        # Iterate over the list of known highlight IDs. If one does not appear in the list of new highlight IDs, we
+        # know that the corresponding highlight must have been deleted
+        for previous_highlight_id in self.highlight_dict.keys():
+            if previous_highlight_id not in highlight_ids:
+                print('Deleted Highlight with ID:', previous_highlight_id)
+                return True
+        return False
+
+
+    def get_removed_highlight_ids(self, new_highlights):
+        removed_highlight_ids = []
+        # for new_highlight in new_highlights:
+        #     new_highlight_id = self.
+        #     if new_highlight[]
+
+        return removed_highlight_ids
+
 
     def on_new_brio_frame(self, frame, homography_matrix):
-        self.get_highlight_rectangles(frame, [])
+        self.get_highlight_rectangles(frame, homography_matrix)
 
-    def pdf_points_to_real_world(self, frame, highlights, document_corner_points):
+    def pdf_points_to_real_world(self, frame, all_highlight_points, highlight_ids, document_corner_points):
 
         matrix = self.get_matrix_for_pdf_coordinate_transform(document_corner_points, to_pdf=False)
 
-        highlight_ids = []
-        all_highlight_points = []
+        highlight_dict = {}
 
-        for highlight_object in highlights:
-            highlight_group = highlight_object['quad_points']
-            for i, highlight_list in enumerate(highlight_group):
-
-                # Create a temporary ID for the highlight from the timestamp
-                # TODO: Improve this!
-                highlight_ids.append(int(highlight_object['timestamp'].replace('D:202211', '').replace("+01'00", '') + str(i)))
-                highlight_points = self.list_to_points_list(highlight_list)
-                all_highlight_points.append(highlight_points)
-
-        # print(highlight_ids)
-        # print(all_highlight_points)
-
-        highlight_rectangles = []
-
-        for highlight_group in all_highlight_points:
+        for i, highlight_group in enumerate(all_highlight_points):
             points_to_be_transformed = np.array([highlight_group], dtype=np.float32)
 
             transformed_points = cv2.perspectiveTransform(points_to_be_transformed, matrix)
@@ -101,46 +98,77 @@ class AnalogueDigitalDocumentsDemo:
             points_tuple_list = self.transform_coords_to_output_res(points_tuple_list)
             flat_list = [item for sublist in points_tuple_list for item in sublist]
 
-
             # Convert floats to int
-            for i, coordinate in enumerate(flat_list):
-                flat_list[i] = int(coordinate)
-            highlight_rectangles.append(flat_list)
+            flat_list = [int(number) for number in flat_list]
 
+            highlight_dict[highlight_ids[i]] = flat_list
 
             if DEBUG_MODE:
                 cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
 
-            # print('points_list after transform', points_tuple_list)
+        if DEBUG_MODE:
+            frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
+                             (document_corner_points[2], document_corner_points[3]), (0, 0, 255), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[2], document_corner_points[3]),
+                             (document_corner_points[4], document_corner_points[5]), (0, 0, 255), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[4], document_corner_points[5]),
+                             (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
+            frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
+                             (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
 
-        return frame, highlight_rectangles, highlight_ids
+            cv2.imshow('Logitech Brio', frame)
+            cv2.waitKey(1)
 
-    def transform_coords_to_output_res(self, points_tuple_list):
-        try:
-            for i, point in enumerate(points_tuple_list):
-                coords = np.array([point[0], point[1], 1])
+        return highlight_dict
 
-                transformed_coords = self.transform_matrix.dot(coords)
 
-                RES_2160P = True
 
-                if RES_2160P:
-                    # Normalize coordinates by dividing by z
-                    # TODO: Improve this conversion. currently it only scales up from 1080p to 2160p by multiplying by 2
-                    points_tuple_list[i] = ((transformed_coords[0] / transformed_coords[2]) * 2,
-                                            (transformed_coords[1] / transformed_coords[2]) * 2)
-                else:
-                    # Normalize coordinates by dividing by z
-                    points_tuple_list[i] = ((transformed_coords[0] / transformed_coords[2]),
-                                            (transformed_coords[1] / transformed_coords[2]))
+    def convert_hightlight_data(self, highlights):
+        highlight_ids = []
+        all_highlight_points = []
 
-            return points_tuple_list
-        except Exception as e:
-            print(e)
-            print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
-            print('This error could also appear if CALIBRATION_MODE is still enabled in flir_blackfly_s.py')
-            time.sleep(5)
-            sys.exit(1)
+        for highlight_object in highlights:
+            highlight_group = highlight_object['quad_points']
+            for i, highlight_list in enumerate(highlight_group):
+                highlight_ids.append(self.generate_id_from_timestamp(highlight_object['timestamp'], i))
+                highlight_points = self.list_to_points_list(highlight_list)
+                all_highlight_points.append(highlight_points)
+
+        return all_highlight_points, highlight_ids
+
+    # Create a temporary ID for the highlight from the timestamp
+    # TODO: Improve this!
+    def generate_id_from_timestamp(self, timestamp, additional_number):
+        return int(timestamp.replace('D:202211', '').replace("+01'00", '') + str(additional_number))
+
+    def transform_coords_to_output_res(self, corner_points_tuple_list):
+
+        #try:
+        for i, point in enumerate(corner_points_tuple_list):
+            coords = np.array([point[0], point[1], 1])
+
+            transformed_coords = self.transform_matrix.dot(coords)
+
+            RES_2160P = True
+
+            if RES_2160P:
+                # Normalize coordinates by dividing by z
+                # TODO: Improve this conversion. currently it only scales up from 1080p to 2160p by multiplying by 2
+                corner_points_tuple_list[i] = ((transformed_coords[0] / transformed_coords[2]) * 2,
+                                        (transformed_coords[1] / transformed_coords[2]) * 2)
+            else:
+                # Normalize coordinates by dividing by z
+                corner_points_tuple_list[i] = ((transformed_coords[0] / transformed_coords[2]),
+                                        (transformed_coords[1] / transformed_coords[2]))
+
+        return corner_points_tuple_list
+        # except Exception as e:
+        #     print(e)
+        #     print('Current transform matrix:', self.transform_matrix)
+        #     print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
+        #     print('This error could also appear if CALIBRATION_MODE is still enabled in logitech.py')
+        #     time.sleep(5)
+        #     sys.exit(1)
 
     def list_to_points_list(self, list_of_x_y_coords):
         points_list = []
@@ -154,28 +182,19 @@ class AnalogueDigitalDocumentsDemo:
 
         return points_list
 
-    # def transform_pdf_point_to_real_world_document(self, pdf_x, pdf_y, document_corner_points):
-    #
-    #     # Calculate distance between top left corner and top right corner
-    #     doc_width = distance.euclidean((document_corner_points[0], document_corner_points[1]),
-    #                                    (document_corner_points[6], document_corner_points[7]))
-    #
-    #     # Calculate distance between top left corner and bottom left corner
-    #     doc_height = distance.euclidean((document_corner_points[0], document_corner_points[1]),
-    #                                     (document_corner_points[2], document_corner_points[3]))
-    #
-    #     width_fraction = doc_width / PDF_WIDTH
-    #     height_fraction = doc_height / PDF_HEIGHT
-    #
-    #     x_new = pdf_x * width_fraction
-    #     y_new = pdf_y * height_fraction
-    #
-    #     x_axis_normalized = None
-    #     y_axis_normalized = None
-
     def on_new_finished_line(self, lines):
-        if len(lines) > 0:
-            print('Received stored lines:', len(lines))
+        if len(lines) > len(self.stored_lines):
+            num_new_lines = len(lines) - len(self.stored_lines)
+            self.stored_lines = lines.copy()
+            print('Received {} new line(s) to check'. format(num_new_lines))
+            new_lines = self.stored_lines[len(self.stored_lines) - num_new_lines:]
+            print('Extracted new lines:', new_lines)
+
+    def process_new_lines(self, new_lines):
+        for line in new_lines:
+            print('Line', line)
+            for point in line:
+                print('Point', point)
 
     # Check if a point is on which side of a line. Return True if on right side, return False if on left side
     # https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
@@ -189,10 +208,9 @@ class AnalogueDigitalDocumentsDemo:
 
     # This function will check if a point is inside the borders of the document
     # https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
-    def is_point_on_document(self, x, y, document_corners):
-        num_vert = len(document_corners)
-        is_right = [self.is_on_right_side(x, y, document_corners[i], document_corners[(i + 1) % num_vert]) for i in
-                    range(num_vert)]
+    def is_point_on_document(self, x, y):
+        num_vert = len(self.converted_document_corner_points)
+        is_right = [self.is_on_right_side(x, y, self.converted_document_corner_points[i], self.converted_document_corner_points[(i + 1) % num_vert]) for i in range(num_vert)]
         all_left = not any(is_right)
         all_right = all(is_right)
         return all_left or all_right
