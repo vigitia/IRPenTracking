@@ -151,8 +151,11 @@ void clearScreen()
     currentLine.clear();
 }
 
-void parseMessage(char* buffer)
+int parseMessage(char* buffer)
 {
+	//printf(buffer);
+	//printf("\n--------\n");
+	//fflush(stdout);
 
     if(buffer[0] == 'l')
     {
@@ -178,11 +181,13 @@ void parseMessage(char* buffer)
                     currentLine.push_back({x, y});
                 }
             }
+	    return 1;
         }
-        else
-        {
-            cout << "could not read input " << buffer << endl;
-        }
+        //else
+        //{
+        //    cout << "could not read input " << buffer << endl;
+		//	return 0;
+        //}
     }
     else if(buffer[0] == 'r')
     {
@@ -191,7 +196,7 @@ void parseMessage(char* buffer)
         int y1, y2, y3, y4;
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "r %d %d %d %d %d %d %d %d %d %d ", &id, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 10)
+        if(sscanf(buffer, "r %d %d %d %d %d %d %d %d %d %d \n ", &id, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 10)
         {
             //cout << buffer << endl;
             struct Poly poly;
@@ -218,34 +223,66 @@ void parseMessage(char* buffer)
                 {
                     rects.erase(id);
                 }
-		else
-		{
-		    	rects[id].x[0] = x1;
-		    	rects[id].x[1] = x2;
-		    	rects[id].x[2] = x3;
-		    	rects[id].x[3] = x4;
-		    	rects[id].y[0] = y1;
-		    	rects[id].y[1] = y2;
-		    	rects[id].y[2] = y3;
-		    	rects[id].y[3] = y4;
-		}
+				else
+				{
+						rects[id].x[0] = x1;
+						rects[id].x[1] = x2;
+						rects[id].x[2] = x3;
+						rects[id].x[3] = x4;
+						rects[id].y[0] = y1;
+						rects[id].y[1] = y2;
+						rects[id].y[2] = y3;
+						rects[id].y[3] = y4;
+				}
             }
+
+			return 1;
         }
     }
     else if(buffer[0] == 'c')
     {
         rects.clear();
+		return 1;
     }
     else if(buffer[0] == 'x')
     {
         clearScreen();
+		return 1;
+    }
+    else if(buffer[0] == 'd')
+    {
+	int id;
+        if(sscanf(buffer, "d %d ", &id) == 1)
+	{
+        	lines.erase(id);
+	}
+	return 1;
+    }
+    return 0;
+
+}
+
+// https://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
+vector<string> split (string s, string delimiter) {
+    size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+    string token;
+    vector<string> res;
+
+    while ((pos_end = s.find (delimiter, pos_start)) != string::npos) {
+        token = s.substr (pos_start, pos_end - pos_start);
+        pos_start = pos_end + delim_len;
+        res.push_back (token);
     }
 
+    res.push_back (s.substr (pos_start));
+    return res;
 }
 
 void *handle_uds(void *args)
 {
-    char buffer[80];
+	const int buffer_length = 400;
+    char buffer[buffer_length];
+	string residual = "";
 
     while(1)
     {
@@ -253,12 +290,24 @@ void *handle_uds(void *args)
 
         int size;
 
-        size = recv(client_socket, buffer, 80-1, 0);
-        //size = read(client_socket, buffer, 80-1);
+        size = recv(client_socket, buffer, buffer_length-1, MSG_WAITALL);
+        //size = read(client_socket, buffer, buffer_length-1);
 
         if(size > 0)
         {
-            parseMessage(buffer);
+			vector<string> substrings = split(residual + buffer, "|");
+			int i = 0;
+
+			for (auto message : substrings)
+			{
+				i++;
+            	int result = parseMessage((char *) message.c_str());
+
+				if (result == 0 && i == substrings.size())
+				{
+					residual = message;
+				}
+			}
         }
         //send(client_socket, "ok", 2, 0);
         usleep(500);
@@ -674,6 +723,8 @@ int main(int argc, char* argv[])
 
     crossesSurface = loadSurface(CROSSES_PATH);
     imageSurface = loadSurface(IMAGE_PATH);
+
+    SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
 
     SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
