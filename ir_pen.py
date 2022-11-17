@@ -1057,13 +1057,16 @@ class IRPenDebugger:
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
-        highlight_dict, highlights_removed = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
+        highlight_dict, document_changed, document_removed = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        if highlights_removed:
+        print('num highlights', len(highlight_dict))
+
+        if document_changed or document_removed:
             self.clear_rects()
 
         for highlight_id, rectangle in highlight_dict.items():
             # TODO: Send info for highlights that should be removed
+            #print(highlight_id, rectangle)
             self.send_rect(highlight_id, 1, rectangle)
 
         # print('Final rectangles:', highlight_rectangles)
@@ -1081,7 +1084,9 @@ class IRPenDebugger:
             message += f'{coords} '
         message += f'{state} '
 
-        # print('message', message)
+        message += '|'
+
+        print('message', message)
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))
@@ -1094,7 +1099,7 @@ class IRPenDebugger:
         if not self.uds_initialized:
             return 0
         if ENABLE_UNIX_SOCKET:
-            self.sock.send('c '.encode())
+            self.sock.send('c |'.encode())
         return 1
 
     def debug_mode_thread(self):
@@ -1123,7 +1128,7 @@ class IRPenDebugger:
             if SEND_TO_FRONTEND:
                 if len(self.active_pen_events) > 0:
                     # if len(self.active_pen_events[0].history) > 0:
-                    message = 'l {} {} {} {} '.format(self.active_pen_events[0].id,
+                    message = 'l {} {} {} {} |'.format(self.active_pen_events[0].id,
                                                       int(self.active_pen_events[0].x),
                                                       int(self.active_pen_events[0].y),
                                                       0 if self.active_pen_events[0].state == State.HOVER else 1)

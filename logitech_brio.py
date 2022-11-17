@@ -78,7 +78,7 @@ class LogitechBrio:
                     self.subscriber.on_new_brio_frame(frame, self.homography_matrix)
                 # self.frame = frame
                 if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-                    print("FPS: %s" % round(self.counter / (time.time() - self.start_time), 1))
+                    # print("FPS: %s" % round(self.counter / (time.time() - self.start_time), 1))
                     self.counter = 0
                     self.start_time = time.time()
 

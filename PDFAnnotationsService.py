@@ -42,6 +42,7 @@ class PDFAnnotationsService:
         last_modification_timestamp = self.__get_timestamp_last_modification()
         if last_modification_timestamp != self.last_modification_timestamp:
             self.last_modification_timestamp = last_modification_timestamp
+            print('------------------------DOCUMENT HAS CHANGED!----------------------------')
             return True
         return False
 
@@ -59,7 +60,8 @@ class PDFAnnotationsService:
 
         # Read in all info about annotations again if the modification timestamp of the pdf indicates recent changes.
         # Otherwise, return previously stored info about existing annotations
-        if self.__has_something_changed():
+        has_something_changed = self.__has_something_changed()
+        if has_something_changed:
             self.highlights = []  # All text highlighted
             self.notes = []  # Virtual notes in the document
             self.freehand_lines = []  # Lines drawn into the pdf
@@ -119,7 +121,7 @@ class PDFAnnotationsService:
 
         # self.__fetch_document_data()
 
-        return self.highlights, self.notes, self.freehand_lines
+        return self.highlights, self.notes, self.freehand_lines, has_something_changed
 
     # Flipping points along horizontal axis to match the default coordinate system
     # -> (0,0) in top-left corner (vs. (0,0) in bottom-left corner)
