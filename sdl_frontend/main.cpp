@@ -168,6 +168,8 @@ void Document::setPoints(SDL_Point top_left, SDL_Point top_right, SDL_Point bott
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
 bool Document::isPointInDocument(int x, int y)
 {
+    if (!alive) return false;
+
     bool is_above = is_on_right_side(x, y, top_left, top_right);
     bool is_below = is_on_right_side(x, y, bottom_left, bottom_right);
     bool is_left = is_on_right_side(x, y, top_left, bottom_left);
@@ -289,15 +291,35 @@ int parseMessage(char* buffer)
             currentLine.color = {r, g, b};
             currentLine.id = currentId;
 
-            if(document.alive)
-            {
+            bool inDocument = document.isPointInDocument(x, y);
 
+            if (inDocument && !wasInDocument)
+            {
+                lines.push_back(currentLine);
+                currentLine.coords.clear();
+                currentLine.coords.push_back({x, y});
+                wasInDocument = true;
+            }
+            else if (!inDocument && wasInDocument)
+            {
+                documentLines.push_back(currentLine);
+                currentLine.coords.clear();
+                currentLine.coords.push_back({x, y});
+                wasInDocument = false;
             }
             else
             {
                 if(id != currentId)
                 {
-                    lines.push_back(currentLine);
+                    if (inDocument)
+                    {
+                        documentLines.push_back(currentLine);
+                    }
+                    else
+                    {
+                        lines.push_back(currentLine);
+                    }
+
                     currentId = id;
                     currentLine.coords.clear();
                 }
@@ -308,14 +330,32 @@ int parseMessage(char* buffer)
                         currentLine.coords.push_back({x, y});
                     }
                 } 
-                return 1; 
             }
+
+            return 1; 
         }
         //else
         //{
         //    cout << "could not read input " << buffer << endl;
         //	return 0;
         //}
+    }
+    else if(buffer[0] == 'e')
+    {
+        int id, state;
+        int x1, x2, x3, x4;
+        int y1, y2, y3, y4;
+        // parse new values from the FIFO
+        // only set the delay times if all four values could be read correctly
+        if(sscanf(buffer, "e %d %d %d %d %d %d %d %d %d \n ", &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 9)
+        {
+            document.alive = (bool) state;
+
+            document.top_left = {x1, y1};
+            document.top_right = {x2, y2};
+            document.bottom_right = {x3, y3};
+            document.bottom_left = {x4, y4};
+        }
     }
     else if(buffer[0] == 'r')
     {
