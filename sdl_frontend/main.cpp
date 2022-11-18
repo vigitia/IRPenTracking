@@ -345,8 +345,6 @@ int parseMessage(char* buffer)
         int id, state;
         int x1, x2, x3, x4;
         int y1, y2, y3, y4;
-        // parse new values from the FIFO
-        // only set the delay times if all four values could be read correctly
         if(sscanf(buffer, "e %d %d %d %d %d %d %d %d %d \n ", &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 9)
         {
             document.alive = (bool) state;
@@ -727,7 +725,14 @@ void renderLines(SDL_Renderer* renderer)
     for (auto const& line : lines)
     {
         vector<SDL_Point> coords = line.coords;
-        renderLine(renderer, &coords, line.color);
+        //renderLine(renderer, &coords, line.color);
+        renderLine(renderer, &coords, {255, 255, 0});
+    }
+
+    for (auto const& line : documentLines)
+    {
+        vector<SDL_Point> coords = line.coords;
+        renderLine(renderer, &coords, {255, 255, 255});
     }
 
     if(currentLine.coords.size() > 1)
