@@ -261,19 +261,19 @@ vector<SDL_Point> parseAppendLine(char* buffer)
     return points;
 }
 
-SDL_Point multiplyPointMatrix(SDL_Point point, int matrix[3][3])
+SDL_Point multiplyPointMatrix(SDL_Point point, float matrix[3][3])
 {
     int x = point.x;
     int y = point.y;
 
-    int result_x = matrix[0][0] * x + matrix[1][0] * y + matrix[2][0];
-    int result_y = matrix[0][1] * x + matrix[1][1] * y + matrix[2][1];
-    int result_z = matrix[0][2] * x + matrix[1][2] * y + matrix[2][2];
+    float result_x = matrix[0][0] * x + matrix[1][0] * y + matrix[2][0];
+    float result_y = matrix[0][1] * x + matrix[1][1] * y + matrix[2][1];
+    float result_z = matrix[0][2] * x + matrix[1][2] * y + matrix[2][2];
 
     result_x /= result_z;
     result_y /= result_z;
 
-    return {result_x, result_y};
+    return {(int)result_x, (int)result_y};
 }
 
 int parseMessage(char* buffer)
@@ -365,9 +365,9 @@ int parseMessage(char* buffer)
     }
     else if(buffer[0] == 'm')
     {
-        int matrix[3][3];
+        float matrix[3][3];
 
-        if(sscanf(buffer, "m %d %d %d %d %d %d %d %d %d \n ", &matrix[0][0], &matrix[1][0], &matrix[2][0], &matrix[0][1], &matrix[1][1], &matrix[2][1], &matrix[0][2], &matrix[1][2], &matrix[2][2]) == 9)
+        if(sscanf(buffer, "m %f %f %f %f %f %f %f %f %f \n ", &matrix[0][0], &matrix[1][0], &matrix[2][0], &matrix[0][1], &matrix[1][1], &matrix[2][1], &matrix[0][2], &matrix[1][2], &matrix[2][2]) == 9)
         {
             for (auto line : documentLines)
             {
