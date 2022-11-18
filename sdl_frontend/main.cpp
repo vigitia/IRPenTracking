@@ -202,7 +202,6 @@ void removeLine(Line line)
     return !line.alive;
 }
 
-
 int parseMessage(char* buffer)
 {
     //printf(buffer);
@@ -224,14 +223,10 @@ int parseMessage(char* buffer)
             currentY = y;
             currentState = state;
             currentLine.color = {r, g, b};
+            currentLine.id = currentId;
             if(id != currentId)
             {
-                // Hacky! Hotfix (?) to race condition between draw and append
-                // only draw new line, if it does not exist (means it has not been appended)
-                if (lines.find(currentId) == lines.end())
-                {
-                    lines[currentId] = currentLine;
-                }
+                lines.push_back(currentLine);
                 currentId = id;
                 currentLine.coords.clear();
             }
@@ -248,54 +243,6 @@ int parseMessage(char* buffer)
         //    cout << "could not read input " << buffer << endl;
         //	return 0;
         //}
-    }
-    else if(buffer[0] == 'a')
-    {
-        int id;
-        unsigned int r;
-        unsigned int g;
-        unsigned int b;
-        string s(buffer);
-        int len = s.length();
-
-        //cout << "strlen: " << len << endl;
-        //cout << buffer << endl;
-        //cout << "terminator: " << strchr(buffer, '\0') << endl;
-        //
-        if (buffer[len - 2] != '-')
-        {
-            return 0;
-        }
-
-        char coord_buffer[len];
-
-        if(sscanf(buffer, "a %d %u %u %u %s - ", &id, &r, &g, &b, coord_buffer) == 5)
-        {
-            //cout << "id: " << id << endl;
-            //cout << coord_buffer << endl;
-
-            //cout << "id: " << id << endl;
-            //cout << "color: " << r << " " << g << " " << b << endl;
-            //cout << "coord:" << coord_buffer << endl;
-            vector<SDL_Point> points = parseAppendLine(coord_buffer);
-
-            struct Line line;
-            line.id = id;
-            line.color = {r, g, b};
-            line.coords = points;
-            line.alive = true;
-
-            lines[id] = line;
-
-            cout << "append! " << id << " size: " << lines[id].coords.size() << " color: " << (int) lines[id].color.b << endl;
-        }
-        else
-        {
-            return 0;
-        }
-
-
-        return 1;
     }
     else if(buffer[0] == 'r')
     {
