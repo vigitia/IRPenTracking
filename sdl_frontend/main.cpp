@@ -108,7 +108,7 @@ struct Line {
     bool alive;
 };
 
-map<int, Line> lines;
+vector<int, Line> lines;
 Line currentLine;
 
 struct Poly {
@@ -196,6 +196,12 @@ vector<SDL_Point> parseAppendLine(char* buffer)
 
     return points;
 }
+
+void removeLine(Line line)
+{
+    return !line.alive;
+}
+
 
 int parseMessage(char* buffer)
 {
@@ -356,12 +362,18 @@ int parseMessage(char* buffer)
         int id;
         if(sscanf(buffer, "d %d ", &id) == 1)
         {
-            lines.erase(id);
+            for (auto line : lines)
+            {
+                if (line.id == id)
+                {
+                    line.alive = false;
+                }
+            }
+            lines.remove_if(lines.begin(), lines.end(), removeLine);
         }
         return 1;
     }
     return 0;
-
 }
 
 void *handle_uds(void *args)
@@ -654,8 +666,8 @@ void renderLines(SDL_Renderer* renderer)
 
     for (auto const& line : lines)
     {
-        vector<SDL_Point> coords = line.second.coords;
-        renderLine(renderer, &coords, line.second.color);
+        vector<SDL_Point> coords = line.coords;
+        renderLine(renderer, &coords, line.color);
     }
 
     if(currentLine.coords.size() > 1)
