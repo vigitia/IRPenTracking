@@ -41,13 +41,13 @@
 #define MODE MODE_4K
 
 #if MODE == MODE_1080
-    #define WINDOW_WIDTH 1920
-    #define WINDOW_HEIGHT 1080
-    #define CROSSES_PATH "evaluation/crosses_dots_1080.png"
+#define WINDOW_WIDTH 1920
+#define WINDOW_HEIGHT 1080
+#define CROSSES_PATH "evaluation/crosses_dots_1080.png"
 #else
-    #define WINDOW_WIDTH 3840
-    #define WINDOW_HEIGHT 2160
-    #define CROSSES_PATH "evaluation/crosses_dots_4k.png"
+#define WINDOW_WIDTH 3840
+#define WINDOW_HEIGHT 2160
+#define CROSSES_PATH "evaluation/crosses_dots_4k.png"
 #endif
 
 #define IMAGE_PATH "image.png"
@@ -98,15 +98,14 @@ char* fifo_path;
 pthread_t fifo_thread; 
 
 pthread_t uds_thread; 
-    
+
 SDL_Renderer* renderer;
 
-
 struct Line {
-	int id;
-	SDL_Color color;
-	vector<SDL_Point> coords;
-	bool alive;
+    int id;
+    SDL_Color color;
+    vector<SDL_Point> coords;
+    bool alive;
 };
 
 map<int, Line> lines;
@@ -178,38 +177,38 @@ vector<string> split (string s, string delimiter) {
 
 vector<SDL_Point> parseAppendLine(char* buffer)
 {
-	vector<SDL_Point> points;
+    vector<SDL_Point> points;
 
-	vector<string> substrings = split(buffer, ";");
-	int i = 0;
+    vector<string> substrings = split(buffer, ";");
+    int i = 0;
 
-	int x, y;
-	for (auto message : substrings)
-	{
-		i++;
-		if (sscanf(message.c_str(), "%d,%d", &x, &y) == 2)
-		{
-		    //cout << x << ", " << y << endl;
-                    points.push_back({x, y});
-		}
-	}
-	//cout << "num coords: " << i << endl;
+    int x, y;
+    for (auto message : substrings)
+    {
+        i++;
+        if (sscanf(message.c_str(), "%d,%d", &x, &y) == 2)
+        {
+            //cout << x << ", " << y << endl;
+            points.push_back({x, y});
+        }
+    }
+    //cout << "num coords: " << i << endl;
 
-	return points;
+    return points;
 }
 
 int parseMessage(char* buffer)
 {
-	//printf(buffer);
-	//printf("\n--------\n");
-	//fflush(stdout);
+    //printf(buffer);
+    //printf("\n--------\n");
+    //fflush(stdout);
 
     if(buffer[0] == 'l')
     {
         int id, x, y, state;
-	    unsigned int r;
-	    unsigned int g;
-	    unsigned int b;
+        unsigned int r;
+        unsigned int g;
+        unsigned int b;
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
         if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
@@ -218,15 +217,15 @@ int parseMessage(char* buffer)
             currentX = x;
             currentY = y;
             currentState = state;
-	    currentLine.color = {r, g, b};
+            currentLine.color = {r, g, b};
             if(id != currentId)
             {
-		// Hacky! Hotfix (?) to race condition between draw and append
-		// only draw new line, if it does not exist (means it has not been appended)
-		if (lines.find(currentId) == lines.end())
-		{
-			lines[currentId] = currentLine;
-		}
+                // Hacky! Hotfix (?) to race condition between draw and append
+                // only draw new line, if it does not exist (means it has not been appended)
+                if (lines.find(currentId) == lines.end())
+                {
+                    lines[currentId] = currentLine;
+                }
                 currentId = id;
                 currentLine.coords.clear();
             }
@@ -237,60 +236,60 @@ int parseMessage(char* buffer)
                     currentLine.coords.push_back({x, y});
                 }
             } return 1; 
-	}
+        }
         //else
         //{
         //    cout << "could not read input " << buffer << endl;
-		//	return 0;
+        //	return 0;
         //}
     }
     else if(buffer[0] == 'a')
     {
-	    int id;
-	    unsigned int r;
-	    unsigned int g;
-	    unsigned int b;
-	    string s(buffer);
-	    int len = s.length();
+        int id;
+        unsigned int r;
+        unsigned int g;
+        unsigned int b;
+        string s(buffer);
+        int len = s.length();
 
-	    //cout << "strlen: " << len << endl;
-	    //cout << buffer << endl;
-	    //cout << "terminator: " << strchr(buffer, '\0') << endl;
-	    //
-	    if (buffer[len - 2] != '-')
-	    {
-		    return 0;
-	    }
+        //cout << "strlen: " << len << endl;
+        //cout << buffer << endl;
+        //cout << "terminator: " << strchr(buffer, '\0') << endl;
+        //
+        if (buffer[len - 2] != '-')
+        {
+            return 0;
+        }
 
-	    char coord_buffer[len];
+        char coord_buffer[len];
 
-	    if(sscanf(buffer, "a %d %u %u %u %s - ", &id, &r, &g, &b, coord_buffer) == 5)
-	    {
-	    	    //cout << "id: " << id << endl;
-		    //cout << coord_buffer << endl;
+        if(sscanf(buffer, "a %d %u %u %u %s - ", &id, &r, &g, &b, coord_buffer) == 5)
+        {
+            //cout << "id: " << id << endl;
+            //cout << coord_buffer << endl;
 
-		    //cout << "id: " << id << endl;
-		    //cout << "color: " << r << " " << g << " " << b << endl;
-		    //cout << "coord:" << coord_buffer << endl;
-		    vector<SDL_Point> points = parseAppendLine(coord_buffer);
+            //cout << "id: " << id << endl;
+            //cout << "color: " << r << " " << g << " " << b << endl;
+            //cout << "coord:" << coord_buffer << endl;
+            vector<SDL_Point> points = parseAppendLine(coord_buffer);
 
-		    struct Line line;
-		    line.id = id;
-		    line.color = {r, g, b};
-		    line.coords = points;
-		    line.alive = true;
+            struct Line line;
+            line.id = id;
+            line.color = {r, g, b};
+            line.coords = points;
+            line.alive = true;
 
-		    lines[id] = line;
+            lines[id] = line;
 
-		    cout << "append! " << id << " size: " << lines[id].coords.size() << " color: " << (int) lines[id].color.b << endl;
-	    }
-	    else
-	    {
-		return 0;
-	    }
+            cout << "append! " << id << " size: " << lines[id].coords.size() << " color: " << (int) lines[id].color.b << endl;
+        }
+        else
+        {
+            return 0;
+        }
 
 
-	    return 1;
+        return 1;
     }
     else if(buffer[0] == 'r')
     {
@@ -326,40 +325,40 @@ int parseMessage(char* buffer)
                 {
                     rects.erase(id);
                 }
-				else
-				{
-						rects[id].x[0] = x1;
-						rects[id].x[1] = x2;
-						rects[id].x[2] = x3;
-						rects[id].x[3] = x4;
-						rects[id].y[0] = y1;
-						rects[id].y[1] = y2;
-						rects[id].y[2] = y3;
-						rects[id].y[3] = y4;
-				}
+                else
+                {
+                    rects[id].x[0] = x1;
+                    rects[id].x[1] = x2;
+                    rects[id].x[2] = x3;
+                    rects[id].x[3] = x4;
+                    rects[id].y[0] = y1;
+                    rects[id].y[1] = y2;
+                    rects[id].y[2] = y3;
+                    rects[id].y[3] = y4;
+                }
             }
 
-			return 1;
+            return 1;
         }
     }
     else if(buffer[0] == 'c')
     {
         rects.clear();
-		return 1;
+        return 1;
     }
     else if(buffer[0] == 'x')
     {
         clearScreen();
-		return 1;
+        return 1;
     }
     else if(buffer[0] == 'd')
     {
-	int id;
+        int id;
         if(sscanf(buffer, "d %d ", &id) == 1)
-	{
-        	lines.erase(id);
-	}
-	return 1;
+        {
+            lines.erase(id);
+        }
+        return 1;
     }
     return 0;
 
@@ -367,9 +366,9 @@ int parseMessage(char* buffer)
 
 void *handle_uds(void *args)
 {
-	const int buffer_length = 400;
+    const int buffer_length = 400;
     char buffer[buffer_length];
-	string residual = "";
+    string residual = "";
 
     while(1)
     {
@@ -382,19 +381,19 @@ void *handle_uds(void *args)
 
         if(size > 0)
         {
-			vector<string> substrings = split(residual + buffer, "|");
-			int i = 0;
+            vector<string> substrings = split(residual + buffer, "|");
+            int i = 0;
 
-			for (auto message : substrings)
-			{
-				i++;
-            	int result = parseMessage((char *) message.c_str());
+            for (auto message : substrings)
+            {
+                i++;
+                int result = parseMessage((char *) message.c_str());
 
-				if (result == 0 && i == substrings.size())
-				{
-					residual = message;
-				}
-			}
+                if (result == 0 && i == substrings.size())
+                {
+                    residual = message;
+                }
+            }
         }
         //send(client_socket, "ok", 2, 0);
         usleep(500);
@@ -557,7 +556,7 @@ void nextPhrase()
     usedPhrases.push_back(phraseIndex);
     currentPhrase = phrases.at(phraseIndex);
     //cout << phraseIndex << " " << currentPhrase << endl;
-    
+
     currentTextSize = (currentTextSize + 1) % 3;
 
     textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
@@ -633,9 +632,9 @@ void renderPhrase(SDL_Renderer* renderer)
     }
 
     SDL_Rect textBoxRect = { WINDOW_WIDTH / 2 - textBoxWidth / 2,
-                             WINDOW_HEIGHT / 2 - textBoxHeight / 2 + TEXTBOX_OFFSET,
-                             textBoxWidth, textBoxHeight };
-    
+        WINDOW_HEIGHT / 2 - textBoxHeight / 2 + TEXTBOX_OFFSET,
+        textBoxWidth, textBoxHeight };
+
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
     SDL_RenderFillRect(renderer, &textBoxRect);
 }
@@ -645,7 +644,7 @@ void renderHighlights(SDL_Renderer* renderer)
     for (auto const& entry : rects)
     {
         struct Poly poly = entry.second;
-        
+
         filledPolygonColor(renderer, poly.x, poly.y, 4, highlightColor);
     }
 }
@@ -655,8 +654,8 @@ void renderLines(SDL_Renderer* renderer)
 
     for (auto const& line : lines)
     {
-	vector<SDL_Point> coords = line.second.coords;
-	renderLine(renderer, &coords, line.second.color);
+        vector<SDL_Point> coords = line.second.coords;
+        renderLine(renderer, &coords, line.second.color);
     }
 
     if(currentLine.coords.size() > 1)
@@ -751,7 +750,7 @@ void saveImage()
     sprintf(filename, "%s%d_%s.png", SCREENSHOT_PATH, participantId, currentDateTime().c_str());
 
     const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
- 
+
     SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, format);
 
     isSaving = true;
@@ -832,7 +831,7 @@ int main(int argc, char* argv[])
     while(!quit)
     {
         SDL_PollEvent(&event);
- 
+
         switch (event.type)
         {
             case SDL_KEYDOWN:
@@ -888,7 +887,7 @@ int main(int argc, char* argv[])
             case SDL_QUIT:
                 quit = true;
                 break;
-            // TODO input handling code goes here
+                // TODO input handling code goes here
         }
 
         if(currentMode == latency) renderLatencyTest(renderer);
