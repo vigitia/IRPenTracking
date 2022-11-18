@@ -171,8 +171,8 @@ bool Document::isPointInDocument(int x, int y)
     if (!alive) return false;
 
     bool is_above = is_on_right_side(x, y, top_left, top_right);
-    bool is_below = is_on_right_side(x, y, bottom_left, bottom_right);
-    bool is_left = is_on_right_side(x, y, top_left, bottom_left);
+    bool is_below = !is_on_right_side(x, y, bottom_left, bottom_right);
+    bool is_left = !is_on_right_side(x, y, top_left, bottom_left);
     bool is_right = is_on_right_side(x, y, top_right, bottom_right);
      
     return !(is_above || is_below || is_left || is_right) || (is_above && is_below && is_left && is_right);
