@@ -363,6 +363,21 @@ int parseMessage(char* buffer)
             document.bottom_left = {x4, y4};
         }
     }
+    else if(buffer[0] == 'm')
+    {
+        int matrix[3][3];
+
+        if(sscanf(buffer, "m %d %d %d %d %d %d %d %d %d \n ", &matrix[0][0], &matrix[1][0], &matrix[2][0], &matrix[0][1], &matrix[1][1], &matrix[2][1], &matrix[0][2], &matrix[1][2], &matrix[2][2]) == 9)
+        {
+            for (auto line : documentLines)
+            {
+                for (auto point : line.coords)
+                {
+                    point = multiplyPointMatrix(point, matrix);
+                }
+            }
+        }
+    }
     else if(buffer[0] == 'r')
     {
         int id, state;
