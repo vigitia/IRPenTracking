@@ -108,8 +108,8 @@ struct Line {
     bool alive;
 };
 
-vector<int, Line> lines;
-vector<int, Line> documentLines;
+vector<Line> lines;
+vector<Line> documentLines;
 Line currentLine;
 
 struct Poly {
@@ -145,10 +145,10 @@ class Document {
 
 Document::Document(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right)
 {
-    this.top_left = top_left;
-    this.top_right = top_right;
-    this.bottom_left = bottom_left;
-    this.bottom_right = bottom_right;
+    this->top_left = top_left;
+    this->top_right = top_right;
+    this->bottom_left = bottom_left;
+    this->bottom_right = bottom_right;
     alive = true;
 }
 
@@ -159,10 +159,10 @@ Document::Document()
 
 void Document::setPoints(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right)
 {
-    this.top_left = top_left;
-    this.top_right = top_right;
-    this.bottom_left = bottom_left;
-    this.bottom_right = bottom_right;
+    this->top_left = top_left;
+    this->top_right = top_right;
+    this->bottom_left = bottom_left;
+    this->bottom_right = bottom_right;
 }
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
@@ -175,8 +175,6 @@ bool Document::isPointInDocument(int x, int y)
     bool is_left = is_on_right_side(x, y, top_left, bottom_left);
     bool is_right = is_on_right_side(x, y, top_right, bottom_right);
      
-    all_left = not any(is_right);
-    all_right = all(is_right);
     return !(is_above || is_below || is_left || is_right) || (is_above && is_below && is_left && is_right);
 }
 
@@ -263,7 +261,7 @@ vector<SDL_Point> parseAppendLine(char* buffer)
     return points;
 }
 
-void removeLine(Line line)
+bool removeLine(Line line)
 {
     return !line.alive;
 }
@@ -420,14 +418,32 @@ int parseMessage(char* buffer)
         int id;
         if(sscanf(buffer, "d %d ", &id) == 1)
         {
-            for (auto line : lines)
+            for (vector<Line>::iterator it = lines.begin(); it != lines.end(); )
             {
-                if (line.id == id)
-                {
-                    line.alive = false;
-                }
+
+                if(it->id == id) 
+                    it = lines.erase(it);
+                else 
+                    ++it;
             }
-            lines.remove_if(lines.begin(), lines.end(), removeLine);
+
+            for (vector<Line>::iterator it = documentLines.begin(); it != documentLines.end(); )
+            {
+
+                if(it->id == id) 
+                    it = documentLines.erase(it);
+                else 
+                    ++it;
+            }
+
+            //for (auto line : lines)
+            //{
+            //    if (line.id == id)
+            //    {
+            //        line.alive = false;
+            //    }
+            //}
+            //remove_if(lines.begin(), lines.end(), removeLine);
         }
         return 1;
     }
