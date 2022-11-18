@@ -101,10 +101,21 @@ pthread_t uds_thread;
 
 SDL_Renderer* renderer;
 
+struct Point {
+	float x;
+	float y;
+};
+
+SDL_Point pointToSDL(Point p)
+{
+	SDL_Point result = {(int) p.x, (int) p.y};
+	return result;
+}
+
 struct Line {
     int id;
     SDL_Color color;
-    vector<SDL_Point> coords;
+    vector<Point> coords;
     bool alive;
 };
 
@@ -120,7 +131,7 @@ struct Poly {
 };
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
-bool is_on_right_side(int x, int y, SDL_Point xy0, SDL_Point xy1)
+bool is_on_right_side(int x, int y, Point xy0, Point xy1)
 {
     int x0 = xy0.x;
     int y0 = xy0.y;
@@ -134,16 +145,16 @@ bool is_on_right_side(int x, int y, SDL_Point xy0, SDL_Point xy1)
 
 class Document {
     public:
-        Document(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right);
+        Document(Point top_left, Point top_right, Point bottom_left, Point bottom_right);
         Document();
-        SDL_Point top_left, top_right, bottom_left, bottom_right;
+        Point top_left, top_right, bottom_left, bottom_right;
         bool isPointInDocument(int x, int y);
         bool alive = false;
-        void setPoints(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right);
+        void setPoints(Point top_left, Point top_right, Point bottom_left, Point bottom_right);
 
 };
 
-Document::Document(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right)
+Document::Document(Point top_left, Point top_right, Point bottom_left, Point bottom_right)
 {
     this->top_left = top_left;
     this->top_right = top_right;
@@ -157,7 +168,7 @@ Document::Document()
     alive = false;
 }
 
-void Document::setPoints(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right)
+void Document::setPoints(Point top_left, Point top_right, Point bottom_left, Point bottom_right)
 {
     this->top_left = top_left;
     this->top_right = top_right;
@@ -219,6 +230,7 @@ void clearScreen()
     //    entry.second.clear();
     //}
     lines.clear();
+    documentLines.clear();
     currentLine.coords.clear();
 }
 
@@ -239,9 +251,9 @@ vector<string> split (string s, string delimiter) {
 }
 
 
-vector<SDL_Point> parseAppendLine(char* buffer)
+vector<Point> parseAppendLine(char* buffer)
 {
-    vector<SDL_Point> points;
+    vector<Point> points;
 
     vector<string> substrings = split(buffer, ";");
     int i = 0;
@@ -261,10 +273,10 @@ vector<SDL_Point> parseAppendLine(char* buffer)
     return points;
 }
 
-SDL_Point multiplyPointMatrix(SDL_Point point, float matrix[3][3])
+Point multiplyPointMatrix(Point point, float matrix[3][3])
 {
-    int x = point.x;
-    int y = point.y;
+    float x = point.x;
+    float y = point.y;
 
     float result_x = matrix[0][0] * x + matrix[1][0] * y + matrix[2][0];
     float result_y = matrix[0][1] * x + matrix[1][1] * y + matrix[2][1];
@@ -273,7 +285,7 @@ SDL_Point multiplyPointMatrix(SDL_Point point, float matrix[3][3])
     result_x /= result_z;
     result_y /= result_z;
 
-    return {(int)result_x, (int)result_y};
+    return {result_x, result_y};
 }
 
 int parseMessage(char* buffer)
@@ -305,14 +317,14 @@ int parseMessage(char* buffer)
             {
                 lines.push_back(currentLine);
                 currentLine.coords.clear();
-                currentLine.coords.push_back({x, y});
+                if(state == STATE_DRAW) currentLine.coords.push_back({x, y});
                 wasInDocument = true;
             }
             else if (!inDocument && wasInDocument)
             {
                 documentLines.push_back(currentLine);
                 currentLine.coords.clear();
-                currentLine.coords.push_back({x, y});
+                if(state == STATE_DRAW) currentLine.coords.push_back({x, y});
                 wasInDocument = false;
             }
             else
@@ -369,12 +381,14 @@ int parseMessage(char* buffer)
 
         if(sscanf(buffer, "m %f %f %f %f %f %f %f %f %f \n ", &matrix[0][0], &matrix[1][0], &matrix[2][0], &matrix[0][1], &matrix[1][1], &matrix[2][1], &matrix[0][2], &matrix[1][2], &matrix[2][2]) == 9)
         {
-            for (auto line : documentLines)
+            for (int j = 0; j < documentLines.size(); j++)
             {
-                for (auto point : line.coords)
-                {
-                    point = multiplyPointMatrix(point, matrix);
-                }
+		    for (int i = 0; i < documentLines.at(j).coords.size(); i++)
+		    {
+			Point point = documentLines.at(j).coords.at(i);
+			Point pnt = multiplyPointMatrix(point, matrix);
+			documentLines.at(j).coords.at(i) = pnt;
+		    }
             }
         }
     }
@@ -602,14 +616,14 @@ void onBrokenPipe(int signum)
     showBrokenPipeIndicator = true;
 }
 
-void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line, SDL_Color color)
+void renderLine(SDL_Renderer *rend, vector<Point> *line, SDL_Color color)
 {
     if(line->size() > 1)
     {
         SDL_Point point_array[line->size()];
         for(int i = 0; i < line->size(); i++)
         {
-            point_array[i] = line->at(i);
+            point_array[i] = pointToSDL(line->at(i));
         }
         SDL_SetRenderDrawColor(rend, color.r, color.g, color.b, 255);
         SDL_RenderDrawLines(rend, point_array, line->size());
@@ -765,15 +779,17 @@ void renderLines(SDL_Renderer* renderer)
 
     for (auto const& line : lines)
     {
-        vector<SDL_Point> coords = line.coords;
-        //renderLine(renderer, &coords, line.color);
-        renderLine(renderer, &coords, {255, 255, 0});
+        vector<Point> coords = line.coords;
+        renderLine(renderer, &coords, line.color);
     }
 
-    for (auto const& line : documentLines)
+    if (document.alive)
     {
-        vector<SDL_Point> coords = line.coords;
-        renderLine(renderer, &coords, {255, 255, 255});
+	    for (auto const& line : documentLines)
+	    {
+		vector<Point> coords = line.coords;
+		renderLine(renderer, &coords, {255, 255, 0});
+	    }
     }
 
     if(currentLine.coords.size() > 1)
@@ -781,7 +797,7 @@ void renderLines(SDL_Renderer* renderer)
         SDL_Point point_array[currentLine.coords.size()];
         for(int i = 0; i < currentLine.coords.size(); i++)
         {
-            point_array[i] = currentLine.coords.at(i);
+            point_array[i] = pointToSDL(currentLine.coords.at(i));
         }
         SDL_SetRenderDrawColor(renderer, currentLine.color.r, currentLine.color.g, currentLine.color.b, 255);
         SDL_RenderDrawLines(renderer, point_array, currentLine.coords.size());
