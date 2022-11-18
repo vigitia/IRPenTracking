@@ -261,9 +261,19 @@ vector<SDL_Point> parseAppendLine(char* buffer)
     return points;
 }
 
-bool removeLine(Line line)
+SDL_Point multiplyPointMatrix(SDL_Point point, int matrix[3][3])
 {
-    return !line.alive;
+    int x = point.x;
+    int y = point.y;
+
+    int result_x = matrix[0][0] * x + matrix[1][0] * y + matrix[2][0];
+    int result_y = matrix[0][1] * x + matrix[1][1] * y + matrix[2][1];
+    int result_z = matrix[0][2] * x + matrix[1][2] * y + matrix[2][2];
+
+    result_x /= result_z;
+    result_y /= result_z;
+
+    return {result_x, result_y};
 }
 
 int parseMessage(char* buffer)
