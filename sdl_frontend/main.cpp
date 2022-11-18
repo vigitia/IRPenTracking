@@ -261,9 +261,19 @@ vector<SDL_Point> parseAppendLine(char* buffer)
     return points;
 }
 
-bool removeLine(Line line)
+SDL_Point multiplyPointMatrix(SDL_Point point, float matrix[3][3])
 {
-    return !line.alive;
+    int x = point.x;
+    int y = point.y;
+
+    float result_x = matrix[0][0] * x + matrix[1][0] * y + matrix[2][0];
+    float result_y = matrix[0][1] * x + matrix[1][1] * y + matrix[2][1];
+    float result_z = matrix[0][2] * x + matrix[1][2] * y + matrix[2][2];
+
+    result_x /= result_z;
+    result_y /= result_z;
+
+    return {(int)result_x, (int)result_y};
 }
 
 int parseMessage(char* buffer)
@@ -351,6 +361,21 @@ int parseMessage(char* buffer)
             document.top_right = {x2, y2};
             document.bottom_right = {x3, y3};
             document.bottom_left = {x4, y4};
+        }
+    }
+    else if(buffer[0] == 'm')
+    {
+        float matrix[3][3];
+
+        if(sscanf(buffer, "m %f %f %f %f %f %f %f %f %f \n ", &matrix[0][0], &matrix[1][0], &matrix[2][0], &matrix[0][1], &matrix[1][1], &matrix[2][1], &matrix[0][2], &matrix[1][2], &matrix[2][2]) == 9)
+        {
+            for (auto line : documentLines)
+            {
+                for (auto point : line.coords)
+                {
+                    point = multiplyPointMatrix(point, matrix);
+                }
+            }
         }
     }
     else if(buffer[0] == 'r')
