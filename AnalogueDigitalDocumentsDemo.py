@@ -53,26 +53,25 @@ class AnalogueDigitalDocumentsDemo:
         corner_points_tuple_list = self.list_to_points_list(document_corner_points)
         self.converted_document_corner_points = self.transform_coords_to_output_res(corner_points_tuple_list)
 
-        highlights_removed = False
         document_removed = False
-        # TODO: CHECK DOCUMENT MISSING FOR SOME TIME
 
         now = time.time()
 
         if document_found:
             self.document_last_seen_timestamp = time.time()
             all_highlight_points, highlight_ids = self.convert_hightlight_data(highlights)
-            # highlights_removed = self.check_highlights_removed(highlight_ids)
 
             self.highlight_dict = self.pdf_points_to_real_world(frame, all_highlight_points, highlight_ids, document_corner_points)
         else:
+            # Chech how long the document is missing. Remove all projected highlights if missing for too long
             if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_SEC:
                 document_removed = True
+                # TODO: ONLY SEND once
                 self.highlight_dict = {}
 
         return self.highlight_dict, document_changed, document_removed
 
-    def check_highlights_removed(self, highlight_ids):
+    def __check_highlights_removed(self, highlight_ids):
         # Iterate over the list of known highlight IDs. If one does not appear in the list of new highlight IDs, we
         # know that the corresponding highlight must have been deleted
         for previous_highlight_id in self.highlight_dict.keys():
@@ -81,9 +80,10 @@ class AnalogueDigitalDocumentsDemo:
                 return True
         return False
 
-    def on_new_brio_frame(self, frame, homography_matrix):
-        self.get_highlight_rectangles(frame, homography_matrix)
+    # def on_new_brio_frame(self, frame, homography_matrix):
+    #     self.get_highlight_rectangles(frame, homography_matrix)
 
+    # Convert points from the coordinate system of the pdf to the coordinate system of the output projection
     def pdf_points_to_real_world(self, frame, all_highlight_points, highlight_ids, document_corner_points):
 
         matrix = self.get_matrix_for_pdf_coordinate_transform(document_corner_points, to_pdf=False)
@@ -145,11 +145,11 @@ class AnalogueDigitalDocumentsDemo:
     # Create a temporary ID for the highlight from the timestamp
     # TODO: Improve this!
     def generate_id_from_timestamp(self, timestamp, additional_number):
+        # TODO: THIS HORRIBLE WORKAROUND CURRNENTLY ONLY WORKS FOR NOVEMBER -> 11 FIX THIS ASAP
         return int(timestamp.replace('D:202211', '').replace("+01'00", '') + str(additional_number))
 
     def transform_coords_to_output_res(self, corner_points_tuple_list):
 
-        #try:
         for i, point in enumerate(corner_points_tuple_list):
             coords = np.array([point[0], point[1], 1])
 
@@ -159,20 +159,13 @@ class AnalogueDigitalDocumentsDemo:
                 # Normalize coordinates by dividing by z
                 # TODO: Improve this conversion. currently it only scales up from 1080p to 2160p by multiplying by 2
                 corner_points_tuple_list[i] = ((transformed_coords[0] / transformed_coords[2]) * 2,
-                                        (transformed_coords[1] / transformed_coords[2]) * 2)
+                                               (transformed_coords[1] / transformed_coords[2]) * 2)
             else:
                 # Normalize coordinates by dividing by z
                 corner_points_tuple_list[i] = ((transformed_coords[0] / transformed_coords[2]),
-                                        (transformed_coords[1] / transformed_coords[2]))
+                                               (transformed_coords[1] / transformed_coords[2]))
 
         return corner_points_tuple_list
-        # except Exception as e:
-        #     print(e)
-        #     print('Current transform matrix:', self.transform_matrix)
-        #     print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
-        #     print('This error could also appear if CALIBRATION_MODE is still enabled in logitech.py')
-        #     time.sleep(5)
-        #     sys.exit(1)
 
     def list_to_points_list(self, list_of_x_y_coords):
         points_list = []
@@ -186,7 +179,11 @@ class AnalogueDigitalDocumentsDemo:
 
         return points_list
 
-    def on_new_finished_line(self, lines):
+    def on_new_finished_lines(self, lines):
+
+        line_ids_to_delete = []
+        remaining_line_points = {}
+
         if len(lines) > len(self.stored_lines):
             num_new_lines = len(lines) - len(self.stored_lines)
             self.stored_lines = lines.copy()
@@ -194,34 +191,43 @@ class AnalogueDigitalDocumentsDemo:
             new_lines = self.stored_lines[len(self.stored_lines) - num_new_lines:]
             # print('Extracted new lines:', new_lines)
 
-            self.process_new_lines(new_lines)
+            line_ids_to_delete, remaining_line_points = self.process_new_lines(new_lines)
+        return line_ids_to_delete, remaining_line_points
 
     def process_new_lines(self, new_lines):
         lines_to_add_to_pdf = []
-        for line in new_lines:
-            # print('Line', line)
-            points_on_document = []
-            points_outside_document = []
-            for point in line:
-                # print('Point', point)
-                if self.__is_point_on_document(point[0], point[1]):
-                    if RES_2160P:
-                        # TODO: TEST THIS. Going back to camera coordinate system. Currently 1080p
-                        points_on_document.append((int(point[0] / 2), int(point[1] / 2)))
-                    else:
+        remaining_line_points = {}
+        line_ids_to_delete = []
+
+        for new_line in new_lines:
+            for line_id, line in new_line.items():
+                print('CHECKING LINE with ID {} and length {}', line_id, len(line))
+                points_on_document = []
+                points_outside_document = []
+                for point in line:
+                    if self.__is_point_on_document(point[0], point[1]):
                         points_on_document.append(point)
-                else:
-                    points_outside_document.append(point)
+                    else:
+                        points_outside_document.append(point)
+                if len(points_on_document) > 0:
+                    lines_to_add_to_pdf.append(points_on_document)
+                    line_ids_to_delete.append(line_id)
+                    if len(points_outside_document) > 0:
+                        remaining_line_points[line_id] = points_outside_document
 
-            lines_to_add_to_pdf.append(points_on_document)
 
-        print('-----------------')
-        print('ADD THESE LINES TO PDF:')
-        print(lines_to_add_to_pdf)
-        print('-----------------')
+        for line in lines_to_add_to_pdf:
+            print('len line points on pdf', len(line))
 
-        self.add_lines_to_pdf(lines_to_add_to_pdf)
+        for line_id, line in remaining_line_points.items():
+            print('len line points off pdf for id {}: '.format(line_id), len(line))
 
+        if len(lines_to_add_to_pdf) > 0:
+            print('ADD THESE LINES TO PDF:', lines_to_add_to_pdf)
+
+            self.add_lines_to_pdf(lines_to_add_to_pdf)
+
+        return line_ids_to_delete, remaining_line_points
 
     # Check if a point is on which side of a line. Return True if on right side, return False if on left side
     # https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
@@ -236,6 +242,8 @@ class AnalogueDigitalDocumentsDemo:
     # This function will check if a point is inside the borders of the document
     # https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
     def __is_point_on_document(self, x, y):
+        # self.converted_document_corner_points is already in the projector coordinate space.
+        # So the same space as the received lines
         if len(self.converted_document_corner_points) == 0:
             print('No document on table. So line cant be on the document')
             return False
@@ -246,9 +254,12 @@ class AnalogueDigitalDocumentsDemo:
         return all_left or all_right
 
     def add_lines_to_pdf(self, lines_to_add_to_pdf):
-        print('Start adding lines to pdf')
+
         if len(lines_to_add_to_pdf) > 0 and len(self.converted_document_corner_points) > 0:
-            matrix = self.get_matrix_for_pdf_coordinate_transform(self.converted_document_corner_points, to_pdf=True)
+            converted_document_corner_points_flat_list = [item for sublist in self.converted_document_corner_points for item in sublist]
+            matrix = self.get_matrix_for_pdf_coordinate_transform(converted_document_corner_points_flat_list, to_pdf=True)
+
+            # print('matrix', matrix)
 
             transformed_lines = []
             for line in lines_to_add_to_pdf:
@@ -261,72 +272,40 @@ class AnalogueDigitalDocumentsDemo:
                     points_list = [item for sublist in transformed_points for item in sublist]
                     transformed_lines.append(points_list)
 
+            # print('Transformed lines', transformed_lines)
+
             # Add transformed lines to pdf
             # print(lines_objects)
             if len(transformed_lines) > 0:
                 print('Writing {} lines to pdf'.format(len(transformed_lines)))
+                # TODO: ALSO ADD PREVIOUS ANNOTATIONS HERE
                 self.pdf_annotations_service.add_lines_to_pdf(transformed_lines)
                 self.pdf_annotations_service.write_changes_to_file()
-
-
+        else:
+            print('Nothing to add to pdf')
 
     def get_matrix_for_pdf_coordinate_transform(self, document_corner_points, to_pdf):
+
+        # document_corner_points needs to be a flat list!
+        # print('Document Corners in matrix:', document_corner_points)
 
         document_corners = np.float32([[document_corner_points[0], document_corner_points[1]],
                                        [document_corner_points[2], document_corner_points[3]],
                                        [document_corner_points[4], document_corner_points[5]],
                                        [document_corner_points[6], document_corner_points[7]]])
 
-        pdf_res = np.float32([[0, 0], [0, PDF_HEIGHT], [PDF_WIDTH, PDF_HEIGHT], [PDF_WIDTH, 0]])
-
         if to_pdf:
+            # Use different order here to have the correct orientation of the points. No idea why...
+            pdf_res = np.float32([[0, PDF_HEIGHT], [0, 0], [PDF_WIDTH, 0], [PDF_WIDTH, PDF_HEIGHT]])
             matrix = cv2.getPerspectiveTransform(document_corners, pdf_res)
         else:
+            pdf_res = np.float32([[0, 0], [0, PDF_HEIGHT], [PDF_WIDTH, PDF_HEIGHT], [PDF_WIDTH, 0]])
             matrix = cv2.getPerspectiveTransform(pdf_res, document_corners)
 
         # This matrix will be used to transform the points into the correct coordinate space for the pdf
         # (with origin in the bottom left corner and the correct resolution of the pdf)
 
         return matrix
-
-    # def add_lines_to_pdf_old(self, lines, document_corner_points):
-    #
-    #     if len(lines) > 0 and len(document_corner_points) > 0:
-    #         print('len(lines):', len(lines))
-    #         # TODO: Rework
-    #         print('add lines to pdf')
-    #         document_corner_tuples = [(document_corner_points[0], document_corner_points[1]),
-    #                                   (document_corner_points[2], document_corner_points[3]),
-    #                                   (document_corner_points[4], document_corner_points[5]),
-    #                                   (document_corner_points[6], document_corner_points[7])]
-    #
-    #         matrix = self.get_matrix_for_pdf_coordinate_transform(document_corner_points, to_pdf=True)
-    #
-    #         lines_objects = []
-    #         for line in lines:
-    #
-    #             # Filter out all points that are outside of the document border
-    #             # TODO: Check if performance is better when just removing all points a the end that are negative.
-    #             #  Those are outside too.
-    #             points_on_document = []
-    #             for point in line:
-    #                 if self.__is_point_on_document(point[0], point[1], document_corner_tuples):
-    #                     points_on_document.append(point)
-    #
-    #             if len(points_on_document) > 0:
-    #                 points_to_be_transformed = np.array([points_on_document], dtype=np.float32)
-    #
-    #                 transformed_points = cv2.perspectiveTransform(points_to_be_transformed, matrix)
-    #                 transformed_points = transformed_points.tolist()[0]
-    #                 # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
-    #                 points_list = [item for sublist in transformed_points for item in sublist]
-    #                 lines_objects.append(points_list)
-    #
-    #         # Add transformed lines to pdf
-    #         # print(lines_objects)
-    #         if len(lines_objects) > 0:
-    #             self.pdf_annotations_service.add_lines_to_pdf(lines_objects)
-    #             self.pdf_annotations_service.write_changes_to_file()
 
     def locate_document(self, color_image_table, aruco_markers):
         document_corner_points = self.document_locator_service.locate_document(color_image_table, aruco_markers)

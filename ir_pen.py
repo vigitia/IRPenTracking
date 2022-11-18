@@ -706,7 +706,8 @@ class IRPen:
                                                                                                    len(active_pen_event.history),
                                                                                                    active_pen_event.state))
                 if len(active_pen_event.history) > 0:
-                    self.stored_lines.append(np.array(active_pen_event.history))
+                    # self.stored_lines.append(np.array(active_pen_event.history))
+                    self.stored_lines.append({active_pen_event.id: active_pen_event.history})
 
         elif len(self.active_pen_events) == 1 and len(new_pen_events) == 1:
             # print('Merge new and old')
@@ -723,7 +724,8 @@ class IRPen:
                     len(last_pen_event.history)))
 
                 if len(last_pen_event.history) > 0:
-                    self.stored_lines.append(np.array(last_pen_event.history))
+                    # self.stored_lines.append(np.array(last_pen_event.history))
+                    self.stored_lines.append({last_pen_event.id: last_pen_event.history})
             else:
 
                 new_pen_event.id = last_pen_event.id
@@ -786,12 +788,16 @@ class IRPen:
                 # print(NUM_HOVER_EVENTS_TO_END_LINE, final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER))
                 if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(
                         State.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
-                    print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
+                    if DEBUG_MODE:
+                        print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
                     if len(final_pen_event.history) > 0:
-                        self.stored_lines.append(np.array(final_pen_event.history))
+                        # self.stored_lines.append(np.array(final_pen_event.history))
+                        self.stored_lines.append({final_pen_event.id: final_pen_event.history})
+
                     # print(final_pen_event.state, final_pen_event.state_history[-5:])
-                    print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
-                                                                                            len(final_pen_event.history)))
+                    if DEBUG_MODE:
+                        print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
+                                                                                                len(final_pen_event.history)))
                     final_pen_events = []
 
         return final_pen_events
@@ -1035,8 +1041,10 @@ class IRPenDebugger:
     rois = []
 
     active_pen_events = []
+    remaining_line_points = {}
 
     uds_initialized = False
+    sock = None
 
     def __init__(self):
         from flir_blackfly_s import FlirBlackflyS
@@ -1059,7 +1067,7 @@ class IRPenDebugger:
 
         highlight_dict, document_changed, document_removed = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        print('num highlights', len(highlight_dict))
+        # print('num highlights', len(highlight_dict))
 
         if document_changed or document_removed:
             self.clear_rects()
@@ -1074,11 +1082,11 @@ class IRPenDebugger:
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
     # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
-    def send_rect(self, id, state, coord_list):
+    def send_rect(self, rect_id, state, coord_list):
         if not self.uds_initialized:
             return 0
 
-        message = f'r {id} '
+        message = f'r {rect_id} '
         for coords in coord_list:
             # message += f'{coords[0]} {coords[1]}'
             message += f'{coords} '
@@ -1086,14 +1094,73 @@ class IRPenDebugger:
 
         message += '|'
 
-        print('message', message)
+        # print('message', message)
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
-            self.sock.send(message.encode())
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_rect')
+                self.init_unix_socket()
 
         return 1
+
+    def delete_line(self, line_id):
+        if not self.uds_initialized:
+            return 0
+
+        message = f'd {line_id} |'
+
+        print('DELETING LINE WITH ID', line_id)
+        print('message:', message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in delete line')
+                self.init_unix_socket()
+
+    def append_line(self, line_id, line):
+
+        print('append', line_id, line)
+
+        if not self.uds_initialized:
+            return 0
+
+        message = f'a {line_id} 255 255 255 '
+
+        for i, point in enumerate(line):
+            message += f'{int(point[0])},{int(point[1])}'
+            if i < len(line) - 1:
+                message += ';'
+
+        # Append message end
+        message += ' - |'
+
+        print('message append', len(message), message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in delete line')
+                self.init_unix_socket()
+
+        # "a %d %u %u %u %s - "
+        # f'a 69 {int(0xFF0000)} 1,2;3,4;5,6 - |'
 
     def clear_rects(self):
         if not self.uds_initialized:
@@ -1101,6 +1168,17 @@ class IRPenDebugger:
         if ENABLE_UNIX_SOCKET:
             self.sock.send('c |'.encode())
         return 1
+
+    def init_unix_socket(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+        print('connecting to %s' % UNIX_SOCK_NAME)
+        try:
+            self.sock.connect(UNIX_SOCK_NAME)
+        except socket.error as msg:
+            print(msg)
+            sys.exit(1)
+        self.uds_initialized = True
 
     def debug_mode_thread(self):
         if ENABLE_FIFO_PIPE:
@@ -1110,15 +1188,7 @@ class IRPenDebugger:
             self.pipeout = os.open(pipe_name, os.O_WRONLY)
 
         if ENABLE_UNIX_SOCKET:
-            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-            print('connecting to %s' % UNIX_SOCK_NAME)
-            try:
-                self.sock.connect(UNIX_SOCK_NAME)
-            except socket.error as msg:
-                print(msg)
-                sys.exit(1)
-            self.uds_initialized = True
+            self.init_unix_socket()
 
         if DEBUG_MODE:
             cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
@@ -1128,7 +1198,7 @@ class IRPenDebugger:
             if SEND_TO_FRONTEND:
                 if len(self.active_pen_events) > 0:
                     # if len(self.active_pen_events[0].history) > 0:
-                    message = 'l {} {} {} {} |'.format(self.active_pen_events[0].id,
+                    message = 'l {} 255 255 0 {} {} {} |'.format(self.active_pen_events[0].id,
                                                       int(self.active_pen_events[0].x),
                                                       int(self.active_pen_events[0].y),
                                                       0 if self.active_pen_events[0].state == State.HOVER else 1)
@@ -1136,10 +1206,22 @@ class IRPenDebugger:
                     if ENABLE_FIFO_PIPE:
                         os.write(self.pipeout, bytes(message, 'utf8'))
                     if ENABLE_UNIX_SOCKET:
-                        self.sock.send(message.encode())
+                        try:
+                            self.sock.send(message.encode())
+                        except Exception as e:
+                            print(e)
+                            print('---------')
+                            print('Broken Pipe while sending new line data')
+                            self.init_unix_socket()
                     self.active_pen_events = []
+
+                for line_id, line in self.remaining_line_points.items():
+                    self.append_line(line_id, line)
+
+                self.remaining_line_points = {}
+
                 if not DEBUG_MODE:
-                    # TODO: CHeck why we need this here. time.sleep() does not work here
+                    # TODO: Check why we need this here. time.sleep() does not work here
                     key = cv2.waitKey(1)
 
             if DEBUG_MODE:
@@ -1201,7 +1283,12 @@ class IRPenDebugger:
             self.rois = rois
             self.active_pen_events = active_pen_events
 
-            self.analogue_digital_document.on_new_finished_line(stored_lines)
+            line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
+            # if len(line_ids_to_delete) > 0:
+            #     for line_id in line_ids_to_delete:
+            #         self.delete_line(line_id)
+
+            self.remaining_line_points = remaining_line_points
 
 
 if __name__ == '__main__':

@@ -6,8 +6,8 @@ from PyPDF2.generic import DictionaryObject, NumberObject, FloatObject, NameObje
 
 DEBUG_MODE = True
 
-FILENAME_INPUT = 'degginger.pdf'
-FILENAME_OUTPUT = 'degginger_out.pdf'
+FILENAME_INPUT = 'berlin.pdf'
+FILENAME_OUTPUT = 'berlin_out.pdf'
 FULL_PATH_INPUT = os.path.join(os.getcwd(), 'assets', FILENAME_INPUT)
 FULL_PATH_OUTPUT = os.path.join(os.getcwd(), 'assets', FILENAME_OUTPUT)
 
@@ -250,7 +250,7 @@ class PDFAnnotationsService:
             page[NameObject("/Annots")] = ArrayObject([annotation_ref])
 
     def write_changes_to_file(self):
-        print('write to file')
+        print('write new annotations to PDF')
         file_writer = PdfFileWriter()
         file_writer.appendPagesFromReader(self.input_pdf)
 

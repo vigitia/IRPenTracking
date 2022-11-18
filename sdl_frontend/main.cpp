@@ -101,8 +101,16 @@ pthread_t uds_thread;
     
 SDL_Renderer* renderer;
 
-map<int, vector<SDL_Point>> lines;
-vector<SDL_Point> currentLine;
+
+struct Line {
+	int id;
+	SDL_Color color;
+	vector<SDL_Point> coords;
+	bool alive;
+};
+
+map<int, Line> lines;
+Line currentLine;
 
 struct Poly {
     int id;
@@ -148,7 +156,46 @@ void clearScreen()
     //    entry.second.clear();
     //}
     lines.clear();
-    currentLine.clear();
+    currentLine.coords.clear();
+}
+
+// https://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
+vector<string> split (string s, string delimiter) {
+    size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+    string token;
+    vector<string> res;
+
+    while ((pos_end = s.find (delimiter, pos_start)) != string::npos) {
+        token = s.substr (pos_start, pos_end - pos_start);
+        pos_start = pos_end + delim_len;
+        res.push_back (token);
+    }
+
+    res.push_back (s.substr (pos_start));
+    return res;
+}
+
+
+vector<SDL_Point> parseAppendLine(char* buffer)
+{
+	vector<SDL_Point> points;
+
+	vector<string> substrings = split(buffer, ";");
+	int i = 0;
+
+	int x, y;
+	for (auto message : substrings)
+	{
+		i++;
+		if (sscanf(message.c_str(), "%d,%d", &x, &y) == 2)
+		{
+		    //cout << x << ", " << y << endl;
+                    points.push_back({x, y});
+		}
+	}
+	//cout << "num coords: " << i << endl;
+
+	return points;
 }
 
 int parseMessage(char* buffer)
@@ -160,34 +207,90 @@ int parseMessage(char* buffer)
     if(buffer[0] == 'l')
     {
         int id, x, y, state;
+	    unsigned int r;
+	    unsigned int g;
+	    unsigned int b;
         // parse new values from the FIFO
         // only set the delay times if all four values could be read correctly
-        if(sscanf(buffer, "l %d %d %d %d ", &id, &x, &y, &state) == 4)
+        if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
         {
             //cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
             currentX = x;
             currentY = y;
             currentState = state;
+	    currentLine.color = {r, g, b};
             if(id != currentId)
             {
-                lines[currentId] = currentLine;
+		// Hacky! Hotfix (?) to race condition between draw and append
+		// only draw new line, if it does not exist (means it has not been appended)
+		if (lines.find(currentId) == lines.end())
+		{
+			lines[currentId] = currentLine;
+		}
                 currentId = id;
-                currentLine.clear();
+                currentLine.coords.clear();
             }
             else
             {
                 if(state == STATE_DRAW)
                 {
-                    currentLine.push_back({x, y});
+                    currentLine.coords.push_back({x, y});
                 }
-            }
-	    return 1;
-        }
+            } return 1; 
+	}
         //else
         //{
         //    cout << "could not read input " << buffer << endl;
 		//	return 0;
         //}
+    }
+    else if(buffer[0] == 'a')
+    {
+	    int id;
+	    unsigned int r;
+	    unsigned int g;
+	    unsigned int b;
+	    string s(buffer);
+	    int len = s.length();
+
+	    //cout << "strlen: " << len << endl;
+	    //cout << buffer << endl;
+	    //cout << "terminator: " << strchr(buffer, '\0') << endl;
+	    //
+	    if (buffer[len - 2] != '-')
+	    {
+		    return 0;
+	    }
+
+	    char coord_buffer[len];
+
+	    if(sscanf(buffer, "a %d %u %u %u %s - ", &id, &r, &g, &b, coord_buffer) == 5)
+	    {
+	    	    //cout << "id: " << id << endl;
+		    //cout << coord_buffer << endl;
+
+		    //cout << "id: " << id << endl;
+		    //cout << "color: " << r << " " << g << " " << b << endl;
+		    //cout << "coord:" << coord_buffer << endl;
+		    vector<SDL_Point> points = parseAppendLine(coord_buffer);
+
+		    struct Line line;
+		    line.id = id;
+		    line.color = {r, g, b};
+		    line.coords = points;
+		    line.alive = true;
+
+		    lines[id] = line;
+
+		    cout << "append! " << id << " size: " << lines[id].coords.size() << " color: " << (int) lines[id].color.b << endl;
+	    }
+	    else
+	    {
+		return 0;
+	    }
+
+
+	    return 1;
     }
     else if(buffer[0] == 'r')
     {
@@ -260,22 +363,6 @@ int parseMessage(char* buffer)
     }
     return 0;
 
-}
-
-// https://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
-vector<string> split (string s, string delimiter) {
-    size_t pos_start = 0, pos_end, delim_len = delimiter.length();
-    string token;
-    vector<string> res;
-
-    while ((pos_end = s.find (delimiter, pos_start)) != string::npos) {
-        token = s.substr (pos_start, pos_end - pos_start);
-        pos_start = pos_end + delim_len;
-        res.push_back (token);
-    }
-
-    res.push_back (s.substr (pos_start));
-    return res;
 }
 
 void *handle_uds(void *args)
@@ -405,7 +492,7 @@ void onBrokenPipe(int signum)
     showBrokenPipeIndicator = true;
 }
 
-void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line)
+void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line, SDL_Color color)
 {
     if(line->size() > 1)
     {
@@ -414,7 +501,7 @@ void renderLine(SDL_Renderer *rend, vector<SDL_Point> *line)
         {
             point_array[i] = line->at(i);
         }
-        SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(rend, color.r, color.g, color.b, 255);
         SDL_RenderDrawLines(rend, point_array, line->size());
     }
 }
@@ -565,21 +652,22 @@ void renderHighlights(SDL_Renderer* renderer)
 
 void renderLines(SDL_Renderer* renderer)
 {
-    for (auto const& entry : lines)
+
+    for (auto const& line : lines)
     {
-        vector<SDL_Point> line = entry.second;
-        renderLine(renderer, &line);
+	vector<SDL_Point> coords = line.second.coords;
+	renderLine(renderer, &coords, line.second.color);
     }
 
-    if(currentLine.size() > 1)
+    if(currentLine.coords.size() > 1)
     {
-        SDL_Point point_array[currentLine.size()];
-        for(int i = 0; i < currentLine.size(); i++)
+        SDL_Point point_array[currentLine.coords.size()];
+        for(int i = 0; i < currentLine.coords.size(); i++)
         {
-            point_array[i] = currentLine.at(i);
+            point_array[i] = currentLine.coords.at(i);
         }
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_RenderDrawLines(renderer, point_array, currentLine.size());
+        SDL_SetRenderDrawColor(renderer, currentLine.color.r, currentLine.color.g, currentLine.color.b, 255);
+        SDL_RenderDrawLines(renderer, point_array, currentLine.coords.size());
     }
 }
 
