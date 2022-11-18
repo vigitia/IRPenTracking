@@ -1036,8 +1036,9 @@ class IRPen:
 
 
 class IRPenDebugger:
-    frame_counter = 0
-    start_time = 0
+    # frame_counter = 0
+    # start_time = 0
+
     rois = []
 
     active_pen_events = []
@@ -1045,6 +1046,7 @@ class IRPenDebugger:
 
     uds_initialized = False
     sock = None
+    pipeout = None
 
     def __init__(self):
         from flir_blackfly_s import FlirBlackflyS
@@ -1061,7 +1063,6 @@ class IRPenDebugger:
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
 
-    current_id = -1
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
@@ -1129,6 +1130,26 @@ class IRPenDebugger:
                 print('Broken Pipe in delete line')
                 self.init_unix_socket()
 
+    def add_new_line_point(self):
+        if not self.uds_initialized:
+            return 0
+
+        message = 'l {} 255 255 255 {} {} {} |'.format(self.active_pen_events[0].id,
+                                                       int(self.active_pen_events[0].x),
+                                                       int(self.active_pen_events[0].y),
+                                                       0 if self.active_pen_events[0].state == State.HOVER else 1)
+        # print(message)
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe while sending new line data')
+                self.init_unix_socket()
+
     def append_line(self, line_id, line):
 
         print('append', line_id, line)
@@ -1136,7 +1157,9 @@ class IRPenDebugger:
         if not self.uds_initialized:
             return 0
 
-        message = f'a {line_id} 255 255 255 '
+        line_color = '255 255 255'
+
+        message = f'a {line_id} {line_color} '
 
         for i, point in enumerate(line):
             message += f'{int(point[0])},{int(point[1])}'
@@ -1159,20 +1182,24 @@ class IRPenDebugger:
                 print('Broken Pipe in delete line')
                 self.init_unix_socket()
 
-        # "a %d %u %u %u %s - "
-        # f'a 69 {int(0xFF0000)} 1,2;3,4;5,6 - |'
-
     def clear_rects(self):
         if not self.uds_initialized:
             return 0
+
         if ENABLE_UNIX_SOCKET:
-            self.sock.send('c |'.encode())
-        return 1
+            try:
+                self.sock.send('c |'.encode())
+                return 1
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in delete line')
+                self.init_unix_socket()
 
     def init_unix_socket(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
-        print('connecting to %s' % UNIX_SOCK_NAME)
+        print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
         try:
             self.sock.connect(UNIX_SOCK_NAME)
         except socket.error as msg:
@@ -1182,10 +1209,10 @@ class IRPenDebugger:
 
     def debug_mode_thread(self):
         if ENABLE_FIFO_PIPE:
-            pipe_name = 'pipe_test'
-            if not os.path.exists(pipe_name):
-                os.mkfifo(pipe_name)
-            self.pipeout = os.open(pipe_name, os.O_WRONLY)
+            PIPE_NAME = 'pipe_test'
+            if not os.path.exists(PIPE_NAME):
+                os.mkfifo(PIPE_NAME)
+            self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
 
         if ENABLE_UNIX_SOCKET:
             self.init_unix_socket()
@@ -1197,31 +1224,18 @@ class IRPenDebugger:
         while True:
             if SEND_TO_FRONTEND:
                 if len(self.active_pen_events) > 0:
-                    # if len(self.active_pen_events[0].history) > 0:
-                    message = 'l {} 255 255 0 {} {} {} |'.format(self.active_pen_events[0].id,
-                                                      int(self.active_pen_events[0].x),
-                                                      int(self.active_pen_events[0].y),
-                                                      0 if self.active_pen_events[0].state == State.HOVER else 1)
-                    # print(message)
-                    if ENABLE_FIFO_PIPE:
-                        os.write(self.pipeout, bytes(message, 'utf8'))
-                    if ENABLE_UNIX_SOCKET:
-                        try:
-                            self.sock.send(message.encode())
-                        except Exception as e:
-                            print(e)
-                            print('---------')
-                            print('Broken Pipe while sending new line data')
-                            self.init_unix_socket()
+                    self.add_new_line_point()
+                    # Reset list because we do not want to send the same points again
                     self.active_pen_events = []
 
                 for line_id, line in self.remaining_line_points.items():
                     self.append_line(line_id, line)
-
+                # Reset because we do not want to send it again
                 self.remaining_line_points = {}
 
                 if not DEBUG_MODE:
-                    # TODO: Check why we need this here. time.sleep() does not work here
+                    # TODO: Check why we need a delay here. Without it, it will lag horribly.
+                    #  time.sleep() does not work here
                     key = cv2.waitKey(1)
 
             if DEBUG_MODE:
@@ -1277,7 +1291,7 @@ class IRPenDebugger:
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
         if len(frames) > 0:
-            self.frame_counter += 1
+            # self.frame_counter += 1
             active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
                 frames, matrices)
             self.rois = rois

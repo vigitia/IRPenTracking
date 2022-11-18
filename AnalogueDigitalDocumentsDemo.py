@@ -27,6 +27,10 @@ class AnalogueDigitalDocumentsDemo:
     # document_corner_points = []
     converted_document_corner_points = []  # Store current pos of document on table
 
+    lines_on_pdf = []
+    lines_on_pdf_modified = False
+
+
     highlight_dict = {}
     document_last_seen_timestamp = 0
 
@@ -63,11 +67,16 @@ class AnalogueDigitalDocumentsDemo:
 
             self.highlight_dict = self.pdf_points_to_real_world(frame, all_highlight_points, highlight_ids, document_corner_points)
         else:
-            # Chech how long the document is missing. Remove all projected highlights if missing for too long
+            # Check how long the document is missing. Remove all projected highlights if missing for too long
             if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_SEC:
                 document_removed = True
                 # TODO: ONLY SEND once
                 self.highlight_dict = {}
+
+        if self.lines_on_pdf_modified:
+            print('---------------------------------------------LINES ON PDF MODIFIED!')
+            # TODO: transform lines on pdf here and send them again
+            self.lines_on_pdf_modified = False
 
         return self.highlight_dict, document_changed, document_removed
 
@@ -215,7 +224,6 @@ class AnalogueDigitalDocumentsDemo:
                     if len(points_outside_document) > 0:
                         remaining_line_points[line_id] = points_outside_document
 
-
         for line in lines_to_add_to_pdf:
             print('len line points on pdf', len(line))
 
@@ -259,9 +267,6 @@ class AnalogueDigitalDocumentsDemo:
             converted_document_corner_points_flat_list = [item for sublist in self.converted_document_corner_points for item in sublist]
             matrix = self.get_matrix_for_pdf_coordinate_transform(converted_document_corner_points_flat_list, to_pdf=True)
 
-            # print('matrix', matrix)
-
-            transformed_lines = []
             for line in lines_to_add_to_pdf:
                 if len(line) > 0:
                     points_to_be_transformed = np.array([line], dtype=np.float32)
@@ -270,19 +275,14 @@ class AnalogueDigitalDocumentsDemo:
                     transformed_points = transformed_points.tolist()[0]
                     # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
                     points_list = [item for sublist in transformed_points for item in sublist]
-                    transformed_lines.append(points_list)
+                    self.lines_on_pdf.append(points_list)
+                    self.lines_on_pdf_modified = True
 
-            # print('Transformed lines', transformed_lines)
-
-            # Add transformed lines to pdf
-            # print(lines_objects)
-            if len(transformed_lines) > 0:
-                print('Writing {} lines to pdf'.format(len(transformed_lines)))
-                # TODO: ALSO ADD PREVIOUS ANNOTATIONS HERE
-                self.pdf_annotations_service.add_lines_to_pdf(transformed_lines)
+            # Add lines permanently to pdf file
+            if len(self.lines_on_pdf) > 0:
+                print('Writing {} lines to pdf'.format(len(self.lines_on_pdf)))
+                self.pdf_annotations_service.add_lines_to_pdf(self.lines_on_pdf)
                 self.pdf_annotations_service.write_changes_to_file()
-        else:
-            print('Nothing to add to pdf')
 
     def get_matrix_for_pdf_coordinate_transform(self, document_corner_points, to_pdf):
 
