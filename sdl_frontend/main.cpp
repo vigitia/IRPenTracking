@@ -109,6 +109,7 @@ struct Line {
 };
 
 vector<int, Line> lines;
+vector<int, Line> documentLines;
 Line currentLine;
 
 struct Poly {
@@ -117,6 +118,69 @@ struct Poly {
     short int y[4];
     bool alive;
 };
+
+// https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
+bool is_on_right_side(int x, int y, SDL_Point xy0, SDL_Point xy1)
+{
+    int x0 = xy0.x;
+    int y0 = xy0.y;
+    int x1 = xy1.x;
+    int y1 = xy1.y;
+    float a = float(y1 - y0);
+    float b = float(x0 - x1);
+    float c = - a * x0 - b * y0;
+    return a * x + b * y + c >= 0;
+}
+
+class Document {
+    public:
+        Document(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right);
+        Document();
+        SDL_Point top_left, top_right, bottom_left, bottom_right;
+        bool isPointInDocument(int x, int y);
+        bool alive = false;
+        void setPoints(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right);
+
+};
+
+Document::Document(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right)
+{
+    this.top_left = top_left;
+    this.top_right = top_right;
+    this.bottom_left = bottom_left;
+    this.bottom_right = bottom_right;
+    alive = true;
+}
+
+Document::Document()
+{
+    alive = false;
+}
+
+void Document::setPoints(SDL_Point top_left, SDL_Point top_right, SDL_Point bottom_left, SDL_Point bottom_right)
+{
+    this.top_left = top_left;
+    this.top_right = top_right;
+    this.bottom_left = bottom_left;
+    this.bottom_right = bottom_right;
+}
+
+// https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
+bool Document::isPointInDocument(int x, int y)
+{
+    bool is_above = is_on_right_side(x, y, top_left, top_right);
+    bool is_below = is_on_right_side(x, y, bottom_left, bottom_right);
+    bool is_left = is_on_right_side(x, y, top_left, bottom_left);
+    bool is_right = is_on_right_side(x, y, top_right, bottom_right);
+     
+    all_left = not any(is_right);
+    all_right = all(is_right);
+    return !(is_above || is_below || is_left || is_right) || (is_above && is_below && is_left && is_right);
+}
+
+Document document = Document();
+
+bool wasInDocument = false;
 
 map<int, struct Poly> rects;
 
@@ -224,19 +288,28 @@ int parseMessage(char* buffer)
             currentState = state;
             currentLine.color = {r, g, b};
             currentLine.id = currentId;
-            if(id != currentId)
+
+            if(document.alive)
             {
-                lines.push_back(currentLine);
-                currentId = id;
-                currentLine.coords.clear();
+
             }
             else
             {
-                if(state == STATE_DRAW)
+                if(id != currentId)
                 {
-                    currentLine.coords.push_back({x, y});
+                    lines.push_back(currentLine);
+                    currentId = id;
+                    currentLine.coords.clear();
                 }
-            } return 1; 
+                else
+                {
+                    if(state == STATE_DRAW)
+                    {
+                        currentLine.coords.push_back({x, y});
+                    }
+                } 
+                return 1; 
+            }
         }
         //else
         //{
