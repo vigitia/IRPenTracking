@@ -26,7 +26,7 @@ class PDFAnnotationsService:
         self.writer = PdfFileWriter()
         self.__fetch_document_data()
 
-    # Get all date again from the document
+    # Get all again from the document
     def __fetch_document_data(self):
         self.input_pdf = PdfFileReader(open(self.document_path, "rb"))
         self.page_width = self.input_pdf.getPage(0).mediaBox[2]
@@ -160,8 +160,7 @@ class PDFAnnotationsService:
 
     def add_lines_to_pdf(self, lines):
         for line in lines:
-            new_ink = self.create_line_data_structure(line)
-            self.add_annotation_to_pdf(new_ink)
+            self.add_annotation_to_pdf(self.create_line_data_structure(line))
 
     def create_line_data_structure(self, line):
 

@@ -1066,7 +1066,7 @@ class IRPenDebugger:
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
-        highlight_dict, document_changed, document_removed = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
+        highlight_dict, document_changed, document_removed, document_moved, converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
         # print('num highlights', len(highlight_dict))
 
@@ -1079,6 +1079,68 @@ class IRPenDebugger:
             self.send_rect(highlight_id, 1, rectangle)
 
         # print('Final rectangles:', highlight_rectangles)
+
+        if document_moved or document_removed:
+            self.send_corner_points(converted_document_corner_points) # , int(not document_removed) Andi was here
+
+        if len(document_moved_matrix) > 0:
+            self.send_matrix(document_moved_matrix)
+
+    def send_matrix(self, matrix):
+        # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+        flat = [item for sublist in matrix for item in sublist]
+
+        message = f'm '
+
+        for i in flat:
+            message += f'{i} '
+
+        message += '|'
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_rect')
+                self.init_unix_socket()
+
+        return 1
+
+    def send_corner_points(self, converted_document_corner_points):
+        if not self.uds_initialized:
+            return 0
+
+        message = f'e '
+        if len(converted_document_corner_points) > 0:
+            for point in converted_document_corner_points:
+                message += f'{int(point[0])} {int(point[1])} '
+            message += '1 ' # document exists
+        else:
+            for i in range(9):
+                message += '0 '
+
+        message += '|'
+
+        # print('message', message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_rect')
+                self.init_unix_socket()
+
+        return 1
+
+
 
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
@@ -1297,12 +1359,12 @@ class IRPenDebugger:
             self.rois = rois
             self.active_pen_events = active_pen_events
 
-            line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
+            # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
             # if len(line_ids_to_delete) > 0:
             #     for line_id in line_ids_to_delete:
             #         self.delete_line(line_id)
 
-            self.remaining_line_points = remaining_line_points
+            # self.remaining_line_points = remaining_line_points
 
 
 if __name__ == '__main__':

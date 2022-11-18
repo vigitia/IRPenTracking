@@ -14,7 +14,7 @@ from logitech_brio import LogitechBrio
 PDF_WIDTH = 595.446
 PDF_HEIGHT = 841.691
 
-MAX_TIME_DOCUMENT_MISSING_SEC = 1
+MAX_TIME_DOCUMENT_MISSING_MS = 500
 
 RES_2160P = True
 
@@ -23,6 +23,8 @@ DEBUG_MODE = False
 
 class AnalogueDigitalDocumentsDemo:
 
+    transform_matrix = None
+
     stored_lines = []
     # document_corner_points = []
     converted_document_corner_points = []  # Store current pos of document on table
@@ -30,10 +32,10 @@ class AnalogueDigitalDocumentsDemo:
     lines_on_pdf = []
     lines_on_pdf_modified = False
 
-
     highlight_dict = {}
-    document_last_seen_timestamp = 0
 
+    document_on_table = False
+    document_last_seen_timestamp = 0
 
     def __init__(self):
         self.document_locator_service = DocumentLocatorService()
@@ -43,42 +45,75 @@ class AnalogueDigitalDocumentsDemo:
     def get_highlight_rectangles(self, frame, transform_matrix):
         self.transform_matrix = transform_matrix
 
-        highlights, notes, freehand_lines, document_changed = self.pdf_annotations_service.get_annotations()
-
         # Detect ArUco markers in the camera frame
         aruco_markers = self.fiducials_detection_service.detect_fiducials(frame)
 
         # Locate the document. Order of document_corner_points TLC, BLC, BRC, TRC
         document_found, document_corner_points = self.locate_document(frame, aruco_markers)
 
-        # self.document_corner_points = document_corner_points
-
-        # Convert the four corner points of the document into the projection space coordinate system
-        corner_points_tuple_list = self.list_to_points_list(document_corner_points)
-        self.converted_document_corner_points = self.transform_coords_to_output_res(corner_points_tuple_list)
-
         document_removed = False
+        document_changed = False
+        document_moved_matrix = []
 
-        now = time.time()
+        now = round(time.time() * 1000)
 
+        tmp_corners = self.converted_document_corner_points
         if document_found:
-            self.document_last_seen_timestamp = time.time()
-            all_highlight_points, highlight_ids = self.convert_hightlight_data(highlights)
+            self.document_on_table = True
+            self.document_last_seen_timestamp = now
 
-            self.highlight_dict = self.pdf_points_to_real_world(frame, all_highlight_points, highlight_ids, document_corner_points)
+            # Convert the four corner points of the document into the projection space coordinate system
+            corner_points_tuple_list = self.list_to_points_list(document_corner_points)
+
+            new_converted_document_corner_points = self.transform_coords_to_output_res(corner_points_tuple_list)
+            if len(self.converted_document_corner_points) > 0:
+                document_moved_matrix = self.get_document_moved_matrix(new_converted_document_corner_points)
+
+            self.converted_document_corner_points = new_converted_document_corner_points
+
+            document_moved = False
+
+            # Extract annotations from PDF
+            highlights, notes, freehand_lines, document_changed = self.pdf_annotations_service.get_annotations()
+
+            all_highlight_points, highlight_ids = self.convert_hightlight_data(highlights)
+            self.highlight_dict = self.pdf_points_to_real_world(document_corner_points, all_highlight_points, highlight_ids)
         else:
             # Check how long the document is missing. Remove all projected highlights if missing for too long
-            if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_SEC:
-                document_removed = True
-                # TODO: ONLY SEND once
-                self.highlight_dict = {}
+            if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_MS:
+                if self.document_on_table:
+                    document_removed = True
+                    self.document_on_table = False
+                    self.highlight_dict = {}
+                    self.converted_document_corner_points = []
 
         if self.lines_on_pdf_modified:
             print('---------------------------------------------LINES ON PDF MODIFIED!')
             # TODO: transform lines on pdf here and send them again
+            # lines_transformed = self.pdf_points_to_real_world(document_corner_points, self.lines_on_pdf)
+
             self.lines_on_pdf_modified = False
 
-        return self.highlight_dict, document_changed, document_removed
+        # TODO: use distance with threshold
+        document_moved = tmp_corners == self.converted_document_corner_points
+
+        return self.highlight_dict, document_changed, document_removed, document_moved, self.converted_document_corner_points, document_moved_matrix
+
+    def get_document_moved_matrix(self, new_converted_document_corner_points):
+
+        coords_old = np.float32([[self.converted_document_corner_points[0][0], self.converted_document_corner_points[0][1]],
+                               [self.converted_document_corner_points[1][0], self.converted_document_corner_points[1][1]],
+                               [self.converted_document_corner_points[2][0], self.converted_document_corner_points[2]][1],
+                               [self.converted_document_corner_points[3][0], self.converted_document_corner_points[3][1]]])
+
+        coords_new = np.float32([[new_converted_document_corner_points[0][0], new_converted_document_corner_points[0][1]],
+                                 [new_converted_document_corner_points[1][0], new_converted_document_corner_points[1][1]],
+                                 [new_converted_document_corner_points[2][0], new_converted_document_corner_points[2]][1],
+                                 [new_converted_document_corner_points[3][0], new_converted_document_corner_points[3][1]]])
+
+        matrix = cv2.getPerspectiveTransform(coords_old, coords_new)
+
+        return matrix
 
     def __check_highlights_removed(self, highlight_ids):
         # Iterate over the list of known highlight IDs. If one does not appear in the list of new highlight IDs, we
@@ -93,14 +128,17 @@ class AnalogueDigitalDocumentsDemo:
     #     self.get_highlight_rectangles(frame, homography_matrix)
 
     # Convert points from the coordinate system of the pdf to the coordinate system of the output projection
-    def pdf_points_to_real_world(self, frame, all_highlight_points, highlight_ids, document_corner_points):
+    def pdf_points_to_real_world(self, document_corner_points, all_points_to_be_transformed, ids_for_point_groups=None):
 
         matrix = self.get_matrix_for_pdf_coordinate_transform(document_corner_points, to_pdf=False)
 
-        highlight_dict = {}
+        if ids_for_point_groups:
+            transformed_output = {}
+        else:
+            transformed_output = []
 
-        for i, highlight_group in enumerate(all_highlight_points):
-            points_to_be_transformed = np.array([highlight_group], dtype=np.float32)
+        for i, points in enumerate(all_points_to_be_transformed):
+            points_to_be_transformed = np.array([points], dtype=np.float32)
 
             transformed_points = cv2.perspectiveTransform(points_to_be_transformed, matrix)
             transformed_points = transformed_points.tolist()[0]
@@ -116,27 +154,28 @@ class AnalogueDigitalDocumentsDemo:
             # Convert floats to int
             flat_list = [int(number) for number in flat_list]
 
-            highlight_dict[highlight_ids[i]] = flat_list
+            if ids_for_point_groups:
+                transformed_output[ids_for_point_groups[i]] = flat_list
+            else:
+                transformed_output.append(flat_list)
 
-            if DEBUG_MODE:
-                cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
+        #     if DEBUG_MODE:
+        #         cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
+        #
+        # if DEBUG_MODE:
+        #     frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
+        #                      (document_corner_points[2], document_corner_points[3]), (0, 0, 255), thickness=3)
+        #     frame = cv2.line(frame, (document_corner_points[2], document_corner_points[3]),
+        #                      (document_corner_points[4], document_corner_points[5]), (0, 0, 255), thickness=3)
+        #     frame = cv2.line(frame, (document_corner_points[4], document_corner_points[5]),
+        #                      (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
+        #     frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
+        #                      (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
+        #
+        #     cv2.imshow('Logitech Brio', frame)
+        #     cv2.waitKey(1)
 
-        if DEBUG_MODE:
-            frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
-                             (document_corner_points[2], document_corner_points[3]), (0, 0, 255), thickness=3)
-            frame = cv2.line(frame, (document_corner_points[2], document_corner_points[3]),
-                             (document_corner_points[4], document_corner_points[5]), (0, 0, 255), thickness=3)
-            frame = cv2.line(frame, (document_corner_points[4], document_corner_points[5]),
-                             (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
-            frame = cv2.line(frame, (document_corner_points[0], document_corner_points[1]),
-                             (document_corner_points[6], document_corner_points[7]), (0, 0, 255), thickness=3)
-
-            cv2.imshow('Logitech Brio', frame)
-            cv2.waitKey(1)
-
-        return highlight_dict
-
-
+        return transformed_output
 
     def convert_hightlight_data(self, highlights):
         highlight_ids = []
