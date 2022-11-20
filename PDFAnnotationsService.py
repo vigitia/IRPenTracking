@@ -24,6 +24,9 @@ class PDFAnnotationsService:
         print('[PdfAnnotationsExtractionService]: Ready')
         self.document_path = FULL_PATH_INPUT
         self.writer = PdfFileWriter()
+
+        self.reset_document_annotations_from_output_file()
+
         self.__fetch_document_data()
 
     # Get all again from the document
@@ -257,6 +260,15 @@ class PDFAnnotationsService:
             file_writer.write(out_file)
 
         self.__fetch_document_data()
+
+    def reset_document_annotations_from_output_file(self):
+        print('write new annotations to PDF')
+        file_writer = PdfFileWriter()
+        file_writer.appendPagesFromReader(PdfFileReader(open(self.document_path, "rb")))
+        file_writer.removeLinks()  # Delete all Annotations from PDF
+
+        with open(FULL_PATH_OUTPUT, "wb") as out_file:
+            file_writer.write(out_file)
 
 
 if __name__ == '__main__':
