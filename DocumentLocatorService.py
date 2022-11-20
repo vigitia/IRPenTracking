@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from scipy.spatial import distance
 
-MAX_TIME_MISSING_MS = 1000
+MAX_TIME_MISSING_MS = 500
 MAX_DIST_BETWEEN_POINTS = 5
 
 SMOOTHING_FACTOR = 0.3
@@ -13,7 +13,7 @@ SMOOTHING_FACTOR = 0.3
 DEBUG_MODE = False
 
 # Relation between border and marker width. Border = PAPER_BORDER_FACTOR * width of marker
-PAPER_BORDER_FACTOR = 0.4
+PAPER_BORDER_FACTOR = 0.5
 
 
 class Document:
@@ -24,20 +24,15 @@ class Document:
         self.corner_bottom_right = corner_bottom_right
         self.corner_top_right = corner_top_right
 
-        # self.contour_points = [corner_top_left[0], corner_top_left[1], corner_bottom_left[0], corner_bottom_left[1],
-        #                        corner_bottom_right[0], corner_bottom_right[1], corner_top_right[0], corner_top_right[1]]
-
         self.last_seen_timestamp = round(time.time() * 1000)
 
     def get_document_corner_points(self):
-        document_corner_points = [self.corner_top_left[0], self.corner_top_left[1], self.corner_bottom_left[0], self.corner_bottom_left[1],
-                          self.corner_bottom_right[0], self.corner_bottom_right[1], self.corner_top_right[0], self.corner_top_right[1]]
+        document_corner_points = [self.corner_top_left[0], self.corner_top_left[1],
+                                  self.corner_bottom_left[0], self.corner_bottom_left[1],
+                                  self.corner_bottom_right[0], self.corner_bottom_right[1],
+                                  self.corner_top_right[0], self.corner_top_right[1]]
 
         return document_corner_points
-
-
-    # def __repr__(self):
-    #     return str(self.contour_points)
 
 
 class DocumentLocatorService:

@@ -151,7 +151,6 @@ class Document {
         bool isPointInDocument(int x, int y);
         bool alive = false;
         void setPoints(Point top_left, Point top_right, Point bottom_left, Point bottom_right);
-
 };
 
 Document::Document(Point top_left, Point top_right, Point bottom_left, Point bottom_right)
@@ -291,7 +290,7 @@ Point multiplyPointMatrix(Point point, float matrix[3][3])
 int parseMessage(char* buffer)
 {
     //printf(buffer);
-    //printf("\n--------\n");
+    //printf("\n");
     //fflush(stdout);
 
     if(buffer[0] == 'l')
@@ -313,14 +312,14 @@ int parseMessage(char* buffer)
 
             bool inDocument = document.isPointInDocument(x, y);
 
-            if (inDocument && !wasInDocument)
+            if (document.alive && inDocument && !wasInDocument)
             {
                 lines.push_back(currentLine);
                 currentLine.coords.clear();
                 if(state == STATE_DRAW) currentLine.coords.push_back({x, y});
                 wasInDocument = true;
             }
-            else if (!inDocument && wasInDocument)
+            else if (document.alive && !inDocument && wasInDocument)
             {
                 documentLines.push_back(currentLine);
                 currentLine.coords.clear();
@@ -357,39 +356,55 @@ int parseMessage(char* buffer)
         //else
         //{
         //    cout << "could not read input " << buffer << endl;
-        //	return 0;
+        //    return 0;
         //}
     }
-    else if(buffer[0] == 'e')
+    else if(buffer[0] == 'k')
     {
         int id, state;
         int x1, x2, x3, x4;
         int y1, y2, y3, y4;
-        if(sscanf(buffer, "e %d %d %d %d %d %d %d %d %d \n ", &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 9)
+        if(sscanf(buffer, "k %d %d %d %d %d %d %d %d %d \n ", &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 9)
         {
-            document.alive = (bool) state;
+            //document.alive = (bool) state;
+	    //cout << buffer << endl;
 
             document.top_left = {x1, y1};
             document.top_right = {x2, y2};
             document.bottom_right = {x3, y3};
             document.bottom_left = {x4, y4};
+	    return 1;
+        }
+    }
+    else if(buffer[0] == 's')
+    {
+        int state;
+        if(sscanf(buffer, "s %d \n ", &state) == 1)
+        {
+            document.alive = (bool) state;
+	    return 1;
         }
     }
     else if(buffer[0] == 'm')
     {
         float matrix[3][3];
+	//cout << buffer << endl;
 
         if(sscanf(buffer, "m %f %f %f %f %f %f %f %f %f \n ", &matrix[0][0], &matrix[1][0], &matrix[2][0], &matrix[0][1], &matrix[1][1], &matrix[2][1], &matrix[0][2], &matrix[1][2], &matrix[2][2]) == 9)
         {
-            for (int j = 0; j < documentLines.size(); j++)
-            {
-		    for (int i = 0; i < documentLines.at(j).coords.size(); i++)
+	    //if (document.alive)
+	    //{
+		    for (int j = 0; j < documentLines.size(); j++)
 		    {
-			Point point = documentLines.at(j).coords.at(i);
-			Point pnt = multiplyPointMatrix(point, matrix);
-			documentLines.at(j).coords.at(i) = pnt;
+			    for (int i = 0; i < documentLines.at(j).coords.size(); i++)
+			    {
+				Point point = documentLines.at(j).coords.at(i);
+				Point pnt = multiplyPointMatrix(point, matrix);
+				documentLines.at(j).coords.at(i) = pnt;
+			    }
 		    }
-            }
+	    //}
+	    return 1;
         }
     }
     else if(buffer[0] == 'r')
@@ -491,28 +506,35 @@ int parseMessage(char* buffer)
 
 void *handle_uds(void *args)
 {
-    const int buffer_length = 400;
+    const int buffer_length = 20;
     char buffer[buffer_length];
     string residual = "";
 
+    int id, x, y, state;
+    int size;
+
     while(1)
     {
-        int id, x, y, state;
-
-        int size;
-
         size = recv(client_socket, buffer, buffer_length-1, MSG_WAITALL);
         //size = read(client_socket, buffer, buffer_length-1);
 
+	//cout << size << " -- " << buffer << endl;
         if(size > 0)
         {
             vector<string> substrings = split(residual + buffer, "|");
             int i = 0;
 
+	    residual = "";
+
             for (auto message : substrings)
             {
                 i++;
                 int result = parseMessage((char *) message.c_str());
+
+		//if (result == 0)
+		//{
+		//	cout << "failed " << i << " " << substrings.size() << " " << message << endl;
+		//}
 
                 if (result == 0 && i == substrings.size())
                 {
@@ -521,7 +543,7 @@ void *handle_uds(void *args)
             }
         }
         //send(client_socket, "ok", 2, 0);
-        usleep(500);
+        //usleep(500);
     }
 }
 
@@ -776,7 +798,6 @@ void renderHighlights(SDL_Renderer* renderer)
 
 void renderLines(SDL_Renderer* renderer)
 {
-
     for (auto const& line : lines)
     {
         vector<Point> coords = line.coords;
@@ -836,7 +857,9 @@ void render(SDL_Renderer* renderer)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);    //
 
-    renderHighlights(renderer);
+    //cout << "document alive render: " << document.alive << endl;
+
+    if(document.alive) renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
     if(currentMode == image) renderImage(renderer);
     if(SHOW_LINES) renderLines(renderer);

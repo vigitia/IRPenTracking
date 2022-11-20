@@ -67,7 +67,7 @@ TRAIN_STATE = 'hover_far_1_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECO
 TRAIN_PATH = 'training_images/2022-08-19'
 TRAIN_IMAGE_COUNT = 3000
 
-DOCUMENTS_DEMO = False
+DOCUMENTS_DEMO = True
 
 # Decorator to print the run time of a single function
 # Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
@@ -1043,11 +1043,13 @@ class IRPenDebugger:
     rois = []
 
     active_pen_events = []
-    remaining_line_points = {}
+    # remaining_line_points = {}
 
     uds_initialized = False
     sock = None
     pipeout = None
+
+    last_heartbeat_timestamp = 0
 
     def __init__(self):
         from flir_blackfly_s import FlirBlackflyS
@@ -1068,23 +1070,55 @@ class IRPenDebugger:
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
-        highlight_dict, document_changed, document_removed, document_moved, converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
+        document_found, highlight_dict, document_changed, document_removed, document_moved, converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
         # print('num highlights', len(highlight_dict))
+
+        # print('Final rectangles:', highlight_rectangles)
+
+        self.send_heartbeat(document_found)
+        #now = round(time.time() * 1000)
+
+        #HEARTBEAT_INTERVAL_MS = 200
+
+        #if now - self.last_heartbeat_timestamp > HEARTBEAT_INTERVAL_MS:
+        #    self.send_heartbeat(document_found)
+        #    self.last_heartbeat_timestamp = now
+
+        if document_moved and not document_removed:
+            self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
+            try:
+                for highlight_id, rectangle in highlight_dict.items():
+                    self.send_rect(highlight_id, 1, rectangle)
+            except:
+                print('error sending highlights')
+
+        if document_removed:
+            self.send_corner_points([])
+
+        if document_found:
+            if len(document_moved_matrix) > 0:
+                self.send_matrix(document_moved_matrix)
 
         if document_changed or document_removed:
             self.clear_rects()
 
-        for highlight_id, rectangle in highlight_dict.items():
-            self.send_rect(highlight_id, 1, rectangle)
+    def send_heartbeat(self, document_found):
+        message = f's {int(document_found)} |'
 
-        # print('Final rectangles:', highlight_rectangles)
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                # print('SEND HEARTBEAT')
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_heartbeat')
+                self.init_unix_socket()
 
-        if document_moved or document_removed:
-            self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
-
-        if len(document_moved_matrix) > 0:
-            self.send_matrix(document_moved_matrix)
+        return 1
 
     def send_matrix(self, matrix):
         # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
@@ -1101,7 +1135,7 @@ class IRPenDebugger:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                print('SEND MATRIX')
+                # print('SEND MATRIX')
                 self.sock.send(message.encode())
             except Exception as e:
                 print(e)
@@ -1115,12 +1149,14 @@ class IRPenDebugger:
         if not self.uds_initialized:
             return 0
 
-        message = f'e '
-        if len(converted_document_corner_points) > 0:
+        message = f'k '
+        if len(converted_document_corner_points) == 4:
+
             for point in converted_document_corner_points:
                 message += f'{int(point[0])} {int(point[1])} '
             message += '1 '  # document exists
         else:
+
             for i in range(9):
                 message += '0 '
 
@@ -1129,9 +1165,9 @@ class IRPenDebugger:
         # print('message', message)
 
         if ENABLE_FIFO_PIPE:
-            print('SEND CORNER POINTS')
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
+            print('SEND CORNER POINTS')
             try:
                 self.sock.send(message.encode())
             except Exception as e:
@@ -1163,7 +1199,7 @@ class IRPenDebugger:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                print('SEND RECT')
+                # print('SEND RECT')
                 self.sock.send(message.encode())
             except Exception as e:
                 print(e)
@@ -1291,10 +1327,10 @@ class IRPenDebugger:
                     # Reset list because we do not want to send the same points again
                     self.active_pen_events = []
 
-                for line_id, line in self.remaining_line_points.items():
-                    self.append_line(line_id, line)
-                # Reset because we do not want to send it again
-                self.remaining_line_points = {}
+                # for line_id, line in self.remaining_line_points.items():
+                #     self.append_line(line_id, line)
+                # # Reset because we do not want to send it again
+                # self.remaining_line_points = {}
 
                 if not DEBUG_MODE:
                     # TODO: Check why we need a delay here. Without it, it will lag horribly.
@@ -1360,12 +1396,14 @@ class IRPenDebugger:
             self.rois = rois
             self.active_pen_events = active_pen_events
 
-            # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
-            # if len(line_ids_to_delete) > 0:
-            #     for line_id in line_ids_to_delete:
-            #         self.delete_line(line_id)
-
-            # self.remaining_line_points = remaining_line_points
+            if DOCUMENTS_DEMO:
+                self.analogue_digital_document.on_new_finished_lines(stored_lines)
+                # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
+                # if len(line_ids_to_delete) > 0:
+                #     for line_id in line_ids_to_delete:
+                #         self.delete_line(line_id)
+                #
+                # self.remaining_line_points = remaining_line_points
 
 
 if __name__ == '__main__':

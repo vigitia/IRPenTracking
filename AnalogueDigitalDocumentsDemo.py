@@ -24,10 +24,11 @@ class AnalogueDigitalDocumentsDemo:
     transform_matrix = None
 
     stored_lines = []
-    # document_corner_points = []
+    lines_on_pdf = []
+
     converted_document_corner_points = []  # Store current pos of document on table
 
-    lines_on_pdf = []
+    # document_corner_points = []
     # lines_on_pdf_modified = False
 
     highlight_dict = {}
@@ -49,6 +50,7 @@ class AnalogueDigitalDocumentsDemo:
         document_removed = False
         document_moved = False
         document_changed = False
+        # document_returned = True
         document_moved_matrix = []
 
         # Detect ArUco markers in the camera frame
@@ -61,12 +63,16 @@ class AnalogueDigitalDocumentsDemo:
         if self.document_found and not document_found:
             document_removed = True  # Notify the frontend (only once!)
             self.highlight_dict = {}
-            self.converted_document_corner_points = []
+            # self.converted_document_corner_points = []
         self.document_found = document_found
 
-        previous_frame_corners = self.converted_document_corner_points  # Remember before we update them
+        # if not self.document_found and document_found:
+        #     print('DOCUMENT RETURNED')
+        #     document_returned = True
+
+
         if document_found:
-            print('DOCUMENT FOUND!')
+            # print('DOCUMENT FOUND!')
             self.document_on_table = True
             # self.document_last_seen_timestamp = now
 
@@ -75,10 +81,12 @@ class AnalogueDigitalDocumentsDemo:
 
             new_converted_document_corner_points = self.transform_coords_to_output_res(corner_points_tuple_list)
 
-            if len(self.converted_document_corner_points) > 0:
-                document_moved_matrix = self.get_document_moved_matrix(new_converted_document_corner_points)
-
+            previous_frame_corners = self.converted_document_corner_points.copy()  # Remember before we update them
             self.converted_document_corner_points = new_converted_document_corner_points
+            document_moved = previous_frame_corners != self.converted_document_corner_points
+
+            if len(previous_frame_corners) > 0 and len(new_converted_document_corner_points) > 0 and document_moved:
+                document_moved_matrix = self.get_document_moved_matrix(previous_frame_corners, new_converted_document_corner_points)
 
             # Extract annotations from PDF
             highlights, notes, freehand_lines, document_changed = self.pdf_annotations_service.get_annotations()
@@ -86,7 +94,7 @@ class AnalogueDigitalDocumentsDemo:
             all_highlight_points, highlight_ids = self.convert_hightlight_data(highlights)
             self.highlight_dict = self.pdf_points_to_real_world(document_corner_points, all_highlight_points, highlight_ids)
 
-            document_moved = previous_frame_corners == self.converted_document_corner_points
+
         # else:
         #     # Check how long the document is missing. Remove all projected highlights if missing for too long
         #     # if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_MS:
@@ -106,14 +114,14 @@ class AnalogueDigitalDocumentsDemo:
 
         # TODO: use distance with threshold
 
-        return self.highlight_dict, document_changed, document_removed, document_moved, self.converted_document_corner_points, document_moved_matrix
+        return document_found, self.highlight_dict, document_changed, document_removed, document_moved, self.converted_document_corner_points, document_moved_matrix
 
-    def get_document_moved_matrix(self, new_converted_document_corner_points):
+    def get_document_moved_matrix(self, previous_frame_corners, new_converted_document_corner_points):
 
-        coords_old = np.float32([[self.converted_document_corner_points[0][0], self.converted_document_corner_points[0][1]],
-                                 [self.converted_document_corner_points[1][0], self.converted_document_corner_points[1][1]],
-                                 [self.converted_document_corner_points[2][0], self.converted_document_corner_points[2]][1],
-                                 [self.converted_document_corner_points[3][0], self.converted_document_corner_points[3][1]]])
+        coords_old = np.float32([[previous_frame_corners[0][0], previous_frame_corners[0][1]],
+                                 [previous_frame_corners[1][0], previous_frame_corners[1][1]],
+                                 [previous_frame_corners[2][0], previous_frame_corners[2]][1],
+                                 [previous_frame_corners[3][0], previous_frame_corners[3][1]]])
 
         coords_new = np.float32([[new_converted_document_corner_points[0][0], new_converted_document_corner_points[0][1]],
                                  [new_converted_document_corner_points[1][0], new_converted_document_corner_points[1][1]],
@@ -235,8 +243,8 @@ class AnalogueDigitalDocumentsDemo:
 
     def on_new_finished_lines(self, lines):
 
-        line_ids_to_delete = []
-        remaining_line_points = {}
+        # line_ids_to_delete = []
+        # remaining_line_points = {}
 
         if len(lines) > len(self.stored_lines):
             num_new_lines = len(lines) - len(self.stored_lines)
@@ -245,13 +253,14 @@ class AnalogueDigitalDocumentsDemo:
             new_lines = self.stored_lines[len(self.stored_lines) - num_new_lines:]
             # print('Extracted new lines:', new_lines)
 
-            line_ids_to_delete, remaining_line_points = self.process_new_lines(new_lines)
-        return line_ids_to_delete, remaining_line_points
+            self.process_new_lines(new_lines)
+            # line_ids_to_delete, remaining_line_points = self.process_new_lines(new_lines)
+        # return line_ids_to_delete, remaining_line_points
 
     def process_new_lines(self, new_lines):
         lines_to_add_to_pdf = []
-        remaining_line_points = {}
-        line_ids_to_delete = []
+        # remaining_line_points = {}
+        # line_ids_to_delete = []
 
         for new_line in new_lines:
             for line_id, line in new_line.items():
@@ -265,22 +274,22 @@ class AnalogueDigitalDocumentsDemo:
                         points_outside_document.append(point)
                 if len(points_on_document) > 0:
                     lines_to_add_to_pdf.append(points_on_document)
-                    line_ids_to_delete.append(line_id)
-                    if len(points_outside_document) > 0:
-                        remaining_line_points[line_id] = points_outside_document
+                    # line_ids_to_delete.append(line_id)
+                    # if len(points_outside_document) > 0:
+                    #     remaining_line_points[line_id] = points_outside_document
 
-        for line in lines_to_add_to_pdf:
-            print('len line points on pdf', len(line))
+        # for line in lines_to_add_to_pdf:
+        #     print('len line points on pdf', len(line))
+        #
+        # for line_id, line in remaining_line_points.items():
+        #     print('len line points off pdf for id {}: '.format(line_id), len(line))
+        #
+        # if len(lines_to_add_to_pdf) > 0:
+        #     print('ADD THESE LINES TO PDF:', lines_to_add_to_pdf)
 
-        for line_id, line in remaining_line_points.items():
-            print('len line points off pdf for id {}: '.format(line_id), len(line))
+        self.add_lines_to_pdf(lines_to_add_to_pdf)
 
-        if len(lines_to_add_to_pdf) > 0:
-            print('ADD THESE LINES TO PDF:', lines_to_add_to_pdf)
-
-            self.add_lines_to_pdf(lines_to_add_to_pdf)
-
-        return line_ids_to_delete, remaining_line_points
+        # return line_ids_to_delete, remaining_line_points
 
     # Check if a point is on which side of a line. Return True if on right side, return False if on left side
     # https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
