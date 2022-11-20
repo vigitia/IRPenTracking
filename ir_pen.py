@@ -67,6 +67,7 @@ TRAIN_STATE = 'hover_far_1_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECO
 TRAIN_PATH = 'training_images/2022-08-19'
 TRAIN_IMAGE_COUNT = 3000
 
+DOCUMENTS_DEMO = False
 
 # Decorator to print the run time of a single function
 # Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
@@ -1054,11 +1055,12 @@ class IRPenDebugger:
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
-        self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
+        if DOCUMENTS_DEMO:
+            self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
-        self.logitech_brio_camera = LogitechBrio(self)
-        self.logitech_brio_camera.init_video_capture()
-        self.logitech_brio_camera.start()
+            self.logitech_brio_camera = LogitechBrio(self)
+            self.logitech_brio_camera.init_video_capture()
+            self.logitech_brio_camera.start()
 
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
@@ -1074,14 +1076,12 @@ class IRPenDebugger:
             self.clear_rects()
 
         for highlight_id, rectangle in highlight_dict.items():
-            # TODO: Send info for highlights that should be removed
-            #print(highlight_id, rectangle)
             self.send_rect(highlight_id, 1, rectangle)
 
         # print('Final rectangles:', highlight_rectangles)
 
         if document_moved or document_removed:
-            self.send_corner_points(converted_document_corner_points) # , int(not document_removed) Andi was here
+            self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
 
         if len(document_moved_matrix) > 0:
             self.send_matrix(document_moved_matrix)
@@ -1101,11 +1101,12 @@ class IRPenDebugger:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
+                print('SEND MATRIX')
                 self.sock.send(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe in send_rect')
+                print('Broken Pipe in send_matrix')
                 self.init_unix_socket()
 
         return 1
@@ -1118,7 +1119,7 @@ class IRPenDebugger:
         if len(converted_document_corner_points) > 0:
             for point in converted_document_corner_points:
                 message += f'{int(point[0])} {int(point[1])} '
-            message += '1 ' # document exists
+            message += '1 '  # document exists
         else:
             for i in range(9):
                 message += '0 '
@@ -1128,6 +1129,7 @@ class IRPenDebugger:
         # print('message', message)
 
         if ENABLE_FIFO_PIPE:
+            print('SEND CORNER POINTS')
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
@@ -1135,12 +1137,10 @@ class IRPenDebugger:
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe in send_rect')
+                print('Broken Pipe in send_corner_points')
                 self.init_unix_socket()
 
         return 1
-
-
 
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
@@ -1163,11 +1163,12 @@ class IRPenDebugger:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
+                print('SEND RECT')
                 self.sock.send(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe in send_rect')
+                print('Broken Pipe in send_rect()')
                 self.init_unix_socket()
 
         return 1
@@ -1189,7 +1190,7 @@ class IRPenDebugger:
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe in delete line')
+                print('Broken Pipe in delete_line()')
                 self.init_unix_socket()
 
     def add_new_line_point(self):
@@ -1209,7 +1210,7 @@ class IRPenDebugger:
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe while sending new line data')
+                print('Broken Pipe in add_new_line_point()')
                 self.init_unix_socket()
 
     def append_line(self, line_id, line):
@@ -1228,8 +1229,7 @@ class IRPenDebugger:
             if i < len(line) - 1:
                 message += ';'
 
-        # Append message end
-        message += ' - |'
+        message += ' - |'  # Append message end
 
         print('message append', len(message), message)
 
@@ -1241,7 +1241,7 @@ class IRPenDebugger:
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe in delete line')
+                print('Broken Pipe in append_line')
                 self.init_unix_socket()
 
     def clear_rects(self):
@@ -1250,12 +1250,13 @@ class IRPenDebugger:
 
         if ENABLE_UNIX_SOCKET:
             try:
+                print('CLEAR RECTS')
                 self.sock.send('c |'.encode())
                 return 1
             except Exception as e:
                 print(e)
                 print('---------')
-                print('Broken Pipe in delete line')
+                print('Broken Pipe in clear_rects()')
                 self.init_unix_socket()
 
     def init_unix_socket(self):
@@ -1298,7 +1299,7 @@ class IRPenDebugger:
                 if not DEBUG_MODE:
                     # TODO: Check why we need a delay here. Without it, it will lag horribly.
                     #  time.sleep() does not work here
-                    key = cv2.waitKey(1)
+                    cv2.waitKey(1)
 
             if DEBUG_MODE:
                 if len(self.rois) == 2:

@@ -135,9 +135,9 @@ class DocumentLocatorService:
 
         if self.active_document is not None:
             # return self.active_document.contour_points
-            return self.active_document.get_document_corner_points()
+            return True, self.active_document.get_document_corner_points()
         else:
-            return []
+            return False, []
 
     def check_new_pos(self, corner_top_left, corner_bottom_left, corner_bottom_right, corner_top_right):
         now = round(time.time() * 1000)

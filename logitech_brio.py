@@ -82,11 +82,6 @@ class LogitechBrio:
                     self.counter = 0
                     self.start_time = time.time()
 
-    # @staticmethod
-    # # Request the current resolution of the camera
-    # def get_resolution():
-    #     return RES_X, RES_Y
-
     # Stop the thread
     def stop(self):
         if self.started:

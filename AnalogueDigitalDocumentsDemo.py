@@ -1,5 +1,3 @@
-import sys
-import time
 
 import cv2
 import numpy as np
@@ -7,14 +5,14 @@ import numpy as np
 from DocumentLocatorService import DocumentLocatorService
 from PDFAnnotationsService import PDFAnnotationsService
 from FiducialsDetectorService import FiducialsDetectorService
-from logitech_brio import LogitechBrio
+# from logitech_brio import LogitechBrio
 
 # from scipy.spatial import distance
 
 PDF_WIDTH = 595.446
 PDF_HEIGHT = 841.691
 
-MAX_TIME_DOCUMENT_MISSING_MS = 500
+# MAX_TIME_DOCUMENT_MISSING_MS = 500
 
 RES_2160P = True
 
@@ -30,12 +28,14 @@ class AnalogueDigitalDocumentsDemo:
     converted_document_corner_points = []  # Store current pos of document on table
 
     lines_on_pdf = []
-    lines_on_pdf_modified = False
+    # lines_on_pdf_modified = False
 
     highlight_dict = {}
 
-    document_on_table = False
-    document_last_seen_timestamp = 0
+    document_found = False
+
+    # document_on_table = False
+    # document_last_seen_timestamp = 0
 
     def __init__(self):
         self.document_locator_service = DocumentLocatorService()
@@ -43,68 +43,77 @@ class AnalogueDigitalDocumentsDemo:
         self.fiducials_detection_service = FiducialsDetectorService()
 
     def get_highlight_rectangles(self, frame, transform_matrix):
+
         self.transform_matrix = transform_matrix
+
+        document_removed = False
+        document_moved = False
+        document_changed = False
+        document_moved_matrix = []
 
         # Detect ArUco markers in the camera frame
         aruco_markers = self.fiducials_detection_service.detect_fiducials(frame)
 
         # Locate the document. Order of document_corner_points TLC, BLC, BRC, TRC
-        document_found, document_corner_points = self.locate_document(frame, aruco_markers)
+        document_found, document_corner_points = self.document_locator_service.locate_document(frame, aruco_markers)
 
-        document_removed = False
-        document_changed = False
-        document_moved_matrix = []
+        # Catch the moment when the document goes missing
+        if self.document_found and not document_found:
+            document_removed = True  # Notify the frontend (only once!)
+            self.highlight_dict = {}
+            self.converted_document_corner_points = []
+        self.document_found = document_found
 
-        now = round(time.time() * 1000)
-
-        tmp_corners = self.converted_document_corner_points
+        previous_frame_corners = self.converted_document_corner_points  # Remember before we update them
         if document_found:
+            print('DOCUMENT FOUND!')
             self.document_on_table = True
-            self.document_last_seen_timestamp = now
+            # self.document_last_seen_timestamp = now
 
             # Convert the four corner points of the document into the projection space coordinate system
             corner_points_tuple_list = self.list_to_points_list(document_corner_points)
 
             new_converted_document_corner_points = self.transform_coords_to_output_res(corner_points_tuple_list)
+
             if len(self.converted_document_corner_points) > 0:
                 document_moved_matrix = self.get_document_moved_matrix(new_converted_document_corner_points)
 
             self.converted_document_corner_points = new_converted_document_corner_points
-
-            document_moved = False
 
             # Extract annotations from PDF
             highlights, notes, freehand_lines, document_changed = self.pdf_annotations_service.get_annotations()
 
             all_highlight_points, highlight_ids = self.convert_hightlight_data(highlights)
             self.highlight_dict = self.pdf_points_to_real_world(document_corner_points, all_highlight_points, highlight_ids)
-        else:
-            # Check how long the document is missing. Remove all projected highlights if missing for too long
-            if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_MS:
-                if self.document_on_table:
-                    document_removed = True
-                    self.document_on_table = False
-                    self.highlight_dict = {}
-                    self.converted_document_corner_points = []
 
-        if self.lines_on_pdf_modified:
-            print('---------------------------------------------LINES ON PDF MODIFIED!')
-            # TODO: transform lines on pdf here and send them again
-            # lines_transformed = self.pdf_points_to_real_world(document_corner_points, self.lines_on_pdf)
+            document_moved = previous_frame_corners == self.converted_document_corner_points
+        # else:
+        #     # Check how long the document is missing. Remove all projected highlights if missing for too long
+        #     # if now - self.document_last_seen_timestamp > MAX_TIME_DOCUMENT_MISSING_MS:
+        #         # if self.document_on_table:
+        #     if document_found
+        #         document_removed = True
+        #         self.document_on_table = False
+        #         self.highlight_dict = {}
+        #         self.converted_document_corner_points = []
 
-            self.lines_on_pdf_modified = False
+        # if self.lines_on_pdf_modified:
+        #     print('---------------------------------------------LINES ON PDF MODIFIED!')
+        #     # TODO: transform lines on pdf here and send them again
+        #     # lines_transformed = self.pdf_points_to_real_world(document_corner_points, self.lines_on_pdf)
+        #
+        #     self.lines_on_pdf_modified = False
 
         # TODO: use distance with threshold
-        document_moved = tmp_corners == self.converted_document_corner_points
 
         return self.highlight_dict, document_changed, document_removed, document_moved, self.converted_document_corner_points, document_moved_matrix
 
     def get_document_moved_matrix(self, new_converted_document_corner_points):
 
         coords_old = np.float32([[self.converted_document_corner_points[0][0], self.converted_document_corner_points[0][1]],
-                               [self.converted_document_corner_points[1][0], self.converted_document_corner_points[1][1]],
-                               [self.converted_document_corner_points[2][0], self.converted_document_corner_points[2]][1],
-                               [self.converted_document_corner_points[3][0], self.converted_document_corner_points[3][1]]])
+                                 [self.converted_document_corner_points[1][0], self.converted_document_corner_points[1][1]],
+                                 [self.converted_document_corner_points[2][0], self.converted_document_corner_points[2]][1],
+                                 [self.converted_document_corner_points[3][0], self.converted_document_corner_points[3][1]]])
 
         coords_new = np.float32([[new_converted_document_corner_points[0][0], new_converted_document_corner_points[0][1]],
                                  [new_converted_document_corner_points[1][0], new_converted_document_corner_points[1][1]],
@@ -123,9 +132,6 @@ class AnalogueDigitalDocumentsDemo:
                 print('Deleted Highlight with ID:', previous_highlight_id)
                 return True
         return False
-
-    # def on_new_brio_frame(self, frame, homography_matrix):
-    #     self.get_highlight_rectangles(frame, homography_matrix)
 
     # Convert points from the coordinate system of the pdf to the coordinate system of the output projection
     def pdf_points_to_real_world(self, document_corner_points, all_points_to_be_transformed, ids_for_point_groups=None):
@@ -315,7 +321,7 @@ class AnalogueDigitalDocumentsDemo:
                     # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
                     points_list = [item for sublist in transformed_points for item in sublist]
                     self.lines_on_pdf.append(points_list)
-                    self.lines_on_pdf_modified = True
+                    # self.lines_on_pdf_modified = True
 
             # Add lines permanently to pdf file
             if len(self.lines_on_pdf) > 0:
@@ -345,11 +351,6 @@ class AnalogueDigitalDocumentsDemo:
         # (with origin in the bottom left corner and the correct resolution of the pdf)
 
         return matrix
-
-    def locate_document(self, color_image_table, aruco_markers):
-        document_corner_points = self.document_locator_service.locate_document(color_image_table, aruco_markers)
-        document_found = len(document_corner_points) > 0
-        return document_found, document_corner_points
 
 
 if __name__ == '__main__':
