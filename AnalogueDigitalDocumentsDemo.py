@@ -137,19 +137,21 @@ class AnalogueDigitalDocumentsDemo:
         # know that the corresponding highlight must have been deleted
         for previous_highlight_id in self.highlight_dict.keys():
             if previous_highlight_id not in highlight_ids:
-                print('Deleted Highlight with ID:', previous_highlight_id)
+                # print('Deleted Highlight with ID:', previous_highlight_id)
                 return True
         return False
 
     # Convert points from the coordinate system of the pdf to the coordinate system of the output projection
-    def pdf_points_to_real_world(self, document_corner_points, all_points_to_be_transformed, ids_for_point_groups=None):
+    def pdf_points_to_real_world(self, document_corner_points, all_points_to_be_transformed, ids_for_point_groups):
 
         matrix = self.get_matrix_for_pdf_coordinate_transform(document_corner_points, to_pdf=False)
 
-        if ids_for_point_groups:
-            transformed_output = {}
-        else:
-            transformed_output = []
+        transformed_output = {}
+
+        # if ids_for_point_groups:
+        #     transformed_output = {}
+        # else:
+        #     transformed_output = []
 
         for i, points in enumerate(all_points_to_be_transformed):
             points_to_be_transformed = np.array([points], dtype=np.float32)
@@ -168,10 +170,12 @@ class AnalogueDigitalDocumentsDemo:
             # Convert floats to int
             flat_list = [int(number) for number in flat_list]
 
-            if ids_for_point_groups:
-                transformed_output[ids_for_point_groups[i]] = flat_list
-            else:
-                transformed_output.append(flat_list)
+            transformed_output[ids_for_point_groups[i]] = flat_list
+
+            # if ids_for_point_groups:
+            #     transformed_output[ids_for_point_groups[i]] = flat_list
+            # else:
+            #     transformed_output.append(flat_list)
 
         #     if DEBUG_MODE:
         #         cv2.fillPoly(frame, pts=[np.array(points_tuple_list)], color=(0, 255, 255))
@@ -264,7 +268,7 @@ class AnalogueDigitalDocumentsDemo:
 
         for new_line in new_lines:
             for line_id, line in new_line.items():
-                print('CHECKING LINE with ID {} and length {}', line_id, len(line))
+                # print('CHECKING LINE with ID {} and length {}', line_id, len(line))
                 points_on_document = []
                 points_outside_document = []
                 for point in line:
@@ -307,7 +311,7 @@ class AnalogueDigitalDocumentsDemo:
         # self.converted_document_corner_points is already in the projector coordinate space.
         # So the same space as the received lines
         if len(self.converted_document_corner_points) == 0:
-            print('No document on table. So line cant be on the document')
+            # print('No document on table. So line cant be on the document')
             return False
         num_vert = len(self.converted_document_corner_points)
         is_right = [self.__is_on_right_side(x, y, self.converted_document_corner_points[i], self.converted_document_corner_points[(i + 1) % num_vert]) for i in range(num_vert)]
@@ -334,7 +338,7 @@ class AnalogueDigitalDocumentsDemo:
 
             # Add lines permanently to pdf file
             if len(self.lines_on_pdf) > 0:
-                print('Writing {} lines to pdf'.format(len(self.lines_on_pdf)))
+                # print('Writing {} lines to pdf'.format(len(self.lines_on_pdf)))
                 self.pdf_annotations_service.add_lines_to_pdf(self.lines_on_pdf)
                 self.pdf_annotations_service.write_changes_to_file()
 

@@ -649,7 +649,8 @@ class IRPen:
 
         if len(smallest_contour) < 4:
             cX, cY = min_center
-            print('small contour')
+            # print('small contour')
+            # TODO: HOW TO HANDLE SMALL CONTOURS?
         else:
             # Find the center of the contour using OpenCV Moments
 
@@ -1167,7 +1168,7 @@ class IRPenDebugger:
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
-            print('SEND CORNER POINTS')
+            # print('SEND CORNER POINTS')
             try:
                 self.sock.send(message.encode())
             except Exception as e:

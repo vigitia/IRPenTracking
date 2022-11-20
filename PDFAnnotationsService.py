@@ -4,7 +4,7 @@ import time
 from PyPDF2 import PdfFileReader, PdfFileWriter
 from PyPDF2.generic import DictionaryObject, NumberObject, FloatObject, NameObject, TextStringObject, ArrayObject
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 FILENAME_INPUT = 'berlin.pdf'
 FILENAME_OUTPUT = 'berlin_out.pdf'
@@ -241,7 +241,7 @@ class PDFAnnotationsService:
     # Add a new highlight to the specified page and save the document
     # Function based on https://gist.github.com/agentcooper/4c55133f5d95866acdee5017cd318558
     def add_annotation_to_pdf(self, annotation):
-        print('Adding new annotation:', annotation)
+        # print('Adding new annotation:', annotation)
         page = self.input_pdf.getPage(0)
 
         annotation_ref = self.writer._add_object(annotation)
@@ -252,7 +252,7 @@ class PDFAnnotationsService:
             page[NameObject("/Annots")] = ArrayObject([annotation_ref])
 
     def write_changes_to_file(self):
-        print('write new annotations to PDF')
+        # print('write new annotations to PDF')
         file_writer = PdfFileWriter()
         file_writer.appendPagesFromReader(self.input_pdf)
 
@@ -262,7 +262,7 @@ class PDFAnnotationsService:
         self.__fetch_document_data()
 
     def reset_document_annotations_from_output_file(self):
-        print('write new annotations to PDF')
+        print('RESET PDF')
         file_writer = PdfFileWriter()
         file_writer.appendPagesFromReader(PdfFileReader(open(self.document_path, "rb")))
         file_writer.removeLinks()  # Delete all Annotations from PDF
