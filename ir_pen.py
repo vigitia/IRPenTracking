@@ -21,6 +21,7 @@ from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 from cv2 import cv2
 
 MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
+# MODEL_PATH = 'model_berlin_2'  # Put the folder path here for the desired cnn
 CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel
 
 # Simple Smoothing of the output points. 1 -> No smoothing; 0.5 -> Calculate a new point and use 50% of the previous
@@ -63,8 +64,8 @@ STATES = ['draw', 'hover', 'hover_far', 'undefined']
 # Enable to collect training images if you want to retrain the CNN (see train_network.ipynb)
 TRAINING_DATA_COLLECTION_MODE = False
 ACTIVE_LEARNING_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far_1_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
-TRAIN_PATH = 'training_images/2022-08-19'
+TRAIN_STATE = 'hover_far_0_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
+TRAIN_PATH = 'training_images/2022-11-22'
 TRAIN_IMAGE_COUNT = 3000
 
 DOCUMENTS_DEMO = True
@@ -1112,7 +1113,7 @@ class IRPenDebugger:
         if ENABLE_UNIX_SOCKET:
             try:
                 # print('SEND HEARTBEAT')
-                self.sock.send(message.encode())
+                self.sock.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -1137,7 +1138,7 @@ class IRPenDebugger:
         if ENABLE_UNIX_SOCKET:
             try:
                 # print('SEND MATRIX')
-                self.sock.send(message.encode())
+                self.sock.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -1170,7 +1171,7 @@ class IRPenDebugger:
         if ENABLE_UNIX_SOCKET:
             # print('SEND CORNER POINTS')
             try:
-                self.sock.send(message.encode())
+                self.sock.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -1201,7 +1202,7 @@ class IRPenDebugger:
         if ENABLE_UNIX_SOCKET:
             try:
                 # print('SEND RECT')
-                self.sock.send(message.encode())
+                self.sock.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -1223,7 +1224,7 @@ class IRPenDebugger:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                self.sock.send(message.encode())
+                self.sock.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -1243,7 +1244,7 @@ class IRPenDebugger:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                self.sock.send(message.encode())
+                self.sock.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -1288,7 +1289,7 @@ class IRPenDebugger:
         if ENABLE_UNIX_SOCKET:
             try:
                 print('CLEAR RECTS')
-                self.sock.send('c |'.encode())
+                self.sock.sendall('c |'.encode())
                 return 1
             except Exception as e:
                 print(e)

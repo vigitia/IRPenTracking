@@ -506,7 +506,7 @@ int parseMessage(char* buffer)
 
 void *handle_uds(void *args)
 {
-    const int buffer_length = 20;
+    const int buffer_length = 200;
     char buffer[buffer_length];
     string residual = "";
 
@@ -535,6 +535,11 @@ void *handle_uds(void *args)
 		//{
 		//	cout << "failed " << i << " " << substrings.size() << " " << message << endl;
 		//}
+
+                //if (result == 0)
+                //{
+                //    residual = message;
+                //}
 
                 if (result == 0 && i == substrings.size())
                 {
