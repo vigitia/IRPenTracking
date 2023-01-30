@@ -13,4 +13,6 @@ class Document {
         void setPoints(Point top_left, Point top_right, Point bottom_left, Point bottom_right);
 };
 
+inline Document document = Document();
+
 #endif

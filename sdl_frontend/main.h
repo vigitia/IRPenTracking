@@ -3,6 +3,7 @@
 
 #include <SDL2/SDL.h>
 #include <vector>
+#include <map>
 
 #define MODE_FIFO 0
 #define MODE_UDS 1
@@ -86,6 +87,29 @@ struct Poly {
     bool alive;
 };
 
+
+inline vector<Line> lines;
+inline vector<Line> documentLines;
+inline Line currentLine;
+inline bool wasInDocument = false;
+inline map<int, struct Poly> rects;
+inline int currentId = 0;
+inline int participantId = 0;
+inline int currentX, currentY = 0;
+inline int currentState = 0;
+
+void clearScreen();
+
 bool is_on_right_side(int x, int y, Point xy0, Point xy1);
+
+int parseMessage(char* buffer);
+int parseMessageLine(char* buffer);
+int parseMessageDocument(char* buffer);
+int parseMessageState(char* buffer);
+int parseMessageMatrix(char* buffer);
+int parseMessageRect(char* buffer);
+int parseMessageDelete(char* buffer);
+
+Point multiplyPointMatrix(Point point, float matrix[3][3]);
 
 #endif
