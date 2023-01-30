@@ -1,3 +1,6 @@
+#ifndef __MAIN_H__
+#define __MAIN_H__
+
 #include <SDL2/SDL.h>
 #include <vector>
 
@@ -39,8 +42,8 @@ const int TEXT_BOX_HEIGHT_MEDIUM = (int)(WINDOW_HEIGHT * 0.075);
 const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.1);
 const int TEXTBOX_OFFSET = (int)(WINDOW_HEIGHT * 0.1);
 
-char* SCREENSHOT_PATH = "screenshots/";
-const char* PHRASES_PATH = "evaluation/phrases.txt";
+inline char* SCREENSHOT_PATH = "screenshots/";
+inline const char* PHRASES_PATH = "evaluation/phrases.txt";
 
 using namespace std;
 
@@ -72,3 +75,7 @@ struct Poly {
     short int y[4];
     bool alive;
 };
+
+bool is_on_right_side(int x, int y, Point xy0, Point xy1);
+
+#endif
