@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <SDL2/SDL.h>
 
 #define MODE_FIFO 0
 #define MODE_UDS 1
@@ -19,11 +20,9 @@
 #if MODE == MODE_1080
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
-#define CROSSES_PATH "evaluation/crosses_dots_1080.png"
 #else
 #define WINDOW_WIDTH 3840
 #define WINDOW_HEIGHT 2160
-#define CROSSES_PATH "evaluation/crosses_dots_4k.png"
 #endif
 
 #define IMAGE_PATH "image.png"
@@ -36,8 +35,6 @@
 #define STATE_HOVER 0
 #define STATE_DRAW 1
 
-#define FONT_SIZE 42
-
 
 #define CODE_LINE 'l'
 #define CODE_DOCUMENT 'k'
@@ -47,12 +44,6 @@
 #define CODE_CLEAR 'c'
 #define CODE_CLEAR_SCREEN 'x'
 #define CODE_DELETE 'd'
-
-const int TEXT_BOX_WIDTH = (int)(WINDOW_WIDTH * 0.7);
-const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.05);
-const int TEXT_BOX_HEIGHT_MEDIUM = (int)(WINDOW_HEIGHT * 0.075);
-const int TEXT_BOX_HEIGHT_LARGE = (int)(WINDOW_HEIGHT * 0.1);
-const int TEXTBOX_OFFSET = (int)(WINDOW_HEIGHT * 0.1);
 
 inline char* SCREENSHOT_PATH = "screenshots/";
 inline const char* PHRASES_PATH = "evaluation/phrases.txt";
@@ -88,6 +79,7 @@ struct Poly {
     bool alive;
 };
 
+inline SDL_Renderer* renderer;
 
 inline vector<Line> lines;
 inline vector<Line> documentLines;

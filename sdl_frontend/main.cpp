@@ -2,6 +2,8 @@
 #include "uds.h"
 #include "fifo.h"
 #include "document.h"
+#include "study.h"
+#include "particle.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,22 +29,14 @@
 #include <iostream>
 #include <fstream>
 
-#include "particle.h"
 
 
 using namespace std;
-
-vector<string> phrases;
-vector<int> usedPhrases;
-string currentPhrase;
-int currentTextSize = 0;
 
 bool SHOW_PARTICLES = false;
 vector<Particle> particles;
 
 Modes currentMode = draw;
-
-SDL_Renderer* renderer;
 
 SDL_Point pointToSDL(Point p)
 {
@@ -54,15 +48,9 @@ SDL_Point pointToSDL(Point p)
 
 //document = Document();
 
-SDL_Texture* textTexture;
-TTF_Font* font;
-SDL_Color textColor = { 255, 255, 255 };
 
 uint32_t highlightColor = 0x9900FFFF;
 
-SDL_Surface* textSurface;
-SDL_Surface* crossesSurface;
-SDL_Texture* crossesTexture;
 SDL_Surface* imageSurface;
 SDL_Texture* imageTexture;
 
@@ -135,51 +123,6 @@ const string currentDateTime()
     return buf;
 }
 
-void loadPhrases()
-{
-    string line;
-    ifstream phraseFile(PHRASES_PATH);
-
-    if(phraseFile.is_open())
-    {
-        while(getline(phraseFile, line))
-        {
-            line.pop_back();
-            phrases.push_back(line);
-        }
-        phraseFile.close();
-    }
-}
-
-void nextPhrase()
-{
-    bool newPhraseFound = false;
-    int phraseIndex = 0;
-
-    while(!newPhraseFound)
-    {
-        newPhraseFound = true;
-        phraseIndex = rand() % phrases.size();
-
-        for (auto const& index : usedPhrases)
-        {
-            if(index == phraseIndex)
-            {
-                newPhraseFound = false;
-                break;
-            }
-        }
-    }
-
-    usedPhrases.push_back(phraseIndex);
-    currentPhrase = phrases.at(phraseIndex);
-    //cout << phraseIndex << " " << currentPhrase << endl;
-
-    currentTextSize = (currentTextSize + 1) % 3;
-
-    textSurface = TTF_RenderText_Solid( font, currentPhrase.c_str(), textColor );
-    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
-}
 
 void renderParticles(SDL_Renderer* renderer)
 {
