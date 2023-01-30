@@ -14,7 +14,6 @@
 #include <string.h>
 #include <pthread.h> 
 #include <errno.h>
-//#include <sys/types.h>
 
 #include <sys/stat.h>
 #include <signal.h>
@@ -29,27 +28,12 @@
 #include <iostream>
 #include <fstream>
 
-
-
 using namespace std;
 
 bool SHOW_PARTICLES = false;
 vector<Particle> particles;
 
 Modes currentMode = draw;
-
-SDL_Point pointToSDL(Point p)
-{
-	SDL_Point result = {(int) p.x, (int) p.y};
-	return result;
-}
-
-
-
-//document = Document();
-
-
-uint32_t highlightColor = 0x9900FFFF;
 
 SDL_Surface* imageSurface;
 SDL_Texture* imageTexture;
@@ -58,19 +42,12 @@ bool isSaving = false;
 
 bool showBrokenPipeIndicator = false;
 
-
 void clearScreen()
 {
-    //for (auto const& entry : lines)
-    //{
-    //    entry.second.clear();
-    //}
     lines.clear();
     documentLines.clear();
     currentLine.coords.clear();
 }
-
-
 
 void onExit(int signum)
 {
@@ -110,19 +87,6 @@ void renderLine(SDL_Renderer *rend, vector<Point> *line, SDL_Color color)
         SDL_RenderDrawLines(rend, point_array, line->size());
     }
 }
-
-// https://stackoverflow.com/questions/997946/how-to-get-current-time-and-date-in-c
-const string currentDateTime()
-{
-    time_t     now = time(0);
-    struct tm  tstruct;
-    char       buf[80];
-    tstruct = *localtime(&now);
-    strftime(buf, sizeof(buf), "%Y-%m-%d_%X", &tstruct);
-
-    return buf;
-}
-
 
 void renderParticles(SDL_Renderer* renderer)
 {
@@ -293,24 +257,10 @@ SDL_Surface* loadSurface(string path)
 
     //Load image at specified path
     SDL_Surface* loadedSurface = IMG_Load( path.c_str() );
-    //if( loadedSurface == NULL )
-    //{
-    //    printf( "Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError() );
-    //}
-    //else
-    //{
-    //    //Convert surface to screen format
-    //    optimizedSurface = SDL_ConvertSurface( loadedSurface, gScreenSurface->format, 0 );
-    //    if( optimizedSurface == NULL )
-    //    {
-    //        printf( "Unable to optimize image %s! SDL Error: %s\n", path.c_str(), SDL_GetError() );
-    //    }
-
-    //    //Get rid of old loaded surface
-    //    SDL_FreeSurface( loadedSurface );
-    //}
-    //
-    //return optimizedSurface;
+    if( loadedSurface == NULL )
+    {
+        printf( "Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError() );
+    }
 
     return loadedSurface;
 }
@@ -329,7 +279,6 @@ void saveImage()
     render(renderer);
     usleep(20000);
     SDL_RenderReadPixels(renderer, NULL, format, surface->pixels, surface->pitch);
-    //SDL_SaveBMP(surface, filename);
     IMG_SavePNG(surface, filename);
 
     isSaving = false;
@@ -367,7 +316,6 @@ int main(int argc, char* argv[])
     SCREENSHOT_PATH = participantPath;
     cout << SCREENSHOT_PATH << endl;
 
-    //SDL_Init(SDL_INIT_EVERYTHING); // maybe we have to reduce this?
     SDL_Init(SDL_INIT_VIDEO);
 
     IMG_Init(IMG_INIT_PNG);

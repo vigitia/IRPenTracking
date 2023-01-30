@@ -1,4 +1,6 @@
 #include "main.h"
+#include <ctime>
+#include <SDL2/SDL.h>
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
 bool is_on_right_side(int x, int y, Point xy0, Point xy1)
@@ -42,4 +44,22 @@ vector<string> split (string s, string delimiter) {
 
     res.push_back (s.substr (pos_start));
     return res;
+}
+
+// https://stackoverflow.com/questions/997946/how-to-get-current-time-and-date-in-c
+const string currentDateTime()
+{
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    strftime(buf, sizeof(buf), "%Y-%m-%d_%X", &tstruct);
+
+    return buf;
+}
+
+SDL_Point pointToSDL(Point p)
+{
+	SDL_Point result = {(int) p.x, (int) p.y};
+	return result;
 }
