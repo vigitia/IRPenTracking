@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 #include <vector>
 #include <map>
+#include <string>
 
 #define MODE_FIFO 0
 #define MODE_UDS 1
@@ -110,5 +111,7 @@ int parseMessageState(char* buffer);
 int parseMessageMatrix(char* buffer);
 int parseMessageRect(char* buffer);
 int parseMessageDelete(char* buffer);
+
+vector<string> split (string s, string delimiter);
 
 #endif

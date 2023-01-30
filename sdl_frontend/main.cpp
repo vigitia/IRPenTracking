@@ -1,4 +1,5 @@
 #include "main.h"
+#include "uds.h"
 #include "document.h"
 
 #include <stdio.h>
@@ -24,12 +25,6 @@
 #include <ctime>
 #include <iostream>
 #include <fstream>
-#include <sys/stat.h>
-
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #include "particle.h"
 
@@ -45,12 +40,6 @@ bool SHOW_PARTICLES = false;
 vector<Particle> particles;
 
 Modes currentMode = draw;
-
-int fifo_fd = -1;    // path to FIFO for remotely controlled delay times
-char* fifo_path;
-pthread_t fifo_thread; 
-
-pthread_t uds_thread; 
 
 SDL_Renderer* renderer;
 
@@ -80,10 +69,6 @@ bool isSaving = false;
 
 bool showBrokenPipeIndicator = false;
 
-#define BUF 1024
-#define UDS_FILE "/tmp/sock.uds"
-
-int server_socket, client_socket;
 
 void clearScreen()
 {
@@ -94,123 +79,6 @@ void clearScreen()
     lines.clear();
     documentLines.clear();
     currentLine.coords.clear();
-}
-
-// https://stackoverflow.com/questions/14265581/parse-split-a-string-in-c-using-string-delimiter-standard-c
-vector<string> split (string s, string delimiter) {
-    size_t pos_start = 0, pos_end, delim_len = delimiter.length();
-    string token;
-    vector<string> res;
-
-    while ((pos_end = s.find (delimiter, pos_start)) != string::npos) {
-        token = s.substr (pos_start, pos_end - pos_start);
-        pos_start = pos_end + delim_len;
-        res.push_back (token);
-    }
-
-    res.push_back (s.substr (pos_start));
-    return res;
-}
-
-
-vector<Point> parseAppendLine(char* buffer)
-{
-    vector<Point> points;
-
-    vector<string> substrings = split(buffer, ";");
-    int i = 0;
-
-    int x, y;
-    for (auto message : substrings)
-    {
-        i++;
-        if (sscanf(message.c_str(), "%d,%d", &x, &y) == 2)
-        {
-            //cout << x << ", " << y << endl;
-            points.push_back({x, y});
-        }
-    }
-    //cout << "num coords: " << i << endl;
-
-    return points;
-}
-
-
-void *handle_uds(void *args)
-{
-    const int buffer_length = 20;
-    char buffer[buffer_length];
-    string residual = "";
-
-    int id, x, y, state;
-    int size;
-
-    while(1)
-    {
-        size = recv(client_socket, buffer, buffer_length-1, MSG_WAITALL);
-        //size = read(client_socket, buffer, buffer_length-1);
-
-	//cout << size << " -- " << buffer << endl;
-        if(size > 0)
-        {
-            vector<string> substrings = split(residual + buffer, "|");
-            int i = 0;
-
-	    residual = "";
-
-            for (auto message : substrings)
-            {
-                i++;
-                int result = parseMessage((char *) message.c_str());
-
-		//if (result == 0)
-		//{
-		//	cout << "failed " << i << " " << substrings.size() << " " << message << endl;
-		//}
-
-                if (result == 0 && i == substrings.size())
-                {
-                    residual = message;
-                }
-            }
-        }
-        //send(client_socket, "ok", 2, 0);
-        //usleep(500);
-    }
-}
-
-int init_uds()
-{
-    socklen_t addrlen;
-    ssize_t size;
-    struct sockaddr_un address;
-    const int y = 1;
-    if((server_socket=socket (AF_LOCAL, SOCK_STREAM, 0)) > 0)
-        printf ("created socket\n");
-    unlink(fifo_path);
-    address.sun_family = AF_LOCAL;
-    strcpy(address.sun_path, fifo_path);
-    if (bind ( server_socket,
-                (struct sockaddr *) &address,
-                sizeof (address)) != 0) {
-        printf( "port is not free!\n");
-    }
-    listen (server_socket, 5);
-    addrlen = sizeof (struct sockaddr_in);
-    while (1) {
-        client_socket = accept ( server_socket,
-                (struct sockaddr *) &address,
-                &addrlen );
-        if (client_socket > 0)
-        {
-            printf ("client connected\n");
-            break;
-        }
-    }
-
-    pthread_create(&uds_thread, NULL, handle_uds, NULL); 
-
-    return 1;
 }
 
 
