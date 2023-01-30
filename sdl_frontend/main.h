@@ -36,6 +36,16 @@
 
 #define FONT_SIZE 42
 
+
+#define CODE_LINE 'l'
+#define CODE_DOCUMENT 'k'
+#define CODE_STATE 's'
+#define CODE_MATRIX 'm'
+#define CODE_RECT 'r'
+#define CODE_CLEAR 'c'
+#define CODE_CLEAR_SCREEN 'x'
+#define CODE_DELETE 'd'
+
 const int TEXT_BOX_WIDTH = (int)(WINDOW_WIDTH * 0.7);
 const int TEXT_BOX_HEIGHT_SMALL = (int)(WINDOW_HEIGHT * 0.05);
 const int TEXT_BOX_HEIGHT_MEDIUM = (int)(WINDOW_HEIGHT * 0.075);
