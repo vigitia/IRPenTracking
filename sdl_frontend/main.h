@@ -101,6 +101,7 @@ inline int currentState = 0;
 void clearScreen();
 
 bool is_on_right_side(int x, int y, Point xy0, Point xy1);
+Point multiplyPointMatrix(Point point, float matrix[3][3]);
 
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);
@@ -109,7 +110,5 @@ int parseMessageState(char* buffer);
 int parseMessageMatrix(char* buffer);
 int parseMessageRect(char* buffer);
 int parseMessageDelete(char* buffer);
-
-Point multiplyPointMatrix(Point point, float matrix[3][3]);
 
 #endif
