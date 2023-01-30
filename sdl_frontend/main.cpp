@@ -307,7 +307,10 @@ int parseMessage(char* buffer)
             currentX = x;
             currentY = y;
             currentState = state;
-            currentLine.color = {r, g, b};
+            if (currentState == STATE_DRAW && id == currentLine.id)
+            {
+                currentLine.color = {r, g, b};
+            }
             currentLine.id = currentId;
 
             bool inDocument = document.isPointInDocument(x, y);
