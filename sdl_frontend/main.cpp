@@ -1,3 +1,5 @@
+#include "main.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -81,16 +83,6 @@ int currentTextSize = 0;
 bool SHOW_PARTICLES = false;
 vector<Particle> particles;
 
-enum Modes {
-    draw,
-    phrase,
-    cross,
-    save,
-    latency,
-    particle,
-    image
-};
-
 Modes currentMode = draw;
 
 int fifo_fd = -1;    // path to FIFO for remotely controlled delay times
@@ -101,34 +93,15 @@ pthread_t uds_thread;
 
 SDL_Renderer* renderer;
 
-struct Point {
-	float x;
-	float y;
-};
-
 SDL_Point pointToSDL(Point p)
 {
 	SDL_Point result = {(int) p.x, (int) p.y};
 	return result;
 }
 
-struct Line {
-    int id;
-    SDL_Color color;
-    vector<Point> coords;
-    bool alive;
-};
-
 vector<Line> lines;
 vector<Line> documentLines;
 Line currentLine;
-
-struct Poly {
-    int id;
-    short int x[4];
-    short int y[4];
-    bool alive;
-};
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
 bool is_on_right_side(int x, int y, Point xy0, Point xy1)
