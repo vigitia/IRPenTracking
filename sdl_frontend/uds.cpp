@@ -18,9 +18,9 @@ int init_uds()
     const int y = 1;
     if((server_socket=socket (AF_LOCAL, SOCK_STREAM, 0)) > 0)
         printf ("created socket\n");
-    unlink(fifo_path);
+    unlink(uds_path);
     address.sun_family = AF_LOCAL;
-    strcpy(address.sun_path, fifo_path);
+    strcpy(address.sun_path, uds_path);
     if (bind ( server_socket,
                 (struct sockaddr *) &address,
                 sizeof (address)) != 0) {
