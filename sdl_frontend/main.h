@@ -81,6 +81,8 @@ struct Poly {
 
 inline SDL_Renderer* renderer;
 
+inline Modes currentMode = draw;
+
 inline vector<Line> lines;
 inline vector<Line> documentLines;
 inline Line currentLine;
@@ -94,6 +96,8 @@ inline int currentState = 0;
 inline uint32_t highlightColor = 0x9900FFFF;
 
 void clearScreen();
+SDL_Surface* loadSurface(string path);
+void saveImage();
 
 bool is_on_right_side(int x, int y, Point xy0, Point xy1);
 Point multiplyPointMatrix(Point point, float matrix[3][3]);
