@@ -401,13 +401,14 @@ int main(int argc, char* argv[])
 
     if(argc > 1)
     {
-        fifo_path = argv[1];
         if(COMMUNICATION_MODE == MODE_FIFO)
         {
+            fifo_path = argv[1];
             if(!init_fifo()) return 1;
         }
         else
         {
+            uds_path = argv[1];
             if(!init_uds()) return 1;
         }
     }
