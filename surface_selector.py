@@ -70,7 +70,7 @@ class SurfaceSelector:
         return calibration_finished
 
     def display_mode_calibration(self, frame, camera_parameter_name):
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        # frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
         if not camera_parameter_name in self.last_mouse_click_coordinates.keys():
             self.last_mouse_click_coordinates[camera_parameter_name] = []
@@ -87,6 +87,7 @@ class SurfaceSelector:
         else:
             cv2.imshow(camera_parameter_name, frame)
             cv2.setMouseCallback(camera_parameter_name, self.on_mouse_click, camera_parameter_name)
+            cv2.waitKey(1)
             return False
 
     def update_table_corner_calibration(self, coordinates, camera_parameter_name):

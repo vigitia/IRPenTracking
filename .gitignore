@@ -138,3 +138,5 @@ sdl_frontend/screenshots/
 sdl_frontend/sdl_frontend
 
 *.yml
+
+assets/berlin_out.pdf

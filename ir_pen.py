@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import threading
 from enum import Enum
@@ -13,6 +14,9 @@ from tflite import LiteModel
 import datetime
 from scipy.spatial import distance
 from skimage.feature import peak_local_max
+
+from logitech_brio import LogitechBrio
+from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 from cv2 import cv2
 
@@ -63,6 +67,7 @@ TRAIN_STATE = 'hover_far_1_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECO
 TRAIN_PATH = 'training_images/2022-08-19'
 TRAIN_IMAGE_COUNT = 3000
 
+DOCUMENTS_DEMO = True
 
 # Decorator to print the run time of a single function
 # Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
@@ -644,7 +649,8 @@ class IRPen:
 
         if len(smallest_contour) < 4:
             cX, cY = min_center
-            print('small contour')
+            # print('small contour')
+            # TODO: HOW TO HANDLE SMALL CONTOURS?
         else:
             # Find the center of the contour using OpenCV Moments
 
@@ -702,7 +708,8 @@ class IRPen:
                                                                                                    len(active_pen_event.history),
                                                                                                    active_pen_event.state))
                 if len(active_pen_event.history) > 0:
-                    self.stored_lines.append(np.array(active_pen_event.history))
+                    # self.stored_lines.append(np.array(active_pen_event.history))
+                    self.stored_lines.append({active_pen_event.id: active_pen_event.history})
 
         elif len(self.active_pen_events) == 1 and len(new_pen_events) == 1:
             # print('Merge new and old')
@@ -719,7 +726,8 @@ class IRPen:
                     len(last_pen_event.history)))
 
                 if len(last_pen_event.history) > 0:
-                    self.stored_lines.append(np.array(last_pen_event.history))
+                    # self.stored_lines.append(np.array(last_pen_event.history))
+                    self.stored_lines.append({last_pen_event.id: last_pen_event.history})
             else:
 
                 new_pen_event.id = last_pen_event.id
@@ -782,12 +790,16 @@ class IRPen:
                 # print(NUM_HOVER_EVENTS_TO_END_LINE, final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER))
                 if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(
                         State.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
-                    print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
+                    if DEBUG_MODE:
+                        print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
                     if len(final_pen_event.history) > 0:
-                        self.stored_lines.append(np.array(final_pen_event.history))
+                        # self.stored_lines.append(np.array(final_pen_event.history))
+                        self.stored_lines.append({final_pen_event.id: final_pen_event.history})
+
                     # print(final_pen_event.state, final_pen_event.state_history[-5:])
-                    print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
-                                                                                            len(final_pen_event.history)))
+                    if DEBUG_MODE:
+                        print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
+                                                                                                len(final_pen_event.history)))
                     final_pen_events = []
 
         return final_pen_events
@@ -1026,13 +1038,19 @@ class IRPen:
 
 
 class IRPenDebugger:
-    frame_counter = 0
-    start_time = 0
+    # frame_counter = 0
+    # start_time = 0
+
     rois = []
 
     active_pen_events = []
+    # remaining_line_points = {}
 
     uds_initialized = False
+    sock = None
+    pipeout = None
+
+    last_heartbeat_timestamp = 0
 
     def __init__(self):
         from flir_blackfly_s import FlirBlackflyS
@@ -1040,52 +1058,264 @@ class IRPenDebugger:
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
+        if DOCUMENTS_DEMO:
+            self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
+
+            self.logitech_brio_camera = LogitechBrio(self)
+            self.logitech_brio_camera.init_video_capture()
+            self.logitech_brio_camera.start()
+
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
 
-    # id: id of the rect (writing to an existing id should move the rect)
-    # state: alive = 1, dead = 0; use it to remove unused rects!
-    # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
-    def send_rect(self, id, state, coord_list):
-        if not self.uds_initialized:
-            return 0
+    def on_new_brio_frame(self, frame, homography_matrix):
+        # print(frame.shape)
 
-        message = f'r {id} '
-        for coords in coord_list:
-            message += f'{coords[0]} {coords[1]}'
-        message += f'{state} '
+        document_found, highlight_dict, document_changed, document_removed, document_moved, converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
+
+        # print('num highlights', len(highlight_dict))
+
+        # print('Final rectangles:', highlight_rectangles)
+
+        self.send_heartbeat(document_found)
+        #now = round(time.time() * 1000)
+
+        #HEARTBEAT_INTERVAL_MS = 200
+
+        #if now - self.last_heartbeat_timestamp > HEARTBEAT_INTERVAL_MS:
+        #    self.send_heartbeat(document_found)
+        #    self.last_heartbeat_timestamp = now
+
+        if document_moved and not document_removed:
+            self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
+            try:
+                for highlight_id, rectangle in highlight_dict.items():
+                    self.send_rect(highlight_id, 1, rectangle)
+            except:
+                print('error sending highlights')
+
+        if document_removed:
+            self.send_corner_points([])
+
+        if document_found:
+            if len(document_moved_matrix) > 0:
+                self.send_matrix(document_moved_matrix)
+
+        if document_changed or document_removed:
+            self.clear_rects()
+
+    def send_heartbeat(self, document_found):
+        message = f's {int(document_found)} |'
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
-            self.sock.send(message.encode())
+            try:
+                # print('SEND HEARTBEAT')
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_heartbeat')
+                self.init_unix_socket()
 
         return 1
+
+    def send_matrix(self, matrix):
+        # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+        flat = [item for sublist in matrix for item in sublist]
+
+        message = f'm '
+
+        for i in flat:
+            message += f'{i} '
+
+        message += '|'
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                # print('SEND MATRIX')
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_matrix')
+                self.init_unix_socket()
+
+        return 1
+
+    def send_corner_points(self, converted_document_corner_points):
+        if not self.uds_initialized:
+            return 0
+
+        message = f'k '
+        if len(converted_document_corner_points) == 4:
+
+            for point in converted_document_corner_points:
+                message += f'{int(point[0])} {int(point[1])} '
+            message += '1 '  # document exists
+        else:
+
+            for i in range(9):
+                message += '0 '
+
+        message += '|'
+
+        # print('message', message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            # print('SEND CORNER POINTS')
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_corner_points')
+                self.init_unix_socket()
+
+        return 1
+
+    # id: id of the rect (writing to an existing id should move the rect)
+    # state: alive = 1, dead = 0; use it to remove unused rects!
+    # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
+    def send_rect(self, rect_id, state, coord_list):
+        if not self.uds_initialized:
+            return 0
+
+        message = f'r {rect_id} '
+        for coords in coord_list:
+            # message += f'{coords[0]} {coords[1]}'
+            message += f'{coords} '
+        message += f'{state} '
+
+        message += '|'
+
+        # print('message', message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                # print('SEND RECT')
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in send_rect()')
+                self.init_unix_socket()
+
+        return 1
+
+    def delete_line(self, line_id):
+        if not self.uds_initialized:
+            return 0
+
+        message = f'd {line_id} |'
+
+        print('DELETING LINE WITH ID', line_id)
+        print('message:', message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in delete_line()')
+                self.init_unix_socket()
+
+    def add_new_line_point(self):
+        if not self.uds_initialized:
+            return 0
+
+        message = 'l {} 255 255 255 {} {} {} |'.format(self.active_pen_events[0].id,
+                                                       int(self.active_pen_events[0].x),
+                                                       int(self.active_pen_events[0].y),
+                                                       0 if self.active_pen_events[0].state == State.HOVER else 1)
+        # print(message)
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in add_new_line_point()')
+                self.init_unix_socket()
+
+    def append_line(self, line_id, line):
+
+        print('append', line_id, line)
+
+        if not self.uds_initialized:
+            return 0
+
+        line_color = '255 255 255'
+
+        message = f'a {line_id} {line_color} '
+
+        for i, point in enumerate(line):
+            message += f'{int(point[0])},{int(point[1])}'
+            if i < len(line) - 1:
+                message += ';'
+
+        message += ' - |'  # Append message end
+
+        print('message append', len(message), message)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.send(message.encode())
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in append_line')
+                self.init_unix_socket()
 
     def clear_rects(self):
         if not self.uds_initialized:
             return 0
+
         if ENABLE_UNIX_SOCKET:
-            self.sock.send('c '.encode())
-        return 1
+            try:
+                print('CLEAR RECTS')
+                self.sock.send('c |'.encode())
+                return 1
+            except Exception as e:
+                print(e)
+                print('---------')
+                print('Broken Pipe in clear_rects()')
+                self.init_unix_socket()
+
+    def init_unix_socket(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+        print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
+        try:
+            self.sock.connect(UNIX_SOCK_NAME)
+        except socket.error as msg:
+            print(msg)
+            sys.exit(1)
+        self.uds_initialized = True
 
     def debug_mode_thread(self):
         if ENABLE_FIFO_PIPE:
-            pipe_name = 'pipe_test'
-            if not os.path.exists(pipe_name):
-                os.mkfifo(pipe_name)
-            self.pipeout = os.open(pipe_name, os.O_WRONLY)
+            PIPE_NAME = 'pipe_test'
+            if not os.path.exists(PIPE_NAME):
+                os.mkfifo(PIPE_NAME)
+            self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
 
         if ENABLE_UNIX_SOCKET:
-            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-            print('connecting to %s' % UNIX_SOCK_NAME)
-            try:
-                self.sock.connect(UNIX_SOCK_NAME)
-            except socket.error as msg:
-                print(msg)
-                sys.exit(1)
-            self.uds_initialized = True
+            self.init_unix_socket()
 
         if DEBUG_MODE:
             cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
@@ -1094,20 +1324,19 @@ class IRPenDebugger:
         while True:
             if SEND_TO_FRONTEND:
                 if len(self.active_pen_events) > 0:
-                    # if len(self.active_pen_events[0].history) > 0:
-                    message = 'l {} {} {} {} '.format(self.active_pen_events[0].id,
-                                                      int(self.active_pen_events[0].x),
-                                                      int(self.active_pen_events[0].y),
-                                                      0 if self.active_pen_events[0].state == State.HOVER else 1)
-                    # print(message)
-                    if ENABLE_FIFO_PIPE:
-                        os.write(self.pipeout, bytes(message, 'utf8'))
-                    if ENABLE_UNIX_SOCKET:
-                        self.sock.send(message.encode())
+                    self.add_new_line_point()
+                    # Reset list because we do not want to send the same points again
                     self.active_pen_events = []
+
+                # for line_id, line in self.remaining_line_points.items():
+                #     self.append_line(line_id, line)
+                # # Reset because we do not want to send it again
+                # self.remaining_line_points = {}
+
                 if not DEBUG_MODE:
-                    # TODO: CHeck why we need this here. time.sleep() does not work here
-                    key = cv2.waitKey(1)
+                    # TODO: Check why we need a delay here. Without it, it will lag horribly.
+                    #  time.sleep() does not work here
+                    cv2.waitKey(1)
 
             if DEBUG_MODE:
                 if len(self.rois) == 2:
@@ -1162,11 +1391,20 @@ class IRPenDebugger:
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
         if len(frames) > 0:
-            self.frame_counter += 1
+            # self.frame_counter += 1
             active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
                 frames, matrices)
             self.rois = rois
             self.active_pen_events = active_pen_events
+
+            if DOCUMENTS_DEMO:
+                self.analogue_digital_document.on_new_finished_lines(stored_lines)
+                # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
+                # if len(line_ids_to_delete) > 0:
+                #     for line_id in line_ids_to_delete:
+                #         self.delete_line(line_id)
+                #
+                # self.remaining_line_points = remaining_line_points
 
 
 if __name__ == '__main__':

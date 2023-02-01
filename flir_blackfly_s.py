@@ -645,7 +645,7 @@ class CameraTester:
 
         if CALIBRATION_MODE:
             DEBUG_MODE = False  # No Debug Mode wanted in Calibration mode
-            cam_exposure = 100000  # Increase Brightness to better see the corners
+            cam_exposure = 200000  # Increase Brightness to better see the corners
             self.surface_selector = SurfaceSelector()
 
         flir_blackfly_s = FlirBlackflyS(cam_exposure=cam_exposure, framerate=framerate, subscriber=self)
