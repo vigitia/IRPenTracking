@@ -15,9 +15,6 @@ import datetime
 from scipy.spatial import distance
 from skimage.feature import peak_local_max
 
-from logitech_brio import LogitechBrio
-from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
-
 from cv2 import cv2
 
 MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
@@ -68,7 +65,11 @@ TRAIN_STATE = 'hover_far_0_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECO
 TRAIN_PATH = 'training_images/2022-11-22'
 TRAIN_IMAGE_COUNT = 3000
 
-DOCUMENTS_DEMO = True
+DOCUMENTS_DEMO = False
+
+if DOCUMENTS_DEMO:
+    from logitech_brio import LogitechBrio
+    from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 # Decorator to print the run time of a single function
 # Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
