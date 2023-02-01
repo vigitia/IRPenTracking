@@ -7,7 +7,7 @@ import datetime
 import threading
 import time
 
-from ir_pen import IRPen, State
+from ir_pen import IRPen, PenState
 from pen_hid import InputSimulator
 
 from flir_blackfly_s import FlirBlackflyS
@@ -83,7 +83,7 @@ class Run:
 
                 x = active_pen_event.x
                 y = active_pen_event.y
-                if active_pen_event.state == State.DRAG:
+                if active_pen_event.state == PenState.DRAG:
                     state = 'draw'
 
                 if self.last_state == 'hover' and state == 'draw':

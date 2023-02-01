@@ -1,21 +1,15 @@
 import os
-import random
 import sys
-import threading
-from enum import Enum
 import time
 import numpy as np
 import skimage
 from tensorflow import keras
-import socket
-
 import flir_blackfly_s
 from tflite import LiteModel
 import datetime
 from scipy.spatial import distance
-from skimage.feature import peak_local_max
-
 from cv2 import cv2
+from PenState import PenState
 
 MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
 # MODEL_PATH = 'model_berlin_2'  # Put the folder path here for the desired cnn
@@ -42,10 +36,7 @@ USE_MAX_DISTANCE_DRAW = False
 MAX_DISTANCE_DRAW = 500  # Maximum allowed distance in pixel between two points in order to be considered for the same line ID
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
-SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
-ENABLE_FIFO_PIPE = False
-ENABLE_UNIX_SOCKET = True
-UNIX_SOCK_NAME = 'uds_test'
+
 
 LATENCY_MEASURING_MODE = False
 
@@ -65,11 +56,6 @@ TRAIN_STATE = 'hover_far_0_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECO
 TRAIN_PATH = 'training_images/2022-11-22'
 TRAIN_IMAGE_COUNT = 3000
 
-DOCUMENTS_DEMO = False
-
-if DOCUMENTS_DEMO:
-    from logitech_brio import LogitechBrio
-    from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 # Decorator to print the run time of a single function
 # Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
@@ -88,19 +74,10 @@ def timeit(prefix):
     return timeit_decorator
 
 
-# Enum to define State of a Point
-class State(Enum):
-    NEW = -1  # A new event where it is not yet sure what state it will have
-    CLICK = 0
-    DRAG = 1
-    DOUBLE_CLICK = 2
-    HOVER = 3
-
-
 # Representation of a single pen event
 class PenEvent:
 
-    def __init__(self, x, y, state=State.NEW):
+    def __init__(self, x, y, state=PenState.NEW):
         self.x = x
         self.y = y
         self.id = -1
@@ -286,12 +263,12 @@ class IRPen:
             # print('One Point', prediction, confidence)
             if prediction == 'draw':
                 # print('One point draw')
-                new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], State.DRAG)
+                new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], PenState.DRAG)
                 new_pen_events.append(new_ir_pen_event)
 
             elif prediction == 'hover':
                 # print('One point hover')
-                new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], State.HOVER)
+                new_ir_pen_event = PenEvent(subpixel_coords[0][0], subpixel_coords[0][1], PenState.HOVER)
                 new_pen_events.append(new_ir_pen_event)
             else:
                 print('Error: Unknown state')
@@ -333,22 +310,22 @@ class IRPen:
 
             if final_prediction == 'draw':
                 # print('Status: Touch')
-                new_ir_pen_event = PenEvent(center_x, center_y, State.DRAG)
+                new_ir_pen_event = PenEvent(center_x, center_y, PenState.DRAG)
                 new_pen_events.append(new_ir_pen_event)
 
             elif final_prediction == 'hover':
                 # print('Status: Hover')
-                new_ir_pen_event = PenEvent(center_x, center_y, State.HOVER)
+                new_ir_pen_event = PenEvent(center_x, center_y, PenState.HOVER)
                 new_pen_events.append(new_ir_pen_event)
             else:
                 print('Error: Unknown state')
 
         if LATENCY_MEASURING_MODE:
             if len(subpixel_coords) == 0:
-                new_ir_pen_event = PenEvent(0, 0, State.HOVER)
+                new_ir_pen_event = PenEvent(0, 0, PenState.HOVER)
                 new_pen_events.append(new_ir_pen_event)
             else:
-                new_pen_events[-1] = PenEvent(center_x, center_y, State.DRAG)
+                new_pen_events[-1] = PenEvent(center_x, center_y, PenState.DRAG)
 
         # For distance/velocity calculation
         # current_frame_time = time.time()
@@ -450,13 +427,13 @@ class IRPen:
     def generate_new_pen_event(self, prediction, x, y):
         if prediction == 'draw':
             # print('Status: Touch')
-            new_ir_pen_event = PenEvent(x, y, State.DRAG)
+            new_ir_pen_event = PenEvent(x, y, PenState.DRAG)
             # new_ir_pen_event.state = State.DRAG
             return new_ir_pen_event
 
         elif prediction == 'hover':
             # print('Status: Hover')
-            new_ir_pen_event = PenEvent(x, y, State.HOVER)
+            new_ir_pen_event = PenEvent(x, y, PenState.HOVER)
             # new_ir_pen_event.state = State.HOVER
             return new_ir_pen_event
         else:
@@ -739,12 +716,12 @@ class IRPen:
                 new_pen_event.last_seen_timestamp = now
 
                 if HOVER_WINS:  # Overwrite the current state to hover
-                    if new_pen_event.state != State.HOVER and State.HOVER in new_pen_event.state_history[
-                                                                             -NUM_CHECK_LAST_EVENT_STATES:]:
+                    if new_pen_event.state != PenState.HOVER and PenState.HOVER in new_pen_event.state_history[
+                                                                                   -NUM_CHECK_LAST_EVENT_STATES:]:
                         print(
                             'Pen Event {} has prediction {}, but State.HOVER is present in the last {} events, so hover wins'.format(
                                 last_pen_event.id, new_pen_event.state, NUM_CHECK_LAST_EVENT_STATES))
-                        new_pen_event.state = State.HOVER
+                        new_pen_event.state = PenState.HOVER
 
                 new_pen_event.history = last_pen_event.history
 
@@ -769,7 +746,7 @@ class IRPen:
 
         for final_pen_event in final_pen_events:
             # Add current position to the history list, but ignore hover events
-            if final_pen_event.state != State.HOVER:
+            if final_pen_event.state != PenState.HOVER:
                 final_pen_event.history.append((final_pen_event.x, final_pen_event.y))
 
             # num_total = len(final_pen_event.state_history)
@@ -791,7 +768,7 @@ class IRPen:
 
                 # print(NUM_HOVER_EVENTS_TO_END_LINE, final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(State.HOVER))
                 if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(
-                        State.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
+                        PenState.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
                     if DEBUG_MODE:
                         print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
                     if len(final_pen_event.history) > 0:
@@ -1037,377 +1014,3 @@ class IRPen:
         distances.sort(key=lambda x: x[2])
 
         return distances
-
-
-class IRPenDebugger:
-    # frame_counter = 0
-    # start_time = 0
-
-    rois = []
-
-    active_pen_events = []
-    # remaining_line_points = {}
-
-    uds_initialized = False
-    sock = None
-    pipeout = None
-
-    last_heartbeat_timestamp = 0
-
-    def __init__(self):
-        from flir_blackfly_s import FlirBlackflyS
-
-        self.ir_pen = IRPen()
-        self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
-
-        if DOCUMENTS_DEMO:
-            self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
-
-            self.logitech_brio_camera = LogitechBrio(self)
-            self.logitech_brio_camera.init_video_capture()
-            self.logitech_brio_camera.start()
-
-        thread = threading.Thread(target=self.debug_mode_thread)
-        thread.start()
-
-    def on_new_brio_frame(self, frame, homography_matrix):
-        # print(frame.shape)
-
-        document_found, highlight_dict, document_changed, document_removed, document_moved, converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
-
-        # print('num highlights', len(highlight_dict))
-
-        # print('Final rectangles:', highlight_rectangles)
-
-        self.send_heartbeat(document_found)
-        #now = round(time.time() * 1000)
-
-        #HEARTBEAT_INTERVAL_MS = 200
-
-        #if now - self.last_heartbeat_timestamp > HEARTBEAT_INTERVAL_MS:
-        #    self.send_heartbeat(document_found)
-        #    self.last_heartbeat_timestamp = now
-
-        if document_moved and not document_removed:
-            self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
-            try:
-                for highlight_id, rectangle in highlight_dict.items():
-                    self.send_rect(highlight_id, 1, rectangle)
-            except:
-                print('error sending highlights')
-
-        if document_removed:
-            self.send_corner_points([])
-
-        if document_found:
-            if len(document_moved_matrix) > 0:
-                self.send_matrix(document_moved_matrix)
-
-        if document_changed or document_removed:
-            self.clear_rects()
-
-    def send_heartbeat(self, document_found):
-        message = f's {int(document_found)} |'
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                # print('SEND HEARTBEAT')
-                self.sock.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_heartbeat')
-                self.init_unix_socket()
-
-        return 1
-
-    def send_matrix(self, matrix):
-        # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
-        flat = [item for sublist in matrix for item in sublist]
-
-        message = f'm '
-
-        for i in flat:
-            message += f'{i} '
-
-        message += '|'
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                # print('SEND MATRIX')
-                self.sock.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_matrix')
-                self.init_unix_socket()
-
-        return 1
-
-    def send_corner_points(self, converted_document_corner_points):
-        if not self.uds_initialized:
-            return 0
-
-        message = f'k '
-        if len(converted_document_corner_points) == 4:
-
-            for point in converted_document_corner_points:
-                message += f'{int(point[0])} {int(point[1])} '
-            message += '1 '  # document exists
-        else:
-
-            for i in range(9):
-                message += '0 '
-
-        message += '|'
-
-        # print('message', message)
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            # print('SEND CORNER POINTS')
-            try:
-                self.sock.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_corner_points')
-                self.init_unix_socket()
-
-        return 1
-
-    # id: id of the rect (writing to an existing id should move the rect)
-    # state: alive = 1, dead = 0; use it to remove unused rects!
-    # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
-    def send_rect(self, rect_id, state, coord_list):
-        if not self.uds_initialized:
-            return 0
-
-        message = f'r {rect_id} '
-        for coords in coord_list:
-            # message += f'{coords[0]} {coords[1]}'
-            message += f'{coords} '
-        message += f'{state} '
-
-        message += '|'
-
-        # print('message', message)
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                # print('SEND RECT')
-                self.sock.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_rect()')
-                self.init_unix_socket()
-
-        return 1
-
-    def delete_line(self, line_id):
-        if not self.uds_initialized:
-            return 0
-
-        message = f'd {line_id} |'
-
-        print('DELETING LINE WITH ID', line_id)
-        print('message:', message)
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                self.sock.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in delete_line()')
-                self.init_unix_socket()
-
-    def add_new_line_point(self):
-        if not self.uds_initialized:
-            return 0
-
-        message = 'l {} 255 255 255 {} {} {} |'.format(self.active_pen_events[0].id,
-                                                       int(self.active_pen_events[0].x),
-                                                       int(self.active_pen_events[0].y),
-                                                       0 if self.active_pen_events[0].state == State.HOVER else 1)
-        # print(message)
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                self.sock.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in add_new_line_point()')
-                self.init_unix_socket()
-
-    def append_line(self, line_id, line):
-
-        print('append', line_id, line)
-
-        if not self.uds_initialized:
-            return 0
-
-        line_color = '255 255 255'
-
-        message = f'a {line_id} {line_color} '
-
-        for i, point in enumerate(line):
-            message += f'{int(point[0])},{int(point[1])}'
-            if i < len(line) - 1:
-                message += ';'
-
-        message += ' - |'  # Append message end
-
-        print('message append', len(message), message)
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                self.sock.send(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in append_line')
-                self.init_unix_socket()
-
-    def clear_rects(self):
-        if not self.uds_initialized:
-            return 0
-
-        if ENABLE_UNIX_SOCKET:
-            try:
-                print('CLEAR RECTS')
-                self.sock.sendall('c |'.encode())
-                return 1
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in clear_rects()')
-                self.init_unix_socket()
-
-    def init_unix_socket(self):
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-        print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
-        try:
-            self.sock.connect(UNIX_SOCK_NAME)
-        except socket.error as msg:
-            print(msg)
-            sys.exit(1)
-        self.uds_initialized = True
-
-    def debug_mode_thread(self):
-        if ENABLE_FIFO_PIPE:
-            PIPE_NAME = 'pipe_test'
-            if not os.path.exists(PIPE_NAME):
-                os.mkfifo(PIPE_NAME)
-            self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
-
-        if ENABLE_UNIX_SOCKET:
-            self.init_unix_socket()
-
-        if DEBUG_MODE:
-            cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('ROI', 1000, 500)
-
-        while True:
-            if SEND_TO_FRONTEND:
-                if len(self.active_pen_events) > 0:
-                    self.add_new_line_point()
-                    # Reset list because we do not want to send the same points again
-                    self.active_pen_events = []
-
-                # for line_id, line in self.remaining_line_points.items():
-                #     self.append_line(line_id, line)
-                # # Reset because we do not want to send it again
-                # self.remaining_line_points = {}
-
-                if not DEBUG_MODE:
-                    # TODO: Check why we need a delay here. Without it, it will lag horribly.
-                    #  time.sleep() does not work here
-                    cv2.waitKey(1)
-
-            if DEBUG_MODE:
-                if len(self.rois) == 2:
-                    roi0 = cv2.resize(self.rois[0], (500, 500), interpolation=cv2.INTER_AREA)
-                    max0 = str(np.max(roi0))
-                    roi1 = cv2.resize(self.rois[1], (500, 500), interpolation=cv2.INTER_AREA)
-                    max1 = str(np.max(roi1))
-
-                    roi0 = cv2.putText(
-                        img=roi0,
-                        text=max0,
-                        org=(50, 50),
-                        fontFace=cv2.FONT_HERSHEY_DUPLEX,
-                        fontScale=3.0,
-                        color=(255),
-                        thickness=3
-                    )
-
-                    roi1 = cv2.putText(
-                        img=roi1,
-                        text=max1,
-                        org=(50, 50),
-                        fontFace=cv2.FONT_HERSHEY_DUPLEX,
-                        fontScale=3.0,
-                        color=(255),
-                        thickness=3
-                    )
-
-                    cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
-                    self.rois = []
-                elif len(self.rois) == 1:
-                    roi0 = cv2.resize(self.rois[0], (500, 500), interpolation=cv2.INTER_AREA)
-                    max0 = str(np.max(roi0))
-
-                    roi0 = cv2.putText(
-                        img=roi0,
-                        text=max0,
-                        org=(50, 50),
-                        fontFace=cv2.FONT_HERSHEY_DUPLEX,
-                        fontScale=3.0,
-                        color=(255),
-                        thickness=3
-                    )
-                    roi1 = np.zeros((500, 500), np.uint8)
-                    cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
-                    self.rois = []
-
-                key = cv2.waitKey(1)
-                if key == 27:  # ESC
-                    cv2.destroyAllWindows()
-                    sys.exit(0)
-
-    def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
-        if len(frames) > 0:
-            # self.frame_counter += 1
-            active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
-                frames, matrices)
-            self.rois = rois
-            self.active_pen_events = active_pen_events
-
-            if DOCUMENTS_DEMO:
-                self.analogue_digital_document.on_new_finished_lines(stored_lines)
-                # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
-                # if len(line_ids_to_delete) > 0:
-                #     for line_id in line_ids_to_delete:
-                #         self.delete_line(line_id)
-                #
-                # self.remaining_line_points = remaining_line_points
-
-
-if __name__ == '__main__':
-    debugger = IRPenDebugger()
