@@ -52,13 +52,6 @@ CAMERA_HEIGHT = 1200  # 480
 # Allowed states for CNN prediction
 STATES = ['draw', 'hover', 'hover_far', 'undefined']
 
-# Enable to collect training images if you want to retrain the CNN (see train_network.ipynb)
-TRAINING_DATA_COLLECTION_MODE = False
-ACTIVE_LEARNING_COLLECTION_MODE = False
-TRAIN_STATE = 'hover_far_0_{}_{}'.format(flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, flir_blackfly_s.GAIN)
-TRAIN_PATH = 'training_images/2022-11-22'
-TRAIN_IMAGE_COUNT = 3000
-
 
 # For debugging purposes
 # Decorator to print the run time of a single function
@@ -79,6 +72,9 @@ def timeit(prefix):
 
 
 class IRPen:
+
+    keras_lite_model = None
+
     active_pen_events = []
     new_pen_events = []  # Contains all PenEvents that started on the current camera frames
 
@@ -90,11 +86,6 @@ class IRPen:
 
     # double_click_candidates = []
 
-    # Only needed during training TRAINING_DATA_COLLECTION_MODE. Keeps track of the number of saved images
-    saved_image_counter = 0
-    num_saved_images_cam_0 = 0
-    num_saved_images_cam_1 = 0
-
     active_learning_counter = 0
     active_learning_state = 'hover'
 
@@ -103,61 +94,12 @@ class IRPen:
 
     def __init__(self):
         # Init Keras
+        self.init_keras()
+
+    def init_keras(self):
         keras.backend.clear_session()
         self.keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
         # self.keras_lite_model = keras.models.load_model(MODEL_PATH)
-
-        if TRAINING_DATA_COLLECTION_MODE or ACTIVE_LEARNING_COLLECTION_MODE:
-            if not os.path.exists(os.path.join(TRAIN_PATH, TRAIN_STATE)):
-                os.makedirs(os.path.join(TRAIN_PATH, TRAIN_STATE))
-            else:
-                print('WARNING: FOLDER ALREADY EXISTS. PLEASE EXIT TRAINING MODE IF THIS WAS AN ACCIDENT')
-                time.sleep(100000)
-
-    def save_training_image(self, img, pos, camera_id):
-        num_wait_frames = 3
-        if self.saved_image_counter == 0:
-            print('Starting in 5 Seconds')
-            time.sleep(5)
-
-        self.saved_image_counter += 1
-        if self.saved_image_counter % num_wait_frames == 0:
-
-            cv2.imwrite(
-                f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{int(self.saved_image_counter / num_wait_frames)}_{pos[0]}_{pos[1]}.png',
-                img)
-            print(
-                f'saving frame {int(self.saved_image_counter / num_wait_frames)}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
-            if camera_id == 0:
-                self.num_saved_images_cam_0 += 1
-            elif camera_id == 1:
-                self.num_saved_images_cam_1 += 1
-
-        if self.saved_image_counter / num_wait_frames >= TRAIN_IMAGE_COUNT:
-            print('FINISHED COLLECTING TRAINING IMAGES. Saved {} images from cam 0 and {} images from cam 1'.format(
-                self.num_saved_images_cam_0, self.num_saved_images_cam_1))
-            time.sleep(10)
-            sys.exit(0)
-
-    def transform_coords_to_output_res(self, x, y, transform_matrix):
-        try:
-            coords = np.array([x, y, 1])
-
-            transformed_coords = transform_matrix.dot(coords)
-            # Normalize coordinates by dividing by z
-            # transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
-            #                       int(transformed_coords[1] / transformed_coords[2]))
-
-            transformed_coords = (
-            transformed_coords[0] / transformed_coords[2], transformed_coords[1] / transformed_coords[2])
-
-            return transformed_coords
-        except Exception as e:
-            print(e)
-            print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
-            print('This error could also appear if CALIBRATION_MODE is still enabled in flir_blackfly_s.py')
-            time.sleep(5)
-            sys.exit(1)
 
     # @timeit('Pen Events')
     def get_ir_pen_events_multicam(self, camera_frames, transform_matrices):
@@ -220,11 +162,9 @@ class IRPen:
 
             pen_event_roi, brightest, (x, y) = self.crop_image(frame)
 
-            if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and \
-                    pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
-                if TRAINING_DATA_COLLECTION_MODE:
-                    self.save_training_image(pen_event_roi, (x, y), i)
-                    continue
+            if pen_event_roi is not None:
+            # if brightest > MIN_BRIGHTNESS_FOR_PREDICTION and pen_event_roi.shape[0] == CROP_IMAGE_SIZE and \
+            #         pen_event_roi.shape[1] == CROP_IMAGE_SIZE:
 
                 rois.append(pen_event_roi)
                 transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
@@ -321,6 +261,26 @@ class IRPen:
         self.rois = rois
 
         return self.active_pen_events, self.stored_lines, self.new_pen_events, self.pen_events_to_remove, debug_distances, rois
+
+    def transform_coords_to_output_res(self, x, y, transform_matrix):
+        try:
+            coords = np.array([x, y, 1])
+
+            transformed_coords = transform_matrix.dot(coords)
+            # Normalize coordinates by dividing by z
+            # transformed_coords = (int(transformed_coords[0] / transformed_coords[2]),
+            #                       int(transformed_coords[1] / transformed_coords[2]))
+
+            transformed_coords = (
+            transformed_coords[0] / transformed_coords[2], transformed_coords[1] / transformed_coords[2])
+
+            return transformed_coords
+        except Exception as e:
+            print(e)
+            print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
+            print('This error could also appear if CALIBRATION_MODE is still enabled in flir_blackfly_s.py')
+            time.sleep(5)
+            sys.exit(1)
 
     def generate_new_pen_events(self, subpixel_coords, predictions, brightness_values):
 
@@ -480,6 +440,10 @@ class IRPen:
         if img_cropped.shape[0] != size or img_cropped.shape[1] != size:
             img_cropped, brightest, (max_x, max_y) = self.crop_image_2(img)
 
+        # TODO: Improve this. Ignore all rois that are not bright enough
+        if brightest < MIN_BRIGHTNESS_FOR_PREDICTION or img_cropped.shape[0] != CROP_IMAGE_SIZE or img_cropped.shape[1] != CROP_IMAGE_SIZE:
+            img_cropped = None
+
         # print('Shape in crop 2:', img_cropped.shape, max_x, max_y)
         # img_cropped_large = cv2.resize(img_cropped, (480, 480), interpolation=cv2.INTER_LINEAR)
         # cv2.imshow('large', img_cropped_large)
@@ -548,11 +512,11 @@ class IRPen:
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
 
-        if ACTIVE_LEARNING_COLLECTION_MODE:
-            if state != self.active_learning_state:
-                cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', img)
-                print(f'saving frame {self.active_learning_counter}')
-                self.active_learning_counter += 1
+        # if ACTIVE_LEARNING_COLLECTION_MODE:
+        #     if state != self.active_learning_state:
+        #         cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', img)
+        #         print(f'saving frame {self.active_learning_counter}')
+        #         self.active_learning_counter += 1
 
         # print(state)
         if state == 'hover_far':

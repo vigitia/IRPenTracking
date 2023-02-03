@@ -18,6 +18,8 @@ PIPE_NAME = 'pipe_test'
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
 
+TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
+
 DOCUMENTS_DEMO = False
 
 if DOCUMENTS_DEMO:
@@ -40,6 +42,10 @@ class Main:
 
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
+
+        if TRAINING_DATA_COLLECTION_MODE:
+            from training_images_collector import TrainingImagesCollector
+            self.training_images_collector = TrainingImagesCollector(self.ir_pen, self.flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, self.flir_blackfly_s.GAIN)
 
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
@@ -373,20 +379,23 @@ class Main:
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
         if len(frames) > 0:
-            active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
-                frames, matrices)
+            if TRAINING_DATA_COLLECTION_MODE:
+                self.training_images_collector.save_training_images(frames)
+            else:
+                active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
+                    frames, matrices)
 
-            self.active_pen_events = active_pen_events
-            self.rois = rois
+                self.active_pen_events = active_pen_events
+                self.rois = rois
 
-            if DOCUMENTS_DEMO:
-                self.analogue_digital_document.on_new_finished_lines(stored_lines)
-                # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
-                # if len(line_ids_to_delete) > 0:
-                #     for line_id in line_ids_to_delete:
-                #         self.delete_line(line_id)
-                #
-                # self.remaining_line_points = remaining_line_points
+                if DOCUMENTS_DEMO:
+                    self.analogue_digital_document.on_new_finished_lines(stored_lines)
+                    # line_ids_to_delete, remaining_line_points = self.analogue_digital_document.on_new_finished_lines(stored_lines)
+                    # if len(line_ids_to_delete) > 0:
+                    #     for line_id in line_ids_to_delete:
+                    #         self.delete_line(line_id)
+                    #
+                    # self.remaining_line_points = remaining_line_points
 
 
 if __name__ == '__main__':
