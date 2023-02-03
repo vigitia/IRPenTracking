@@ -5,24 +5,22 @@ import datetime
 import numpy as np
 import skimage
 
-from tensorflow import keras
-from tflite import LiteModel
+
 from scipy.spatial import distance
 from cv2 import cv2
 
 from pen_state import PenState
 from pen_event import PenEvent
 from pen_events_controller import PenEventsController
+from ir_pen_cnn import IRPenCNN
 
-
-MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
 
 CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel
 
 MIN_BRIGHTNESS_FOR_PREDICTION = 50  # A spot in the camera image needs to have at least X brightness to be considered.
 
 USE_MAX_DISTANCE_DRAW = False
-MAX_DISTANCE_DRAW = 500  # Maximum allowed distance in pixel between two points in order to be considered for the same line ID
+MAX_DISTANCE_DRAW = 500  # Maximum allowed pixel distance between two points to be considered the same line ID
 
 LATENCY_MEASURING_MODE = False
 
@@ -31,9 +29,6 @@ WINDOW_HEIGHT = 2160
 
 CAMERA_WIDTH = 1920  # 848
 CAMERA_HEIGHT = 1200  # 480
-
-# Allowed states for CNN prediction
-STATES = ['draw', 'hover', 'hover_far', 'undefined']
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
@@ -58,8 +53,6 @@ def timeit(prefix):
 
 class IRPen:
 
-    keras_lite_model = None
-
     # active_learning_counter = 0
     # active_learning_state = 'hover'
 
@@ -67,15 +60,8 @@ class IRPen:
     # last_frame_time = time.time()
 
     def __init__(self):
-        # Init Keras
-        self.init_keras()
-
+        self.ir_pen_cnn = IRPenCNN()
         self.pen_events_controller = PenEventsController()
-
-    def init_keras(self):
-        keras.backend.clear_session()
-        self.keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
-        # self.keras_lite_model = keras.models.load_model(MODEL_PATH)
 
     # @timeit('Pen Events')
     def get_ir_pen_events_multicam(self, camera_frames, transform_matrices):
@@ -113,7 +99,7 @@ class IRPen:
         #                 self.save_training_image(pen_event_roi, (roi_coords_new[j][0], roi_coords_new[j][1]))
         #                 continue
         #
-        #             prediction, confidence = self.predict(pen_event_roi)
+        #             prediction, confidence = self.ir_pen_cnn.predict(pen_event_roi)
         #
         #             predictions[i].append(prediction)
         #             rois[i].append(pen_event_roi)
@@ -155,7 +141,7 @@ class IRPen:
 
         # If we see only one point:
         if len(subpixel_coords) == 1:
-            prediction, confidence = self.predict(rois[0])
+            prediction, confidence = self.ir_pen_cnn.predict(rois[0])
             # print('One Point', prediction, confidence)
             if prediction == 'draw':
                 # print('One point draw')
@@ -187,7 +173,7 @@ class IRPen:
                 final_prediction = 'hover'
             else:
                 for pen_event_roi in rois:
-                    prediction, confidence = self.predict(pen_event_roi)
+                    prediction, confidence = self.ir_pen_cnn.predict(pen_event_roi)
                     # print('Two Points', prediction, confidence)
                     predictions.append(prediction)
 
@@ -467,36 +453,6 @@ class IRPen:
         # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
         img_cropped = img[top: top + size, left: left + size]
         return img_cropped, np.max(img_cropped), (left + margin, top + margin)
-
-    # @timeit('Predict')
-    def predict(self, img):
-        # if len(img.shape) == 3:
-        #     print(img[10,10,:])
-        #     img = img[:, :, :2]
-        #     print(img[10, 10, :], 'after')
-        # img = img.astype('float32') / 255
-        # if len(img.shape) == 3:
-        #     img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 2)
-        # else:
-        #     img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
-
-        img_reshaped = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
-        prediction = self.keras_lite_model.predict(img_reshaped)
-        if not prediction.any():
-            return STATES[-1], 0
-        state = STATES[np.argmax(prediction)]
-        confidence = np.max(prediction)
-
-        # if ACTIVE_LEARNING_COLLECTION_MODE:
-        #     if state != self.active_learning_state:
-        #         cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', img)
-        #         print(f'saving frame {self.active_learning_counter}')
-        #         self.active_learning_counter += 1
-
-        # print(state)
-        if state == 'hover_far':
-            state = 'hover'
-        return state, confidence
 
     # TODO: Fix possible offset
     def find_pen_position_subpixel_crop(self, roi, center_original):
