@@ -15,8 +15,8 @@ ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
 PIPE_NAME = 'pipe_test'
 
-DEBUG_MODE = 1  # Enable for Debug print statements and preview windows
-SEND_TO_FRONTEND = 0  # Enable if points should be forwarded to the sdl frontend
+DEBUG_MODE = 0  # Enable for Debug print statements and preview windows
+SEND_TO_FRONTEND = 1  # Enable if points should be forwarded to the sdl frontend
 
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 
@@ -272,10 +272,9 @@ class Main:
         if ENABLE_UNIX_SOCKET:
             try:
                 self.sock.sendall(message.encode())
-                print('send line point')
             except Exception as e:
-                print(e)
                 print('---------')
+                print(e)
                 print('Broken Pipe in add_new_line_point()')
                 self.init_unix_socket()
 
@@ -364,13 +363,12 @@ class Main:
             thickness=3
         )
 
-
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
         if len(frames) > 0:
             if TRAINING_DATA_COLLECTION_MODE:
                 self.training_images_collector.save_training_images(frames)
             else:
-                active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events(frames, matrices)
+                active_pen_events, stored_lines, _, _, rois = self.ir_pen.get_ir_pen_events(frames, matrices)
 
                 if SEND_TO_FRONTEND:
                     for active_pen_event in active_pen_events:
