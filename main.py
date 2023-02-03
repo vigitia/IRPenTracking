@@ -52,7 +52,7 @@ class Main:
             self.logitech_brio_camera.init_video_capture()
             self.logitech_brio_camera.start()
 
-        thread = threading.Thread(target=self.debug_mode_thread)
+        thread = threading.Thread(target=self.main_thread)
         thread.start()
 
     def on_new_brio_frame(self, frame, homography_matrix):
@@ -295,7 +295,7 @@ class Main:
             sys.exit(1)
         self.uds_initialized = True
 
-    def debug_mode_thread(self):
+    def main_thread(self):
         if ENABLE_FIFO_PIPE:
             if not os.path.exists(PIPE_NAME):
                 os.mkfifo(PIPE_NAME)
