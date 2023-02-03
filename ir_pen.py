@@ -1,18 +1,22 @@
 import os
 import sys
 import time
+import datetime
 import numpy as np
 import skimage
+
 from tensorflow import keras
-import flir_blackfly_s
 from tflite import LiteModel
-import datetime
 from scipy.spatial import distance
 from cv2 import cv2
-from PenState import PenState
+
+import flir_blackfly_s
+from pen_state import PenState
+from pen_event import PenEvent
+
 
 MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
-# MODEL_PATH = 'model_berlin_2'  # Put the folder path here for the desired cnn
+
 CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel
 
 # Simple Smoothing of the output points. 1 -> No smoothing; 0.5 -> Calculate a new point and use 50% of the previous
@@ -37,7 +41,6 @@ MAX_DISTANCE_DRAW = 500  # Maximum allowed distance in pixel between two points 
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
-
 LATENCY_MEASURING_MODE = False
 
 WINDOW_WIDTH = 3840
@@ -57,6 +60,7 @@ TRAIN_PATH = 'training_images/2022-11-22'
 TRAIN_IMAGE_COUNT = 3000
 
 
+# For debugging purposes
 # Decorator to print the run time of a single function
 # Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
 def timeit(prefix):
@@ -74,33 +78,9 @@ def timeit(prefix):
     return timeit_decorator
 
 
-# Representation of a single pen event
-class PenEvent:
-
-    def __init__(self, x, y, state=PenState.NEW):
-        self.x = x
-        self.y = y
-        self.id = -1
-
-        self.missing = False
-        self.last_seen_timestamp = 0
-
-        self.first_appearance = round(time.time() * 1000)
-        self.state = state
-        self.history = []  # All logged x and y positions as tuples
-        self.state_history = [state]  # All logged states (Hover, Draw, ...)
-
-    def get_coordinates(self):
-        return tuple([self.x, self.y])
-
-    def __repr__(self):
-        return 'Pen Event {} at ({}, {}). Type: {}. Num Points: {}'.format(str(self.id), str(self.x), str(self.y),
-                                                                           self.state, len(self.history))
-
-
 class IRPen:
     active_pen_events = []
-    new_pen_events = []
+    new_pen_events = []  # Contains all PenEvents that started on the current camera frames
 
     highest_id = 0  # Assign each new pen event a new id. This variable keeps track of the highest number.
 
@@ -108,7 +88,7 @@ class IRPen:
     stored_lines = []
     pen_events_to_remove = []  # Points that got deleted from active_points in the current frame
 
-    double_click_candidates = []
+    # double_click_candidates = []
 
     # Only needed during training TRAINING_DATA_COLLECTION_MODE. Keeps track of the number of saved images
     saved_image_counter = 0

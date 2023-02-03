@@ -6,8 +6,9 @@ import socket
 import threading
 import numpy as np
 
-from PenState import PenState
+from pen_state import PenState
 from ir_pen import IRPen
+from flir_blackfly_s import FlirBlackflyS
 
 ENABLE_FIFO_PIPE = False
 ENABLE_UNIX_SOCKET = True
@@ -25,13 +26,9 @@ if DOCUMENTS_DEMO:
 
 
 class Main:
-    # frame_counter = 0
-    # start_time = 0
 
-    rois = []
-
+    rois = []  # Regions of interest
     active_pen_events = []
-    # remaining_line_points = {}
 
     uds_initialized = False
     sock = None
@@ -40,7 +37,6 @@ class Main:
     last_heartbeat_timestamp = 0
 
     def __init__(self):
-        from flir_blackfly_s import FlirBlackflyS
 
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
@@ -55,24 +51,16 @@ class Main:
         thread = threading.Thread(target=self.main_thread)
         thread.start()
 
+    # ----------------------------------------------------------------------------------------------------------------
+
+    # For documents demo
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
         document_found, highlight_dict, document_changed, document_removed, document_moved, \
             converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        # print('num highlights', len(highlight_dict))
-
-        # print('Final rectangles:', highlight_rectangles)
-
         self.send_heartbeat(document_found)
-        # now = round(time.time() * 1000)
-
-        # HEARTBEAT_INTERVAL_MS = 200
-
-        # if now - self.last_heartbeat_timestamp > HEARTBEAT_INTERVAL_MS:
-        #    self.send_heartbeat(document_found)
-        #    self.last_heartbeat_timestamp = now
 
         if document_moved and not document_removed:
             self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
@@ -92,6 +80,7 @@ class Main:
         if document_changed or document_removed:
             self.clear_rects()
 
+    # For documents demo
     def send_heartbeat(self, document_found):
         message = f's {int(document_found)} |'
 
@@ -109,6 +98,7 @@ class Main:
 
         return 1
 
+    # For documents demo
     def send_matrix(self, matrix):
         # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
         flat = [item for sublist in matrix for item in sublist]
@@ -134,6 +124,7 @@ class Main:
 
         return 1
 
+    # For documents demo
     def send_corner_points(self, converted_document_corner_points):
         if not self.uds_initialized:
             return 0
@@ -167,6 +158,7 @@ class Main:
 
         return 1
 
+    # For documents demo
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
     # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
@@ -198,6 +190,7 @@ class Main:
 
         return 1
 
+    # For documents demo
     def delete_line(self, line_id):
         if not self.uds_initialized:
             return 0
@@ -217,6 +210,8 @@ class Main:
                 print('---------')
                 print('Broken Pipe in delete_line()')
                 self.init_unix_socket()
+
+    # ----------------------------------------------------------------------------------------------------------------
 
     def add_new_line_point(self):
         if not self.uds_initialized:
@@ -378,11 +373,11 @@ class Main:
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
         if len(frames) > 0:
-            # self.frame_counter += 1
             active_pen_events, stored_lines, _, _, debug_distances, rois = self.ir_pen.get_ir_pen_events_multicam(
                 frames, matrices)
-            self.rois = rois
+
             self.active_pen_events = active_pen_events
+            self.rois = rois
 
             if DOCUMENTS_DEMO:
                 self.analogue_digital_document.on_new_finished_lines(stored_lines)
