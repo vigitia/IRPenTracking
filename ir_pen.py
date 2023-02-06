@@ -81,9 +81,6 @@ class IRPen:
             # TODO: Get here all spots and not just one
             pen_event_roi, brightest, (x, y) = self.crop_image(frame)
 
-            # TODO: ONLY TESTING!
-            rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
-
             if pen_event_roi is not None:
                 transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
                 # (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
@@ -186,14 +183,12 @@ class IRPen:
     # WIP!
     def get_ir_pen_events_new(self, camera_frames, transform_matrices):
 
-        brightness_values = []
-
+        # Reset lists
         predictions = []
         rois = []
         transformed_coords = []
+        brightness_values = []
         subpixel_coords = []
-
-        debug_distances = []
 
         for i, frame in enumerate(camera_frames):
 
@@ -204,10 +199,12 @@ class IRPen:
             brightness_values.append([])
             subpixel_coords.append([])
 
+            # TODO: Check why we crash here sometimes
             try:
+                # Extract all ROIs from the current frame
                 rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
             except Exception as e:
-                print(e)
+                print('ERROR in/after "self.get_all_rois(frame):"', e)
                 rois_new, roi_coords_new, max_brightness_values = [], [], []
 
             for j, pen_event_roi in enumerate(rois_new):
@@ -230,8 +227,7 @@ class IRPen:
         # new_pen_events = self.generate_new_pen_events(subpixel_coords, predictions, brightness_values)
         new_pen_events = self.generate_new_pen_events(transformed_coords, predictions, brightness_values)
 
-        print('New pen Events:')
-        print(new_pen_events)
+        print('New pen Events:', new_pen_events)
 
         # This function needs to be called even if there are no new pen events to update all existing events
         active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_single(
@@ -300,53 +296,66 @@ class IRPen:
 
         elif len(coords[0]) > 0 and len(coords[1]) > 0:
             # Returns a list with entries in the following format: [list0 index, list1 index, distance in px]
-            # TODO: Currently we filter out all distances that are larger than max_distance. Can this cause problems?
+            # Currently we filter out all distances that are larger than max_distance. This will return only points
+            # where we can assume that they are caused by the same pens
             shortest_distance_point_pairs = self.pen_events_controller.calculate_distances_between_all_points(coords[0], coords[1], max_distance=CROP_IMAGE_SIZE, as_objects=False)
 
-            used_left = []
-            used_right = []
+            point_distance_pairs_by_y_value = self.find_point_pairs_with_similar_y_value(coords[0], coords[1])
 
-            # Iterate over all measured distances
+            print(point_distance_pairs_by_y_value)
+
+            used_ids_cam_0 = []
+            used_ids_cam_1 = []
+
+            # Iterate over all measured and prefiltered distance point pairs
             for entry in shortest_distance_point_pairs:
                 cam_0_index = entry[0]
                 cam_1_index = entry[1]
-                distance_between_points = entry[2]
+                # distance_between_points = entry[2]
 
-                if cam_0_index not in used_left and cam_1_index not in used_right:
+                if cam_0_index not in used_ids_cam_0 and cam_1_index not in used_ids_cam_1:
+                    # y1 = coords[0][cam_0_index][1]
+                    # y2 = coords[1][cam_1_index][1]
+                    # if abs(y1 - y2) < MAX_DISTANCE_DRAW:
+                    #     if predictions[0][cam_0_index] == 'draw' or predictions[1][cam_1_index] == 'draw':
 
+                            # if distance_between_points > CROP_IMAGE_SIZE:
+                            #     continue
 
-                    y1 = coords[0][cam_0_index][1]
-                    y2 = coords[1][cam_1_index][1]
-                    if abs(y1 - y2) < MAX_DISTANCE_DRAW:
-                        if predictions[0][cam_0_index] == 'draw' or predictions[1][cam_1_index] == 'draw':
+                    # We now have a point that is visible in both camera frames. Because those two frames might not be
+                    # perfectly aligned, we can use the center between both points here.
+                    (center_x, center_y) = self.get_center_point(coords[0][cam_0_index], coords[1][cam_1_index])
 
-                            if distance_between_points > CROP_IMAGE_SIZE:
-                                continue
+                    brightness_0 = brightness_values[0][cam_0_index]
+                    brightness_1 = brightness_values[1][cam_1_index]
 
-                        (center_x, center_y) = self.get_center_point(coords[0][cam_0_index],
-                                                                     coords[1][cam_1_index])
-                        if PREVIEW_THIS:
-                            cv2.line(zeros,
-                                     [int(coords[0][cam_0_index][0]), int(coords[0][cam_0_index][1])],
-                                     [int(coords[1][cam_1_index][0]), int(coords[1][cam_1_index][1])], (255, 255, 255), 3)
-                        used_left.append(cam_0_index)
-                        used_right.append(cam_1_index)
+                    # Compare brightness values and use prediction of the brighter point
+                    if brightness_1 > brightness_0:
+                        final_prediction = predictions[1][cam_1_index]
+                    else:
+                        final_prediction = predictions[0][cam_0_index]
 
-                        # TODO: Compare brightness and use the prediction of the brighter point
-                        prediction_a = predictions[0][cam_0_index]
-                        prediction_b = predictions[1][cam_1_index]
+                    new_pen_events.append(self.generate_new_pen_event(final_prediction, center_x, center_y))
 
-                        new_pen_events.append(self.generate_new_pen_event(prediction_a, center_x, center_y))
+                    used_ids_cam_0.append(cam_0_index)
+                    used_ids_cam_1.append(cam_1_index)
+
+                    if PREVIEW_THIS:
+                        cv2.line(zeros,
+                                 [int(coords[0][cam_0_index][0]), int(coords[0][cam_0_index][1])],
+                                 [int(coords[1][cam_1_index][0]), int(coords[1][cam_1_index][1])], (255, 255, 255), 3)
+
+            # Now we did the easy ones.
+            # TODO: Check the new points if they are draw/hover
 
             # Now deal with the remaining points
             for i in range(len(coords[0])):
-                if i not in used_left:
+                if i not in used_ids_cam_0:
                     print('Point {} on cam 0 remains'.format(i))
                     new_pen_events.append(self.generate_new_pen_event(predictions[0][i], coords[0][i][0],
                                                                       coords[0][i][1]))
-
             for i in range(len(coords[1])):
-                if i not in used_right:
+                if i not in used_ids_cam_1:
                     print('Point {} on cam 1 remains'.format(i))
                     new_pen_events.append(self.generate_new_pen_event(predictions[1][i], coords[1][i][0],
                                                                       coords[1][i][1]))
@@ -365,6 +374,23 @@ class IRPen:
             cv2.imshow('preview', zeros)
 
         return new_pen_events
+
+    def find_point_pairs_with_similar_y_value(self, cam_0_coords, cam_1_coords):
+
+        point_distance_pairs_by_y_value = []
+
+        for i in range(len(cam_0_coords)):
+            for j in range(len(cam_1_coords)):
+                y1 = cam_0_coords[i][1]
+                y2 = cam_1_coords[j][1]
+                y_difference = y1 - y2  # abs(y1 - y2)
+                point_distance_pairs_by_y_value.append([i, j, y_difference])
+
+        # Sort list of lists by third element, in this case the y-distance between the points
+        # https://stackoverflow.com/questions/4174941/how-to-sort-a-list-of-lists-by-a-specific-index-of-the-inner-list
+        point_distance_pairs_by_y_value.sort(key=lambda x: x[2])
+
+        return point_distance_pairs_by_y_value
 
     def generate_new_pen_event(self, prediction, x, y):
         if prediction == 'draw':
