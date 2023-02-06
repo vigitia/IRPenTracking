@@ -22,15 +22,15 @@ class IRPenCNN:
 
     # @timeit('Predict')
     def predict(self, img):
-        # if len(img.shape) == 3:
-        #     print(img[10,10,:])
-        #     img = img[:, :, :2]
-        #     print(img[10, 10, :], 'after')
-        # img = img.astype('float32') / 255
-        # if len(img.shape) == 3:
-        #     img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 2)
+        # if len(image.shape) == 3:
+        #     print(image[10,10,:])
+        #     image = image[:, :, :2]
+        #     print(image[10, 10, :], 'after')
+        # image = image.astype('float32') / 255
+        # if len(image.shape) == 3:
+        #     image = image.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 2)
         # else:
-        #     img = img.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
+        #     image = image.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
 
         img_reshaped = img.reshape(-1, img.shape[0], img.shape[1], 1)
         prediction = self.keras_lite_model.predict(img_reshaped)
@@ -41,7 +41,7 @@ class IRPenCNN:
 
         # if ACTIVE_LEARNING_COLLECTION_MODE:
         #     if state != self.active_learning_state:
-        #         cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', img)
+        #         cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', image)
         #         print(f'saving frame {self.active_learning_counter}')
         #         self.active_learning_counter += 1
 

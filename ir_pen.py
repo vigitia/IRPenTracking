@@ -57,7 +57,6 @@ class IRPen:
 
     # active_learning_counter = 0
     # active_learning_state = 'hover'
-
     # last_coords = (0, 0)
     # last_frame_time = time.time()
 
@@ -81,6 +80,10 @@ class IRPen:
 
             # TODO: Get here all spots and not just one
             pen_event_roi, brightest, (x, y) = self.crop_image(frame)
+
+            # TODO: ONLY TESTING!
+            # testing_rois, testing_centers = self.get_rois_new(frame)
+            self.get_rois_new(frame)
 
             if pen_event_roi is not None:
                 transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
@@ -395,24 +398,105 @@ class IRPen:
 
         return rois, roi_coords, max_brightness_values
 
-    def crop_image(self, img):
+    def get_rois_new(self, image):
+
+        rois = []
+        roi_center_coordinates = []
+
+        margin = int(CROP_IMAGE_SIZE / 2)
+
+        cutout = np.zeros((CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1), 'uint8')
+
+        #print(image.shape)
+        #print(cutout.shape)
+
+        i = 0
+
+        image_copy = image.copy()
+
+        while True:
+
+            # Get max brightness value of frame and its location
+            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image_copy)
+
+            # Stop if point is not bright enough to be considered
+            if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
+                # print('Checks over, brightness to small')
+                print('Found a total of {} ROIs in frame'.format(len(rois)))
+                print(roi_center_coordinates)
+                print('')
+                # return rois, roi_center_coordinates
+                return
+
+            print('Brightest:', brightest)
+
+            # Cut out region of interest around brightest point in image
+            img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
+
+            # print('Found new ROI candidate. Total:', len(rois))
+            # print(img_cropped.shape)
+
+            # print('Pixel value:', image_copy[max_y, max_x])
+
+            # print('Iteration:', i)
+            i += 1
+
+            # If the point is close to the image border, the output image will be too small
+            # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
+            # Problems only appear on the image border.
+            if img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
+
+                # image.setflags(write=1)
+                # Set all pixels in ROI to black
+                image_copy[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = cutout
+                # image.setflags(write=0)
+
+                rois.append(img_cropped)
+                roi_center_coordinates.append((max_x, max_y))
+
+                if len(rois) == 1:
+                    cv2.imshow('rois', cv2.resize(img_cropped, (960, 960), interpolation=cv2.INTER_AREA))
+                elif len(rois) == 2:
+                    cv2.imshow('rois', cv2.hconcat([cv2.resize(rois[0], (960, 960), interpolation=cv2.INTER_AREA),
+                                                    cv2.resize(rois[1], (960, 960), interpolation=cv2.INTER_AREA)]))
+                elif len(rois) == 3:
+                    cv2.imshow('rois', cv2.hconcat([cv2.resize(rois[0], (960, 960), interpolation=cv2.INTER_AREA),
+                                                    cv2.resize(rois[1], (960, 960), interpolation=cv2.INTER_AREA),
+                                                    cv2.resize(rois[2], (960, 960), interpolation=cv2.INTER_AREA)]))
+                elif len(rois) > 3:
+                    print('WHY SO MANY?')
+
+            else:
+                print('ROI shape too small')
+
+                # Set just this pixel to black
+                # TODO: Needs improvement, set also the surrounding area to black
+                image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
+
+
+
+
+
+
+
+    def crop_image(self, image):
         margin = int(CROP_IMAGE_SIZE / 2)
 
         # Get max brightness value of frame and its location
-        _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
+        _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image)
 
         # Stop if point is not bright enough to be considered
         if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
             return None, brightest, (max_x, max_y)
 
         # Cut out region of interest around brightest point in image
-        img_cropped = img[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
+        img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
 
         # If the point is close to the image border, the output image will be too small
         # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
         # Problems only appear on the image border.
         if img_cropped.shape[0] != CROP_IMAGE_SIZE or img_cropped.shape[1] != CROP_IMAGE_SIZE:
-            # img_cropped, brightest, (max_x, max_y) = self.crop_image_2(img)
+            # img_cropped, brightest, (max_x, max_y) = self.crop_image_2(image)
             print('!#-#-#-#-#-#-#-#-#')
             print('Shape in crop 1:', img_cropped.shape, max_x, max_y)
             return None, brightest, (max_x, max_y)
@@ -457,13 +541,13 @@ class IRPen:
         # print(left, top)
 
         if left + CROP_IMAGE_SIZE >= img.shape[1]:
-            # left -= (left + size - img.shape[1] - 1)
+            # left -= (left + size - image.shape[1] - 1)
             left = img.shape[1] - CROP_IMAGE_SIZE - 1
         if top + CROP_IMAGE_SIZE >= img.shape[0]:
-            # top -= (top + size - img.shape[0] - 1)
+            # top -= (top + size - image.shape[0] - 1)
             top = img.shape[0] - CROP_IMAGE_SIZE - 1
 
-        # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
+        # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image)
         img_cropped = img[top: top + CROP_IMAGE_SIZE, left: left + CROP_IMAGE_SIZE]
 
         print('Shape in crop 2:', img_cropped.shape, left + margin, top + margin)

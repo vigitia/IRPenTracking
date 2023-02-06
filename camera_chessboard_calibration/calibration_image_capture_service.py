@@ -114,7 +114,7 @@ class CalibrationImageCaptureService:
 #                 cv2.drawChessboardCorners(color_image, CHESSBOARD_SQUARES, corners2, ret)
 #
 #
-#                     # cv2.imshow("TEST", img)
+#                     # cv2.imshow("TEST", image)
 #
 #         if cv2.waitKey(1) & 0xFF == ord('q'):
 #             exit(0)
