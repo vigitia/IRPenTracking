@@ -115,11 +115,11 @@ if __name__ == '__main__':
         if condition == 'draw':
             num_draw += 1
             img = cv2.imread(draw_path + random.sample(image_paths_draw, 1)[0], cv2.IMREAD_GRAYSCALE)
-            # print('Max', np.max(img))
+            # print('Max', np.max(image))
         else:
             num_hover += 1
             img = cv2.imread(hover_path + random.sample(image_paths_hover, 1)[0], cv2.IMREAD_GRAYSCALE)
-        #cv2.imshow('test', img)
+        #cv2.imshow('test', image)
         #cv2.waitKey(0)
         img = img.reshape(-1, 48, 48, 1)
         print(condition)
