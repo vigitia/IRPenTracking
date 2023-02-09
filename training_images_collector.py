@@ -40,7 +40,7 @@ class TrainingImagesCollector:
         for i, frame in enumerate(camera_frames):
 
             # TODO: Get here all spots and not just one
-            pen_event_roi, brightest, (x, y) = self.ir_pen.crop_image(frame)
+            pen_event_roi, brightest, (x, y) = self.ir_pen.crop_image_old(frame)
 
             if pen_event_roi is not None:
                 self.__save_training_image(pen_event_roi, (x, y), i)

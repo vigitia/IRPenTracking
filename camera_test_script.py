@@ -80,8 +80,7 @@ while True:
     # image0 = image0.GetNDArray()
     # image1 = image1.GetNDArray()
 
-    # active_pen_events, stored_lines, _, _, rois = ir_pen.get_ir_pen_events([im_cv2_format], matrix)
-    active_pen_events, stored_lines, _, _, rois = ir_pen.get_ir_pen_events_new([image0, image1], [matrix0, matrix1])
+    active_pen_events, stored_lines, pen_events_to_remove = ir_pen.get_ir_pen_events_new([image0, image1], [matrix0, matrix1])
 
     cv2.imshow('Flir Blackfly S 0', image0)
     cv2.imshow('Flir Blackfly S 1', image1)
