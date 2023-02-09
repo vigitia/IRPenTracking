@@ -29,8 +29,6 @@ if DOCUMENTS_DEMO:
 
 class Main:
 
-    rois = []  # Regions of interest
-
     uds_initialized = False
     sock = None
     pipeout = None
@@ -313,7 +311,7 @@ class Main:
         while True:
 
             if DEBUG_MODE:
-                self.show_debug_preview()
+                # self.show_debug_preview()
 
                 key = cv2.waitKey(1)
                 if key == 27:  # ESC
@@ -324,57 +322,57 @@ class Main:
                 #  time.sleep() does not work here
                 cv2.waitKey(1)
 
-    def show_debug_preview(self):
+    # def show_debug_preview(self):
+    #
+    #     # TODO: Label origin camera
+    #
+    #     if not self.preview_initialized:
+    #         cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
+    #         cv2.resizeWindow('ROI', 1920, 960)
+    #         self.preview_initialized = True
+    #
+    #     if len(self.rois) == 2:
+    #         roi0 = cv2.resize(self.rois[0], (960, 960), interpolation=cv2.INTER_AREA)
+    #         roi1 = cv2.resize(self.rois[1], (960, 960), interpolation=cv2.INTER_AREA)
+    #
+    #         roi0 = self.add_max_brightness_label(roi0, np.max(roi0))
+    #         roi1 = self.add_max_brightness_label(roi1, np.max(roi1))
+    #
+    #         cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
+    #
+    #     elif len(self.rois) == 1:
+    #         roi0 = cv2.resize(self.rois[0], (960, 960), interpolation=cv2.INTER_AREA)
+    #         roi1 = np.zeros((960, 960), np.uint8)
+    #
+    #         roi0 = self.add_max_brightness_label(roi0, np.max(roi0))
+    #
+    #         cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
+    #
+    #     self.rois = []
 
-        # TODO: Label origin camera
-
-        if not self.preview_initialized:
-            cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('ROI', 1920, 960)
-            self.preview_initialized = True
-
-        if len(self.rois) == 2:
-            roi0 = cv2.resize(self.rois[0], (960, 960), interpolation=cv2.INTER_AREA)
-            roi1 = cv2.resize(self.rois[1], (960, 960), interpolation=cv2.INTER_AREA)
-
-            roi0 = self.add_max_brightness_label(roi0, np.max(roi0))
-            roi1 = self.add_max_brightness_label(roi1, np.max(roi1))
-
-            cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
-
-        elif len(self.rois) == 1:
-            roi0 = cv2.resize(self.rois[0], (960, 960), interpolation=cv2.INTER_AREA)
-            roi1 = np.zeros((960, 960), np.uint8)
-
-            roi0 = self.add_max_brightness_label(roi0, np.max(roi0))
-
-            cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
-
-        self.rois = []
-
-    def add_max_brightness_label(self, frame, max_brightness):
-        return cv2.putText(
-            img=frame,
-            text=str(max_brightness),
-            org=(90, 90),
-            fontFace=cv2.FONT_HERSHEY_DUPLEX,
-            fontScale=2.0,
-            color=(255),
-            thickness=3
-        )
+    # def add_max_brightness_label(self, frame, max_brightness):
+    #     return cv2.putText(
+    #         img=frame,
+    #         text=str(max_brightness),
+    #         org=(90, 90),
+    #         fontFace=cv2.FONT_HERSHEY_DUPLEX,
+    #         fontScale=2.0,
+    #         color=(255),
+    #         thickness=3
+    #     )
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
+
         if len(frames) > 0:
             if TRAINING_DATA_COLLECTION_MODE:
                 self.training_images_collector.save_training_images(frames)
             else:
-                active_pen_events, stored_lines, _, _, rois = self.ir_pen.get_ir_pen_events(frames, matrices)
+                active_pen_events, stored_lines, _, _ = self.ir_pen.get_ir_pen_events_new(frames, matrices)
+                # active_pen_events, stored_lines, _, _, rois = self.ir_pen.get_ir_pen_events_new(frames, matrices)
 
                 if SEND_TO_FRONTEND:
                     for active_pen_event in active_pen_events:
                         self.add_new_line_point(active_pen_event)
-
-                self.rois = rois
 
                 if DOCUMENTS_DEMO:
                     self.analogue_digital_document.on_new_finished_lines(stored_lines)

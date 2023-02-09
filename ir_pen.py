@@ -216,24 +216,26 @@ class IRPen:
                     'used': False  # Flag to check if the ROI has been used to generate a pen event
                 })
 
-        self.preview_rois(new_data)
-        self.preview_table_view(new_data)
+        if DEBUG_MODE:
+            self.preview_rois(new_data)
+            self.preview_table_view(new_data)
 
         # TODO: Rework subpixel coordinates calculation
         # new_pen_events = self.generate_new_pen_events(subpixel_coords, predictions, brightness_values)
         new_pen_events = self.generate_new_pen_events_new_new(new_data)
 
-        if len(new_pen_events) > 0:
-            print('New pen Events:', new_pen_events)
+        # if len(new_pen_events) > 0:
+        #     print('New pen Events:', new_pen_events)
 
         # This function needs to be called even if there are no new pen events to update all existing events
-        # active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_single(
-        #    new_pen_events)
+        active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_new(new_pen_events)
 
-        return [], [], [], [], []
+        print('Active pen events', active_pen_events)
+
+        # return [], [], [], [], []
 
         # TODO: REWORK RETURN. stored_lines not always needed
-        return active_pen_events, stored_lines, new_pen_events, pen_events_to_remove, rois
+        return active_pen_events, stored_lines, new_pen_events, pen_events_to_remove
 
     # By using the transform matrix handed over by the camera, the given coordinate will be transformed from camera
     # space to projector space
@@ -314,16 +316,16 @@ class IRPen:
         # Every camera sees at least one point -> Check which points likely belong together
         if len(new_data[0]) > 0 and len(new_data[1]) > 0:
             point_distance_pairs_by_y_value = self.find_point_pairs_with_similar_y_value(new_data[0], new_data[1])
-            print(point_distance_pairs_by_y_value)
+            # print(point_distance_pairs_by_y_value)
 
             for pair in point_distance_pairs_by_y_value:
+
+                cam_0_index = pair[0]
+                cam_1_index = pair[1]
 
                 # If one of the points has already been used, we can continue
                 if new_data[0][cam_0_index]['used'] or new_data[1][cam_1_index]['used']:
                     continue
-
-                cam_0_index = pair[0]
-                cam_1_index = pair[1]
 
                 y_distance_between_points_abs = pair[2]
                 x_distance_between_points = pair[3]
@@ -664,7 +666,7 @@ class IRPen:
 
         margin = int(CROP_IMAGE_SIZE / 2)
 
-        cutout = np.zeros((CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1), 'uint8')
+        cutout = np.zeros((CROP_IMAGE_SIZE, CROP_IMAGE_SIZE), 'uint8')
 
         #print(image.shape)
         #print(cutout.shape)

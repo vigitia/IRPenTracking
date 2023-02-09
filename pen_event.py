@@ -1,6 +1,7 @@
 import time
 from pen_state import PenState
 
+
 # Representation of a single pen event
 class PenEvent:
 
@@ -9,7 +10,7 @@ class PenEvent:
         self.y = y
         self.id = -1
 
-        self.missing = False
+        # self.missing = False
         self.last_seen_timestamp = 0
 
         self.first_appearance = round(time.time() * 1000)
