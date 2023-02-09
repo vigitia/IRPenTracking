@@ -135,25 +135,31 @@ class PenEventsController:
 
         final_pen_events = self.__assign_new_ids(final_pen_events)
 
-        # for final_pen_event in final_pen_events:
+        # TODO: Improve this removal of elements from list
+        final_final_pen_events = []
+        for final_pen_event in final_pen_events:
 
-            # # Check if there are too many hover events. End event if this is the case
-            # if len(final_pen_event.history) >= 1 and len(final_pen_event.state_history) >= NUM_HOVER_EVENTS_TO_END_LINE:
-            #     if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(PenState.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
-            #         if DEBUG_MODE:
-            #             print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
-            #         if len(final_pen_event.history) > 0:
-            #             # self.stored_lines.append(np.array(final_pen_event.history))
-            #             self.stored_lines.append({final_pen_event.id: final_pen_event.history})
-            #             # TODO: remove event from final_pen_events
-            #
-            #         # print(final_pen_event.state, final_pen_event.state_history[-5:])
-            #         if DEBUG_MODE:
-            #             print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
-            #                                                                                     len(final_pen_event.history)))
+            # Check if there are too many hover events. End event if this is the case
+            if len(final_pen_event.history) >= 1 and len(final_pen_event.state_history) >= NUM_HOVER_EVENTS_TO_END_LINE:
+                if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(PenState.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
+                    # if DEBUG_MODE:
+                    # print('Pen Event {} turned from State.DRAG into State.HOVER'.format(final_pen_event.id))
+                    if len(final_pen_event.history) > 0:
+                        # self.stored_lines.append(np.array(final_pen_event.history))
+                        self.stored_lines.append({final_pen_event.id: final_pen_event.history})
+                        pen_events_to_remove.append(final_pen_event)
+                        # TODO: remove event from final_pen_events
 
+                    # print(final_pen_event.state, final_pen_event.state_history[-5:])
+                    # if DEBUG_MODE:
+                    print('PEN Event {} ({} points) gets deleted because DRAW ended'.format(final_pen_event.id,
+                                                                                            len(final_pen_event.history)))
 
-        self.active_pen_events = final_pen_events
+                    continue
+
+            final_final_pen_events.append(final_pen_event)
+
+        self.active_pen_events = final_final_pen_events
 
         return self.active_pen_events, self.stored_lines, pen_events_to_remove
 
