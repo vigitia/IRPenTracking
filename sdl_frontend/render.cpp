@@ -177,7 +177,7 @@ void renderHoverIndicator(SDL_Renderer* renderer)
     {
         struct Pen pen = entry.second;
 
-        if(pen.state == 0 && pen.alive)
+        if(pen.state == 0 && pen.alive == 1)
         {
             filledCircleColor(renderer, pen.position.x, pen.position.y, 3, HOVER_INDICATOR_COLOR);
         }

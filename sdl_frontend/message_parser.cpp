@@ -126,6 +126,8 @@ int parseMessageFinishLine(char* buffer)
 
         pens[id].currentLine.coords.clear();
         pens[id].alive = 0;
+
+        pens.erase(id);
         return 1;
     }
 
