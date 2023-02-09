@@ -24,7 +24,7 @@ void render(SDL_Renderer* renderer)
     if(currentMode == image) renderImage(renderer);
     if(SHOW_LINES) renderLines(renderer);
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
-    if(SHOW_HOVER_INDICATOR && currentState == STATE_HOVER && currentMode != cross) renderHoverIndicator(renderer);
+    if(SHOW_HOVER_INDICATOR && currentMode != cross) renderHoverIndicator(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
     if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
@@ -47,18 +47,18 @@ void renderLine(SDL_Renderer *rend, vector<Point> *line, SDL_Color color)
 
 void renderParticles(SDL_Renderer* renderer)
 {
-    if(currentState == STATE_DRAW)
+    // fixme
+
+    // if draw
+    int x = currentX;
+    int y = currentY;
+    for (int i = 0; i < 10; i++)
     {
-        int x = currentX;
-        int y = currentY;
-        for (int i = 0; i < 10; i++)
-        {
-            Particle trailParticle = Particle(x, y, 0xFF0088FF);
-            trailParticle.setAngle((rand() % 359) / 180 * M_PI);
-            trailParticle.setLifetime(5 + (rand() % 5) / 5.0f);
-            trailParticle.setVelocity(1 + rand() % 3);
-            particles.push_back(trailParticle);
-        }
+        Particle trailParticle = Particle(x, y, 0xFF0088FF);
+        trailParticle.setAngle((rand() % 359) / 180 * M_PI);
+        trailParticle.setLifetime(5 + (rand() % 5) / 5.0f);
+        trailParticle.setVelocity(1 + rand() % 3);
+        particles.push_back(trailParticle);
     }
 
     for (vector<Particle>::iterator it = particles.begin(); it != particles.end();)
@@ -148,25 +148,46 @@ void renderLines(SDL_Renderer* renderer)
 	    }
     }
 
-    if(currentLine.coords.size() > 1)
+    for (auto const& entry : pens)
     {
-        SDL_Point point_array[currentLine.coords.size()];
-        for(int i = 0; i < currentLine.coords.size(); i++)
+        struct Pen pen = entry.second;
+
+        if(pen.alive)
         {
-            point_array[i] = pointToSDL(currentLine.coords.at(i));
+            if(pen.currentLine.coords.size() > 1)
+            {
+                SDL_Point point_array[pen.currentLine.coords.size()];
+                for(int i = 0; i < pen.currentLine.coords.size(); i++)
+                {
+                    point_array[i] = pointToSDL(pen.currentLine.coords.at(i));
+                }
+                SDL_SetRenderDrawColor(renderer, pen.currentLine.color.r, pen.currentLine.color.g, pen.currentLine.color.b, 255);
+                SDL_RenderDrawLines(renderer, point_array, pen.currentLine.coords.size());
+            }
         }
-        SDL_SetRenderDrawColor(renderer, currentLine.color.r, currentLine.color.g, currentLine.color.b, 255);
-        SDL_RenderDrawLines(renderer, point_array, currentLine.coords.size());
     }
 }
 
 void renderHoverIndicator(SDL_Renderer* renderer)
 {
-    filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
+    // fixme
+    //filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
+
+    for (auto const& entry : pens)
+    {
+        struct Pen pen = entry.second;
+
+        if(pen.state == 0 && pen.alive)
+        {
+            filledCircleColor(renderer, pen.position.x, pen.position.y, 3, HOVER_INDICATOR_COLOR);
+        }
+    }
 }
 
 void renderLatencyTest(SDL_Renderer* renderer)
 {
+    // fixme
+    /*
     if(currentState == STATE_DRAW)
     {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -175,6 +196,7 @@ void renderLatencyTest(SDL_Renderer* renderer)
     {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     }
+    */
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
 }

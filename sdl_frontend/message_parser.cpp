@@ -13,6 +13,9 @@ int parseMessage(char* buffer)
         case CODE_LINE:
             return parseMessageLine(buffer);
             break;
+        case CODE_LINE_FINISH:
+            return parseMessageFinishLine(buffer);
+            break;
         case CODE_DOCUMENT:
             return parseMessageDocument(buffer);
             break;
@@ -51,58 +54,79 @@ int parseMessageLine(char* buffer)
     // only set the delay times if all four values could be read correctly
     if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
     {
-        //cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
-        currentX = x;
-        currentY = y;
-        currentState = state;
-        if (currentState == STATE_DRAW && id == currentLine.id)
+        if(pens.find(id) == pens.end())
         {
-            currentLine.color = {r, g, b};
+            struct Pen currentPen;
+            currentPen.id = id;
+            currentPen.state = (bool) state;
+            currentPen.currentLine.id = id;
+            currentPen.alive = 1;
+            pens[id] = currentPen;
         }
-        currentLine.id = currentId;
+
+        pens[id].Position.x = x;
+        pens[id].Position.y = y;
+        pens[id].state = (bool) state;
+
+        //cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
+        if (state == STATE_DRAW && id == pens[id].currentLine.id)
+        {
+            pens[id].currentLine.color = {r, g, b};
+        }
+        //pens[id].currentLine.id = currentId;
 
         bool inDocument = document.isPointInDocument(x, y);
 
-        if (document.alive && inDocument && !wasInDocument)
+        if (document.alive && inDocument && !pens[id].wasInDocument)
         {
-            lines.push_back(currentLine);
-            currentLine.coords.clear();
-            if(state == STATE_DRAW) currentLine.coords.push_back({x, y});
-            wasInDocument = true;
+            lines.push_back(pens[id].currentLine);
+            pens[id].currentLine.coords.clear();
+            if(state == STATE_DRAW) pens[id].currentLine.coords.push_back({x, y});
+            pens[id].wasInDocument = true;
         }
-        else if (document.alive && !inDocument && wasInDocument)
+        else if (document.alive && !inDocument && pens[id].wasInDocument)
         {
-            documentLines.push_back(currentLine);
-            currentLine.coords.clear();
-            if(state == STATE_DRAW) currentLine.coords.push_back({x, y});
-            wasInDocument = false;
+            documentLines.push_back(pens[id].currentLine);
+            pens[id].currentLine.coords.clear();
+            if(state == STATE_DRAW) pens[id].currentLine.coords.push_back({x, y});
+            pens[id].wasInDocument = false;
         }
         else
         {
-            if(id != currentId)
+            if(state == STATE_DRAW)
             {
-                if (inDocument)
-                {
-                    documentLines.push_back(currentLine);
-                }
-                else
-                {
-                    lines.push_back(currentLine);
-                }
-
-                currentId = id;
-                currentLine.coords.clear();
+                pens[id].currentLine.coords.push_back({x, y});
             }
-            else
-            {
-                if(state == STATE_DRAW)
-                {
-                    currentLine.coords.push_back({x, y});
-                }
-            } 
         }
 
         return 1; 
+    }
+
+    return 0;
+}
+
+int parseMessageFinishLine(char* buffer)
+{
+
+    int id;
+    // parse new values from the FIFO
+    // only set the delay times if all four values could be read correctly
+    if(sscanf(buffer, "f %d ", &id) == 1)
+    {
+        bool inDocument = document.isPointInDocument(x, y);
+
+        if (inDocument)
+        {
+            documentLines.push_back(pens[id].currentLine);
+        }
+        else
+        {
+            lines.push_back(pens[id].currentLine);
+        }
+
+        pens[id].currentLine.coords.clear();
+        pens[id].alive = 0;
+        return 1;
     }
 
     return 0;

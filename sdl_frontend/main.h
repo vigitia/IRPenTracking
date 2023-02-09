@@ -37,6 +37,7 @@
 
 
 #define CODE_LINE 'l'
+#define CODE_LINE_FINISH 'f'
 #define CODE_DOCUMENT 'k'
 #define CODE_STATE 's'
 #define CODE_MATRIX 'm'
@@ -72,6 +73,14 @@ struct Line {
     bool alive;
 };
 
+struct Pen {
+    Point position;
+    Line currentLine;
+    bool wasInDocument;
+    bool state;
+    bool alive;
+};
+
 struct Poly {
     int id;
     short int x[4];
@@ -88,6 +97,7 @@ inline vector<Line> documentLines;
 inline Line currentLine;
 inline bool wasInDocument = false;
 inline map<int, struct Poly> rects;
+inline map<int, struct Pen> pens;
 inline int currentId = 0;
 inline int participantId = 0;
 inline int currentX, currentY = 0;
@@ -106,6 +116,7 @@ SDL_Point pointToSDL(Point p);
 
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);
+int parseMessageFinishLine(char* buffer);
 int parseMessageDocument(char* buffer);
 int parseMessageState(char* buffer);
 int parseMessageMatrix(char* buffer);
