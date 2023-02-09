@@ -255,6 +255,23 @@ class Main:
 
     # ----------------------------------------------------------------------------------------------------------------
 
+    def finish_line(self, pen_event_to_remove):
+        if not self.uds_initialized:
+            print('Error in finish_line(): uds not initialized')
+            return False
+
+        message = 'f {} |'.format(pen_event_to_remove.id,)
+
+        if ENABLE_FIFO_PIPE:
+            os.write(self.pipeout, bytes(message, 'utf8'))
+        if ENABLE_UNIX_SOCKET:
+            try:
+                self.sock.sendall(message.encode())
+            except Exception as e:
+                print('---------')
+                print(e)
+                print('Broken Pipe in finish_line()')
+                self.init_unix_socket()
     def add_new_line_point(self, active_pen_event):
         if not self.uds_initialized:
             print('Error in add_new_line_point(): uds not initialized')
@@ -367,12 +384,15 @@ class Main:
             if TRAINING_DATA_COLLECTION_MODE:
                 self.training_images_collector.save_training_images(frames)
             else:
-                active_pen_events, stored_lines, _, _ = self.ir_pen.get_ir_pen_events_new(frames, matrices)
+                active_pen_events, stored_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events_new(frames, matrices)
                 # active_pen_events, stored_lines, _, _, rois = self.ir_pen.get_ir_pen_events_new(frames, matrices)
 
                 if SEND_TO_FRONTEND:
                     for active_pen_event in active_pen_events:
                         self.add_new_line_point(active_pen_event)
+
+                    for pen_event in pen_events_to_remove:
+                        self.finish_line(pen_event)
 
                 if DOCUMENTS_DEMO:
                     self.analogue_digital_document.on_new_finished_lines(stored_lines)
