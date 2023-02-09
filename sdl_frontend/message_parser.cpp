@@ -57,15 +57,15 @@ int parseMessageLine(char* buffer)
         if(pens.find(id) == pens.end())
         {
             struct Pen currentPen;
-            currentPen.id = id;
+            //currentPen.id = id;
             currentPen.state = (bool) state;
             currentPen.currentLine.id = id;
             currentPen.alive = 1;
             pens[id] = currentPen;
         }
 
-        pens[id].Position.x = x;
-        pens[id].Position.y = y;
+        pens[id].position.x = x;
+        pens[id].position.y = y;
         pens[id].state = (bool) state;
 
         //cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
@@ -113,7 +113,7 @@ int parseMessageFinishLine(char* buffer)
     // only set the delay times if all four values could be read correctly
     if(sscanf(buffer, "f %d ", &id) == 1)
     {
-        bool inDocument = document.isPointInDocument(x, y);
+        bool inDocument = document.isPointInDocument(pens[id].position.x, pens[id].position.y);
 
         if (inDocument)
         {
