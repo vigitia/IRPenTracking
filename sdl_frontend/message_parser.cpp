@@ -107,11 +107,10 @@ int parseMessageLine(char* buffer)
 
 int parseMessageFinishLine(char* buffer)
 {
-
     int id;
-    // parse new values from the FIFO
-    // only set the delay times if all four values could be read correctly
-    if(sscanf(buffer, "f %d ", &id) == 1)
+    int pos;
+
+    if(sscanf(buffer, "f %d %n", &id, &pos) == 1 && buffer[pos-1] == ' ')
     {
         bool inDocument = document.isPointInDocument(pens[id].position.x, pens[id].position.y);
 
