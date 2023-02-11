@@ -6,6 +6,8 @@
 #include <map>
 #include <string>
 #include <SDL2/SDL.h>
+#include <stdio.h>
+#include <iostream>
 
 #define MODE_FIFO 0
 #define MODE_UDS 1
