@@ -218,9 +218,38 @@ class IRPen:
             self.preview_rois(new_data)
             self.preview_table_view(new_data)
 
+        # a = {
+        #     'prediction': 'draw',
+        #     'used': False,
+        #     'subpixel_coords': (2337, 1528)
+        # }
+        #
+        # b = {
+        #     'prediction': 'hover',
+        #     'used': False,
+        #     'subpixel_coords': (1474, 1536)
+        # }
+        #
+        # c = {
+        #     'prediction': 'draw',
+        #     'used': False,
+        #     'subpixel_coords': (2320, 1530)
+        # }
+        #
+        # d = {
+        #     'prediction': 'draw',
+        #     'used': False,
+        #     'subpixel_coords': (1455, 1526)
+        # }
+        #
+        # new_data = [[a, b], [c, d]]
+
         # TODO: Rework subpixel coordinates calculation
         # new_pen_events = self.generate_new_pen_events(subpixel_coords, predictions, brightness_values)
         new_pen_events = self.generate_new_pen_events(new_data)
+
+        if len(new_pen_events) > 2:
+            print('TOO MANY NEW PEN EVENTS!')
 
         # if len(new_pen_events) > 0:
         #     print('New pen Events:', new_pen_events)
@@ -228,7 +257,13 @@ class IRPen:
         # This function needs to be called even if there are no new pen events to update all existing events
         active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_new(new_pen_events)
 
-        print('Active pen events', active_pen_events)
+        active_pen_events.sort(key=lambda x: x.id, reverse=False)
+
+        if len(active_pen_events) > 2:
+            print('Too many')
+
+        if len(active_pen_events) > 0:
+            print('Active pen events', active_pen_events)
 
         # TODO: REWORK RETURN. stored_lines not always needed
         return active_pen_events, stored_lines, pen_events_to_remove
@@ -576,11 +611,11 @@ class IRPen:
             for j in range(len(cam_1_coords)):
 
                 # Prevent out of range errors when lists have different lengths
-                if i > len(cam_1_coords) -1 or j > len(cam_0_coords) - 1:
+                if i > len(cam_1_coords) - 1 or j > len(cam_0_coords) - 1:
                     continue
 
                 x1 = cam_0_coords[i]['subpixel_coords'][0]
-                x2 = cam_1_coords[i]['subpixel_coords'][0]
+                x2 = cam_1_coords[j]['subpixel_coords'][0]
                 x_difference = x1 - x2
 
                 y1 = cam_0_coords[i]['subpixel_coords'][1]
