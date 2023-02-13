@@ -57,6 +57,9 @@ void *handle_uds(void *args)
     {
         size = recv(client_socket, buffer, buffer_length-1, MSG_WAITALL);
         //size = read(client_socket, buffer, buffer_length-1);
+	
+	// print raw messages limited to buffer size
+	//cout << buffer << endl;
 
 	//cout << size << " -- " << buffer << endl;
         if(size > 0)
@@ -80,6 +83,11 @@ void *handle_uds(void *args)
                 {
                     residual = message;
                 }
+
+		if (result == 1)
+		{
+			cout << message << endl;
+		}
             }
         }
         //send(client_socket, "ok", 2, 0);
