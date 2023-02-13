@@ -30,7 +30,7 @@ if DOCUMENTS_DEMO:
 class Main:
 
     uds_initialized = False
-    sock = None
+    socket = None
     pipeout = None
 
     last_heartbeat_timestamp = 0
@@ -41,10 +41,7 @@ class Main:
 
         if SEND_TO_FRONTEND:
             if ENABLE_FIFO_PIPE:
-                if not os.path.exists(PIPE_NAME):
-                    os.mkfifo(PIPE_NAME)
-                self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
-
+                self.init_fifo_pipe()
             if ENABLE_UNIX_SOCKET:
                 self.init_unix_socket()
 
@@ -62,15 +59,21 @@ class Main:
             self.logitech_brio_camera.init_video_capture()
             self.logitech_brio_camera.start()
 
+        # Start a thread to keep this script alive
         thread = threading.Thread(target=self.main_thread)
         thread.start()
 
+    def init_fifo_pipe(self):
+        if not os.path.exists(PIPE_NAME):
+            os.mkfifo(PIPE_NAME)
+        self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
+
     def init_unix_socket(self):
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
         print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
         try:
-            self.sock.connect(UNIX_SOCK_NAME)
+            self.socket.connect(UNIX_SOCK_NAME)
         except socket.error as error:
             print('Error while connecting to UNIX Socket:', error)
             print('Make sure that the frontend is already running before starting this python script')
@@ -115,7 +118,7 @@ class Main:
         if ENABLE_UNIX_SOCKET:
             try:
                 # print('SEND HEARTBEAT')
-                self.sock.sendall(message.encode())
+                self.socket.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -141,7 +144,7 @@ class Main:
         if ENABLE_UNIX_SOCKET:
             try:
                 # print('SEND MATRIX')
-                self.sock.sendall(message.encode())
+                self.socket.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -175,7 +178,7 @@ class Main:
         if ENABLE_UNIX_SOCKET:
             # print('SEND CORNER POINTS')
             try:
-                self.sock.sendall(message.encode())
+                self.socket.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -207,7 +210,7 @@ class Main:
         if ENABLE_UNIX_SOCKET:
             try:
                 # print('SEND RECT')
-                self.sock.sendall(message.encode())
+                self.socket.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -230,7 +233,7 @@ class Main:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                self.sock.sendall(message.encode())
+                self.socket.sendall(message.encode())
             except Exception as e:
                 print(e)
                 print('---------')
@@ -245,7 +248,7 @@ class Main:
         if ENABLE_UNIX_SOCKET:
             try:
                 print('CLEAR RECTS')
-                self.sock.sendall('c |'.encode())
+                self.socket.sendall('c |'.encode())
                 return 1
             except Exception as e:
                 print(e)
@@ -260,13 +263,15 @@ class Main:
             print('Error in finish_line(): uds not initialized')
             return False
 
-        message = 'f {} |'.format(pen_event_to_remove.id,)
+        message = 'f {} |'.format(pen_event_to_remove.id)
+
+        print('Finish line', pen_event_to_remove.id)
 
         if ENABLE_FIFO_PIPE:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                self.sock.sendall(message.encode())
+                self.socket.send(message.encode())
             except Exception as e:
                 print('---------')
                 print(e)
@@ -277,7 +282,18 @@ class Main:
             print('Error in add_new_line_point(): uds not initialized')
             return False
 
-        message = 'l {} 255 255 255 {} {} {} |'.format(active_pen_event.id,
+        r = 255
+        g = 255
+        b = 255
+
+        if active_pen_event.id % 3 == 0:
+            r = 0
+        if active_pen_event.id % 3 == 1:
+            g = 0
+        if active_pen_event.id % 3 == 2:
+            b = 0
+
+        message = 'l {} {} {} {} {} {} {} |'.format(active_pen_event.id, r, g, b,
                                                        int(active_pen_event.x),
                                                        int(active_pen_event.y),
                                                        0 if active_pen_event.state == PenState.HOVER else 1)
@@ -286,7 +302,7 @@ class Main:
             os.write(self.pipeout, bytes(message, 'utf8'))
         if ENABLE_UNIX_SOCKET:
             try:
-                self.sock.sendall(message.encode())
+                self.socket.send(message.encode())
             except Exception as e:
                 print('---------')
                 print(e)
@@ -326,57 +342,9 @@ class Main:
 
     def main_thread(self):
         while True:
-
-            if DEBUG_MODE:
-                # self.show_debug_preview()
-
-                key = cv2.waitKey(1)
-                if key == 27:  # ESC
-                    cv2.destroyAllWindows()
-                    sys.exit(0)
-            else:
-                # TODO: Check why we need a delay here. Without it, it will lag horribly.
-                #  time.sleep() does not work here
-                cv2.waitKey(1)
-
-    # def show_debug_preview(self):
-    #
-    #     # TODO: Label origin camera
-    #
-    #     if not self.preview_initialized:
-    #         cv2.namedWindow('ROI', cv2.WINDOW_NORMAL)
-    #         cv2.resizeWindow('ROI', 1920, 960)
-    #         self.preview_initialized = True
-    #
-    #     if len(self.rois) == 2:
-    #         roi0 = cv2.resize(self.rois[0], (960, 960), interpolation=cv2.INTER_AREA)
-    #         roi1 = cv2.resize(self.rois[1], (960, 960), interpolation=cv2.INTER_AREA)
-    #
-    #         roi0 = self.add_max_brightness_label(roi0, np.max(roi0))
-    #         roi1 = self.add_max_brightness_label(roi1, np.max(roi1))
-    #
-    #         cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
-    #
-    #     elif len(self.rois) == 1:
-    #         roi0 = cv2.resize(self.rois[0], (960, 960), interpolation=cv2.INTER_AREA)
-    #         roi1 = np.zeros((960, 960), np.uint8)
-    #
-    #         roi0 = self.add_max_brightness_label(roi0, np.max(roi0))
-    #
-    #         cv2.imshow('ROI', cv2.hconcat([roi0, roi1]))
-    #
-    #     self.rois = []
-
-    # def add_max_brightness_label(self, frame, max_brightness):
-    #     return cv2.putText(
-    #         img=frame,
-    #         text=str(max_brightness),
-    #         org=(90, 90),
-    #         fontFace=cv2.FONT_HERSHEY_DUPLEX,
-    #         fontScale=2.0,
-    #         color=(255),
-    #         thickness=3
-    #     )
+            # TODO: Check why we need a delay here. Without it, it will lag horribly.
+            #  time.sleep() does not work here
+            cv2.waitKey(1)
 
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
 
@@ -385,7 +353,6 @@ class Main:
                 self.training_images_collector.save_training_images(frames)
             else:
                 active_pen_events, stored_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events_new(frames, matrices)
-                # active_pen_events, stored_lines, _, _, rois = self.ir_pen.get_ir_pen_events_new(frames, matrices)
 
                 if SEND_TO_FRONTEND:
                     for active_pen_event in active_pen_events:
