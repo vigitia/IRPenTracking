@@ -16,11 +16,11 @@ class PenEvent:
         self.first_appearance = round(time.time() * 1000)
         self.state = state
         self.history = []  # All logged x and y positions as tuples
-        self.state_history = [state]  # All logged states (Hover, Draw, ...)
+        self.state_history = []  # All logged states (Hover, Draw, ...)
 
     def get_coordinates(self):
         return tuple([self.x, self.y])
 
     def __repr__(self):
-        return 'Pen Event {} at ({}, {}). Type: {}. Num Points: {}'.format(str(self.id), str(self.x), str(self.y),
-                                                                           self.state, len(self.history))
+        return 'PenEvent {} at ({}, {}) -> {}. Num Points: {}'.format(str(self.id), str(int(self.x)), str(int(self.y)),
+                                                                          self.state, len(self.history))
