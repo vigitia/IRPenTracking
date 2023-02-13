@@ -1,4 +1,5 @@
 import os
+import sys
 
 import PySpin
 import cv2
@@ -70,25 +71,60 @@ matrix1 = surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT, 'Flir Blac
 
 image_id = 0
 
+cv2.namedWindow('Lines', cv2.WND_PROP_FULLSCREEN)
+cv2.setWindowProperty('Lines', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+lines_preview = np.zeros((2160, 3840, 3), 'uint8')
+
 while True:
     image0 = camera0.GetNextImage()
     image1 = camera1.GetNextImage()
 
-    image0 = image0.GetData().reshape(1200, 1920, 1)
-    image1 = image1.GetData().reshape(1200, 1920, 1)
+    image0 = image0.GetData().reshape(1200, 1920)
+    image1 = image1.GetData().reshape(1200, 1920)
 
     # image0 = image0.GetNDArray()
     # image1 = image1.GetNDArray()
 
     active_pen_events, stored_lines, pen_events_to_remove = ir_pen.get_ir_pen_events_new([image0, image1], [matrix0, matrix1])
 
-    cv2.imshow('Flir Blackfly S 0', image0)
-    cv2.imshow('Flir Blackfly S 1', image1)
+    lines_preview = cv2.rectangle(lines_preview, [0,0], [200, 200], (0,0,0), -1)
+
+    color = (255, 255, 255)
+    if len(active_pen_events) > 2:
+        color = (0, 0, 255)
+
+    lines_preview = cv2.putText(
+            img=lines_preview,
+            text=str(len(active_pen_events)),
+            org=(100, 100),
+            fontFace=cv2.FONT_HERSHEY_DUPLEX,
+            fontScale=2.0,
+            color=color,
+            thickness=3
+        )
+
+    for active_pen_event in active_pen_events:
+        if active_pen_event.state == PenState.DRAG:
+            if len(active_pen_event.history) > 1:
+                lines_preview = cv2.line(lines_preview, [int(active_pen_event.history[-2][0]), int(active_pen_event.history[-2][1])], [int(active_pen_event.x), int(active_pen_event.y)], (255, 255, 255), 1)
+            else:
+                lines_preview = cv2.circle(lines_preview, [int(active_pen_event.x), int(active_pen_event.y)], 10, (255, 0, 0), -1)
+
+    cv2.imshow('Lines', lines_preview)
+
+    # cv2.imshow('Flir Blackfly S 0', image0)
+    # cv2.imshow('Flir Blackfly S 1', image1)
+
+
 
     # image0.release()
     # image1.release()
 
     key = cv2.waitKey(1)
+    if key == 27:  # ESC
+        cv2.destroyAllWindows()
+        sys.exit(0)
     if key == 32:  # Spacebar
         cv2.imwrite(os.path.join('screenshots', 'Flir_Blackfly_S_{}_{}.png'.format(SERIAL_NUMBER_MASTER, image_id)), image0)
         cv2.imwrite(os.path.join('screenshots', 'Flir_Blackfly_S_{}_{}.png'.format(SERIAL_NUMBER_SLAVE, image_id)), image1)
