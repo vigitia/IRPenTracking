@@ -4,9 +4,7 @@ import time
 import datetime
 import numpy as np
 import skimage
-
-from scipy.spatial import distance
-from cv2 import cv2
+import cv2
 
 from pen_state import PenState
 from pen_event import PenEvent
@@ -63,6 +61,13 @@ class IRPen:
     def __init__(self):
         self.ir_pen_cnn = IRPenCNN()
         self.pen_events_controller = PenEventsController()
+
+        self.test_data = []
+        with open('debug_data.txt', 'r') as file:
+            print('LOAD DEBUG DATA -> REMOVE AFTER TESTING')
+            for row in file:
+                self.test_data.append(eval(row))
+        print(len(self.test_data))
 
     # @timeit('Pen Events')
     # def get_ir_pen_events(self, camera_frames, transform_matrices):
@@ -179,8 +184,47 @@ class IRPen:
     #     # TODO: REWORK RETURN. stored_lines not always needed
     #     return active_pen_events, stored_lines, new_pen_events, pen_events_to_remove, rois
 
+    # @ timeit('get_ir_pen_events_new')
     def get_ir_pen_events_new(self, camera_frames, transform_matrices):
 
+        new_data = self.get_new_pen_data(camera_frames, transform_matrices)
+        # new_data = self.get_new_test_data()
+
+        if DEBUG_MODE:
+            self.preview_rois(new_data)
+            self.preview_table_view(new_data)
+
+        # with open('debug_data.txt', 'a') as file:
+        #     file.write(str(new_data) + '\n')
+
+        # TODO: Rework subpixel coordinates calculation
+        new_pen_events = self.generate_new_pen_events(new_data)
+
+        if len(new_pen_events) > 2:
+            print('TOO MANY NEW PEN EVENTS!')
+
+        # if len(new_pen_events) > 0:
+        #     print('New pen Events:', new_pen_events)
+
+        # This function needs to be called even if there are no new pen events to update all existing events
+        active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_new(new_pen_events)
+
+        active_pen_events.sort(key=lambda x: x.id, reverse=False)
+
+        if len(active_pen_events) > 0:
+            print('Active pen events', active_pen_events)
+
+        if len(active_pen_events) > 2:
+            print('a')
+
+        # TODO: REWORK RETURN. stored_lines not always needed
+        return active_pen_events, stored_lines, pen_events_to_remove
+
+    def get_new_test_data(self):
+        if len(self.test_data) > 0:
+            return self.test_data.pop(0)
+
+    def get_new_pen_data(self, camera_frames, transform_matrices):
         new_data = []
 
         for i, frame in enumerate(camera_frames):
@@ -196,9 +240,9 @@ class IRPen:
                 rois_new, roi_coords_new, max_brightness_values = [], [], []
 
             for j, pen_event_roi in enumerate(rois_new):
-
                 prediction, confidence = self.ir_pen_cnn.predict(pen_event_roi)
-                new_transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1], transform_matrices[i])
+                new_transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1],
+                                                                             transform_matrices[i])
 
                 # TODO: Rework subpixel coordinates calculation
                 # (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
@@ -207,66 +251,14 @@ class IRPen:
                 new_data[i].append({
                     'prediction': prediction,
                     'confidence': confidence,
-                    'roi': pen_event_roi,
+                    # 'roi': pen_event_roi,
                     'max_brightness': max_brightness_values[j],
                     'transformed_coords': new_transformed_coords,
                     'subpixel_coords': new_transformed_coords,  # TODO: subpixel_coords should be used here!
                     'used': False  # Flag to check if the ROI has been used to generate a pen event
                 })
 
-        if DEBUG_MODE:
-            self.preview_rois(new_data)
-            self.preview_table_view(new_data)
-
-        # a = {
-        #     'prediction': 'draw',
-        #     'used': False,
-        #     'subpixel_coords': (2337, 1528)
-        # }
-        #
-        # b = {
-        #     'prediction': 'hover',
-        #     'used': False,
-        #     'subpixel_coords': (1474, 1536)
-        # }
-        #
-        # c = {
-        #     'prediction': 'draw',
-        #     'used': False,
-        #     'subpixel_coords': (2320, 1530)
-        # }
-        #
-        # d = {
-        #     'prediction': 'draw',
-        #     'used': False,
-        #     'subpixel_coords': (1455, 1526)
-        # }
-        #
-        # new_data = [[a, b], [c, d]]
-
-        # TODO: Rework subpixel coordinates calculation
-        # new_pen_events = self.generate_new_pen_events(subpixel_coords, predictions, brightness_values)
-        new_pen_events = self.generate_new_pen_events(new_data)
-
-        if len(new_pen_events) > 2:
-            print('TOO MANY NEW PEN EVENTS!')
-
-        # if len(new_pen_events) > 0:
-        #     print('New pen Events:', new_pen_events)
-
-        # This function needs to be called even if there are no new pen events to update all existing events
-        active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_new(new_pen_events)
-
-        active_pen_events.sort(key=lambda x: x.id, reverse=False)
-
-        if len(active_pen_events) > 2:
-            print('Too many')
-
-        if len(active_pen_events) > 0:
-            print('Active pen events', active_pen_events)
-
-        # TODO: REWORK RETURN. stored_lines not always needed
-        return active_pen_events, stored_lines, pen_events_to_remove
+        return new_data
 
     # By using the transform matrix handed over by the camera, the given coordinate will be transformed from camera
     # space to projector space
@@ -649,6 +641,58 @@ class IRPen:
         y_dist = abs(y1 - y2) / 2
         return min(x1, x2) + x_dist, min(y1, y2) + y_dist
 
+    def get_all_rois(self, image):
+
+        # TODO: If you get too many ROIs, the exposure of the camera should be reduced
+        # TODO: Maybe some sort of auto calibration could fix this
+
+        rois_new = []
+        roi_coords_new = []
+        max_brightness_values = []
+
+        margin = int(CROP_IMAGE_SIZE / 2)
+
+        # Create a black rectangle to fill the ROIs after their extraction
+        cutout = np.zeros((CROP_IMAGE_SIZE, CROP_IMAGE_SIZE), 'uint8')
+
+        MAX_NUMBER_OF_ROIS_PER_FRAME = 10
+
+        # TODO: Try to only copy the ROI and not the entire image. Does not work because I can't set the image flag to writeable.
+        image_copy = image.copy()
+
+        for i in range(MAX_NUMBER_OF_ROIS_PER_FRAME):
+
+            # Get max brightness value of frame and its location
+            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image_copy)
+
+            # Stop if point is not bright enough to be considered
+            if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
+                return rois_new, roi_coords_new, max_brightness_values
+
+            # Cut out region of interest around brightest point in image
+            img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
+
+            # If the point is close to the image border, the output image will be too small
+            # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
+            # Problems only appear on the image border.
+            if img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
+
+                # image.setflags(write=1)
+                # Set all pixels in ROI to black
+                image_copy[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = cutout
+                # image.setflags(write=0)
+
+                rois_new.append(img_cropped)
+                roi_coords_new.append((max_x, max_y))
+                max_brightness_values.append(brightest)
+
+            else:
+                # print('ROI shape too small')
+
+                # Set just this pixel to black
+                # TODO: Needs improvement, set also the surrounding area to black
+                image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
+
     # WIP!
     # def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
     #
@@ -684,81 +728,6 @@ class IRPen:
     #         img.setflags(write=False)
     #
     #     return rois, roi_coords, max_brightness_values
-
-    def get_all_rois(self, image):
-
-        # TODO: If you get too many ROIs, the exposure of the camera should be reduced
-        # TODO: Maybe some sort of auto calibration could fix this
-
-        rois_new = []
-        roi_coords_new = []
-        max_brightness_values = []
-
-        margin = int(CROP_IMAGE_SIZE / 2)
-
-        cutout = np.zeros((CROP_IMAGE_SIZE, CROP_IMAGE_SIZE), 'uint8')
-
-        #print(image.shape)
-        #print(cutout.shape)
-
-        i = 0
-
-        # TODO: Try to only copy the ROI and not the entire image. Does not work because I can't set the image flag to writeable.
-        image_copy = image.copy()
-
-        # while True:
-        # try:
-        while i < 10:
-
-            # Get max brightness value of frame and its location
-            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image_copy)
-
-            # Stop if point is not bright enough to be considered
-            if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
-                # print('Checks over, brightness to small')
-                #print('Found a total of {} ROIs in frame'.format(len(rois_new)))
-                #print(roi_coords_new)
-                #print('')
-                # return rois, roi_center_coordinates
-                return rois_new, roi_coords_new, max_brightness_values
-
-            #print('Brightest:', brightest)
-
-            # Cut out region of interest around brightest point in image
-            img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
-
-            # print('Found new ROI candidate. Total:', len(rois))
-            # print(img_cropped.shape)
-
-            # print('Pixel value:', image_copy[max_y, max_x])
-
-            # print('Iteration:', i)
-            i += 1
-
-            # If the point is close to the image border, the output image will be too small
-            # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
-            # Problems only appear on the image border.
-            if img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
-
-                # image.setflags(write=1)
-                # Set all pixels in ROI to black
-                image_copy[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = cutout
-                # image.setflags(write=0)
-
-                rois_new.append(img_cropped)
-                roi_coords_new.append((max_x, max_y))
-                max_brightness_values.append(brightest)
-
-
-                if len(rois_new) > 3:
-                    print('WHY SO MANY?')
-
-            else:
-                # print('ROI shape too small')
-
-                # Set just this pixel to black
-                # TODO: Needs improvement, set also the surrounding area to black
-                image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
 
     def crop_image_old(self, image):
         margin = int(CROP_IMAGE_SIZE / 2)
