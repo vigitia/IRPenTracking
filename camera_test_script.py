@@ -4,6 +4,7 @@ import sys
 import PySpin
 import cv2
 import numpy as np
+import time
 
 from pen_state import PenState
 from ir_pen import IRPen
@@ -16,7 +17,7 @@ SERIAL_NUMBER_SLAVE = str(22260466)
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
-EXPOSURE_TIME_MICROSECONDS = 600  # μs -> must be lower than the frame time (FRAMERATE / 1000)
+EXPOSURE_TIME_MICROSECONDS = 800  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 18  # Controls the amplification of the video signal in dB.
 FRAMERATE = 158  # Target number of Frames per Second (Min: 1, Max: 158)
 
@@ -76,7 +77,12 @@ cv2.setWindowProperty('Lines', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 lines_preview = np.zeros((2160, 3840, 3), 'uint8')
 
+counter = 0
+start_time = time.time()
+
 while True:
+    counter += 1
+
     image0 = camera0.GetNextImage()
     image1 = camera1.GetNextImage()
 
@@ -88,7 +94,7 @@ while True:
 
     active_pen_events, stored_lines, pen_events_to_remove = ir_pen.get_ir_pen_events_new([image0, image1], [matrix0, matrix1])
 
-    lines_preview = cv2.rectangle(lines_preview, [0,0], [200, 200], (0,0,0), -1)
+    lines_preview = cv2.rectangle(lines_preview, [0, 0], [200, 200], (0, 0, 0), -1)
 
     color = (255, 255, 255)
     if len(active_pen_events) > 2:
@@ -106,8 +112,8 @@ while True:
 
     for active_pen_event in active_pen_events:
         if active_pen_event.state == PenState.DRAG:
-            if len(active_pen_event.history) > 1:
-                lines_preview = cv2.line(lines_preview, [int(active_pen_event.history[-2][0]), int(active_pen_event.history[-2][1])], [int(active_pen_event.x), int(active_pen_event.y)], (255, 255, 255), 1)
+            if len(active_pen_event.history) > 0:
+                lines_preview = cv2.line(lines_preview, [int(active_pen_event.history[-1][0]), int(active_pen_event.history[-1][1])], [int(active_pen_event.x), int(active_pen_event.y)], (255, 255, 255), 1)
             else:
                 lines_preview = cv2.circle(lines_preview, [int(active_pen_event.x), int(active_pen_event.y)], 10, (255, 0, 0), -1)
 
@@ -116,10 +122,13 @@ while True:
     # cv2.imshow('Flir Blackfly S 0', image0)
     # cv2.imshow('Flir Blackfly S 1', image1)
 
-
-
     # image0.release()
     # image1.release()
+
+    if (time.time() - start_time) > 1:  # displays the frame rate every 1 second
+        print("FPS: %s" % round(counter / (time.time() - start_time), 1))
+        counter = 0
+        start_time = time.time()
 
     key = cv2.waitKey(1)
     if key == 27:  # ESC
