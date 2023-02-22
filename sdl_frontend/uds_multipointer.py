@@ -8,7 +8,11 @@ import random
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 # Connect the socket to the port where the server is listening
-server_address = '../uds_test'
+if len(sys.argv) > 1:
+    server_address = sys.argv[1]
+else:
+    server_address = '../uds_test'
+
 print('connecting to %s' % server_address)
 try:
     sock.connect(server_address)
@@ -16,25 +20,12 @@ except socket.error as msg:
     print(msg)
     sys.exit(1)
 
-#message = "Hello World!"
-#
-#while(True):
-#    try:
-#        #sock.send(base64.encode(message))
-#        sock.send(bytes(message, encoding='utf-8'))
-#    except Exception as e:
-#        print(e)
-#    #response = sock.recv(64)
-#    #print(response)
-#    time.sleep(0.1)
-
-
 counter = 0
 
 x_min = 0
-x_max = 3840
+x_max = 1920 #3840
 y_min = 0
-y_max = 2160
+y_max = 1080 #2160
 line_id_1 = 0
 line_id_2 = 1
 num_points_1 = 0
@@ -51,8 +42,27 @@ state_2 = 0
 color_1 = (255, 255, 255)
 color_2 = (255, 255, 255)
 
+
+def send_message(msg):
+    try:
+        msg_encoded = bytearray(msg, 'ascii')
+        size = len(msg_encoded)
+        sock.send(size.to_bytes(4, 'big'))
+        sock.send(msg_encoded) # , MSG_NOSIGNAL
+    except socket.error:
+        print('socket error')
+        sys.exit(0)
+    except BrokenPipeError:
+        print('broken pipe')
+        sys.exit(0)
+    except Exception as e:
+        print('other error', e)
+        sys.exit(0)
+
+line_counter = 0
+
 while True:
-    time.sleep(0.001)
+    time.sleep(0.0001)
     #time.sleep(0.01)
     num_points_1 += 1
     x_1 += random.randint(-delta, delta)
@@ -82,28 +92,29 @@ while True:
     elif y_2 > y_max:
         y_2 = y_max
 
-    sock.send(f'l {line_id_1} {color_1[0]} {color_1[1]} {color_1[2]} {x_1} {y_1} {state_1} |'.encode())
-    sock.send(f'l {line_id_2} {color_2[0]} {color_2[1]} {color_2[2]} {x_2} {y_2} {state_2} |'.encode())
+    send_message(f'l {line_id_1} {color_1[0]} {color_1[1]} {color_1[2]} {x_1} {y_1} {state_1}')
+    send_message(f'l {line_id_2} {color_2[0]} {color_2[1]} {color_2[2]} {x_2} {y_2} {state_2}')
 
     print(f'{line_id_2} {x_2} {y_2}')
     print(f'{line_id_1} {x_1} {y_1}')
 
-    #time.sleep(0.1)
-
     if num_points_1 > 2:
         if random.randint(0, 100) == 0:
-            sock.send(f'l {line_id_1} {color_1[0]} {color_1[1]} {color_1[2]} {x_1} {y_1} 0 |'.encode())
-            sock.send(f'f {line_id_1} |'.encode())
-            line_id_1 += 1
+            send_message(f'l {line_id_1} {color_1[0]} {color_1[1]} {color_1[2]} {x_1} {y_1} 0')
+            send_message(f'f {line_id_1}')
+            line_id_1 += 2
             num_points_1 = 0
             state_1 = random.randint(0, 1)
             color_1 = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            line_counter += 1
 
     if num_points_2 > 2:
         if random.randint(0, 100) == 0:
-            sock.send(f'l {line_id_2} {color_2[0]} {color_2[1]} {color_2[2]} {x_2} {y_2} 0 |'.encode())
-            sock.send(f'f {line_id_2} |'.encode())
-            line_id_2 += 1
+            send_message(f'l {line_id_2} {color_2[0]} {color_2[1]} {color_2[2]} {x_2} {y_2} 0')
+            send_message(f'f {line_id_2}')
+            line_id_2 += 2
             num_points_2 = 0
             state_2 = random.randint(0, 1)
             color_2 = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            line_counter += 1
+    print(line_counter)
