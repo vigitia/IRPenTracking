@@ -15,7 +15,7 @@
 void render(SDL_Renderer* renderer)
 {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);    //
+    SDL_RenderClear(renderer);
 
     //cout << "document alive render: " << document.alive << endl;
 
@@ -176,7 +176,7 @@ void renderLines(SDL_Renderer* renderer)
         {
             if(pen.currentLine.coords.size() > 1)
             {
-		// TODO: use renderLine() ?
+		        // TODO: use renderLine() ?
                 SDL_Point point_array[pen.currentLine.coords.size()];
                 for(int i = 0; i < pen.currentLine.coords.size(); i++)
                 {

@@ -202,8 +202,6 @@ int parseMessageRect(char* buffer)
     int id, state;
     int x1, x2, x3, x4;
     int y1, y2, y3, y4;
-    // parse new values from the FIFO
-    // only set the delay times if all four values could be read correctly
     if(sscanf(buffer, "r %d %d %d %d %d %d %d %d %d %d \n ", &id, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &state) == 10)
     {
         //cout << buffer << endl;
