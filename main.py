@@ -4,7 +4,6 @@ import sys
 import cv2
 import socket
 import threading
-import numpy as np
 
 from pen_state import PenState
 from ir_pen import IRPen
@@ -16,7 +15,7 @@ UNIX_SOCK_NAME = 'uds_test'
 PIPE_NAME = 'pipe_test'
 
 DEBUG_MODE = 0  # Enable for Debug print statements and preview windows
-SEND_TO_FRONTEND = 1  # Enable if points should be forwarded to the sdl frontend
+SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
 
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 
@@ -50,7 +49,9 @@ class Main:
 
         if TRAINING_DATA_COLLECTION_MODE:
             from training_images_collector import TrainingImagesCollector
-            self.training_images_collector = TrainingImagesCollector(self.ir_pen, self.flir_blackfly_s.EXPOSURE_TIME_MICROSECONDS, self.flir_blackfly_s.GAIN)
+            exposure = self.flir_blackfly_s.get_exposure_time()
+            gain = self.flir_blackfly_s.get_gain()
+            self.training_images_collector = TrainingImagesCollector(self.ir_pen, exposure, gain)
 
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()

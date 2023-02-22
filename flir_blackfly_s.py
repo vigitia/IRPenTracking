@@ -140,6 +140,12 @@ class FlirBlackflyS:
 
         self.init_cameras(subscriber)
 
+    def get_exposure_time(self):
+        return EXPOSURE_TIME_MICROSECONDS
+
+    def get_gain(self):
+        return GAIN
+
     def init_cameras(self, subscriber):
         self.pyspin_system = PySpin.System.GetInstance()  # Retrieve singleton reference to pyspin_system object
 

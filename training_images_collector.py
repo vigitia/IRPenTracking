@@ -6,11 +6,14 @@ import cv2
 # Enable to collect training images if you want to retrain the CNN (see train_network.ipynb)
 ACTIVE_LEARNING_COLLECTION_MODE = False
 
-TRAIN_PATH = 'training_images/2022-11-22'
+TRAIN_PATH = 'training_images/2023-02-22'
 TRAIN_IMAGE_COUNT = 3000
 
-CATEGORY = 'hover_far'  # draw, hover_close or hover far
-TRAINING_ROUND = 0  # Increment after each training round
+TRAINING_CATEGORIES = ['draw', 'hover_close', 'hover_far']
+
+CATEGORY = TRAINING_CATEGORIES[0]
+
+TRAINING_ROUND = 1  # Increment after each training round
 
 
 NUM_WAIT_FRAMES = 3
@@ -20,10 +23,14 @@ class TrainingImagesCollector:
 
     train_state = ''
 
+    frame_counter = 0
+
     # Keeps track of the number of saved images
     saved_image_counter = 0
     num_saved_images_cam_0 = 0
     num_saved_images_cam_1 = 0
+
+    start_timestamp = -1
 
     def __init__(self, ir_pen, cam_exposure_time_microseconds, camera_gain):
 
@@ -34,37 +41,45 @@ class TrainingImagesCollector:
             os.makedirs(os.path.join(TRAIN_PATH, self.train_state))
         else:
             print('WARNING: FOLDER ALREADY EXISTS. PLEASE EXIT TRAINING MODE IF THIS WAS AN ACCIDENT')
-            time.sleep(100000)
+            time.sleep(10000)
 
     def save_training_images(self, camera_frames):
         for i, frame in enumerate(camera_frames):
 
             # TODO: Get here all spots and not just one
-            pen_event_roi, brightest, (x, y) = self.ir_pen.crop_image_old(frame)
+            rois_new, roi_coords_new, max_brightness_values = self.ir_pen.get_all_rois(frame)
 
-            if pen_event_roi is not None:
-                self.__save_training_image(pen_event_roi, (x, y), i)
+            # TODO: Currently only saving one ROI per frame
+            if len(rois_new) == 1:
+                finished = self.__save_training_image(rois_new[0], roi_coords_new[0], i)
+
+                if finished:
+                    print(
+                        'FINISHED COLLECTING TRAINING IMAGES. Saved {} images from cam 0 and {} images from cam 1'.format(
+                            self.num_saved_images_cam_0, self.num_saved_images_cam_1))
+                    time.sleep(100000)
 
     def __save_training_image(self, img, pos, camera_id):
-        if self.saved_image_counter == 0:
+        self.frame_counter += 1
+        if self.start_timestamp == -1:
+            self.start_timestamp = round(time.time() * 1000)
             print('Starting in 5 Seconds')
-            # TODO: Replace sleep here with a timestamp check
-            time.sleep(5)
 
-        self.saved_image_counter += 1
-        if self.saved_image_counter % NUM_WAIT_FRAMES == 0:
+        elif round(time.time() * 1000) - self.start_timestamp > 5000:
 
-            cv2.imwrite(f'{TRAIN_PATH}/{self.train_state}/{self.train_state}_{int(self.saved_image_counter / NUM_WAIT_FRAMES)}_{pos[0]}_{pos[1]}.png', img)
+            if self.frame_counter % NUM_WAIT_FRAMES == 0:
 
-            print(f'saving frame {int(self.saved_image_counter / NUM_WAIT_FRAMES)}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
+                self.saved_image_counter += 1
+                cv2.imwrite(f'{TRAIN_PATH}/{self.train_state}/{self.train_state}_{self.saved_image_counter}_{pos[0]}_{pos[1]}.png', img)
 
-            if camera_id == 0:
-                self.num_saved_images_cam_0 += 1
-            elif camera_id == 1:
-                self.num_saved_images_cam_1 += 1
+                print(f'saving frame {self.saved_image_counter}/{TRAIN_IMAGE_COUNT} from camera {camera_id}')
 
-        if self.saved_image_counter / NUM_WAIT_FRAMES >= TRAIN_IMAGE_COUNT:
-            print('FINISHED COLLECTING TRAINING IMAGES. Saved {} images from cam 0 and {} images from cam 1'.format(
-                self.num_saved_images_cam_0, self.num_saved_images_cam_1))
-            time.sleep(10)
-            sys.exit(0)
+                if camera_id == 0:
+                    self.num_saved_images_cam_0 += 1
+                elif camera_id == 1:
+                    self.num_saved_images_cam_1 += 1
+
+            if self.saved_image_counter >= TRAIN_IMAGE_COUNT:
+                return True
+
+        return False
