@@ -156,6 +156,7 @@ void renderLines(SDL_Renderer* renderer)
         {
             if(pen.currentLine.coords.size() > 1)
             {
+		// TODO: use renderLine() ?
                 SDL_Point point_array[pen.currentLine.coords.size()];
                 for(int i = 0; i < pen.currentLine.coords.size(); i++)
                 {

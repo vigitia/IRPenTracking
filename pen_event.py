@@ -23,4 +23,4 @@ class PenEvent:
 
     def __repr__(self):
         return 'PenEvent {} at ({}, {}) -> {}. Num Points: {}'.format(str(self.id), str(int(self.x)), str(int(self.y)),
-                                                                          self.state, len(self.history))
+                                                                      self.state, len(self.history))

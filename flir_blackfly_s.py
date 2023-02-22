@@ -43,7 +43,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
     def __init__(self, event_name, cam_id, cam, subscriber):
         super(DeviceEventHandler, self).__init__()
         self.event_name = event_name
-        self.count = 0
+        # self.count = 0
         self.cam_id = cam_id
         self.cam = cam
         self.subscriber = subscriber
@@ -61,8 +61,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
 
         # Check if we receive the expected event type
         if event_name == self.event_name:
-            self.count += 1
-
+            # self.count += 1
             # Print information on specified device event
             # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.cam_id,
             #                                                            self.count))
@@ -114,18 +113,6 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             # Reset variables
             cam_image_master = None
             cam_image_slave = None
-
-            # if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
-            #     if DEBUG_MODE:
-            #         print("FPS: %s (Warning: DEBUG_MODE might reduce FPS)" % round(self.frame_counter / (time.time() - self.start_time), 1))
-            #     else:
-            #         print("FPS: %s" % round(self.frame_counter / (time.time() - self.start_time), 1))
-            #     self.frame_counter = 0
-            #     self.start_time = time.time()
-        # else:
-        #     time.sleep(0.001)
-        #     print('CHeck frames available again')
-        #     self.check_both_frames_available()
 
 
 class FlirBlackflyS:

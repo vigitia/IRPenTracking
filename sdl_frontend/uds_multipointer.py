@@ -52,7 +52,7 @@ color_1 = (255, 255, 255)
 color_2 = (255, 255, 255)
 
 while True:
-    time.sleep(0.01)
+    time.sleep(0.001)
     #time.sleep(0.01)
     num_points_1 += 1
     x_1 += random.randint(-delta, delta)

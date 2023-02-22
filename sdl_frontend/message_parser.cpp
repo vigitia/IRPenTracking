@@ -58,7 +58,7 @@ int parseMessageLine(char* buffer)
         {
             struct Pen currentPen;
             //currentPen.id = id;
-            currentPen.state = (bool) state;
+            currentPen.state = (bool) state; // TODO: redundant
             currentPen.currentLine.id = id;
             currentPen.alive = 1;
             pens[id] = currentPen;
