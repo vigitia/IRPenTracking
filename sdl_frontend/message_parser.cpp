@@ -50,15 +50,14 @@ int parseMessageLine(char* buffer)
     unsigned int r;
     unsigned int g;
     unsigned int b;
-    // parse new values from the FIFO
-    // only set the delay times if all four values could be read correctly
+    // parse new values from IPC
+    // only continue if all values could be read correctly
     if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
     {
+        mutex_pens.lock();
         if(pens.find(id) == pens.end())
         {
             struct Pen currentPen;
-            //currentPen.id = id;
-            currentPen.state = (bool) state; // TODO: redundant
             currentPen.currentLine.id = id;
             currentPen.alive = 1;
             pens[id] = currentPen;
@@ -77,6 +76,7 @@ int parseMessageLine(char* buffer)
 
         bool inDocument = document.isPointInDocument(x, y);
 
+        mutex_lines.lock();
         if (document.alive && inDocument && !pens[id].wasInDocument)
         {
             lines.push_back(pens[id].currentLine);
@@ -99,6 +99,8 @@ int parseMessageLine(char* buffer)
             }
         }
 
+        mutex_lines.unlock();
+        mutex_pens.unlock();
         return 1; 
     }
 
@@ -110,8 +112,10 @@ int parseMessageFinishLine(char* buffer)
     int id;
     int pos;
 
-    if(sscanf(buffer, "f %d %n", &id, &pos) == 1 && buffer[pos-1] == ' ')
+    if(sscanf(buffer, "f %d ", &id) == 1)
     {
+        mutex_pens.lock();
+        mutex_lines.lock();
         bool inDocument = document.isPointInDocument(pens[id].position.x, pens[id].position.y);
 
         if (inDocument)
@@ -127,6 +131,8 @@ int parseMessageFinishLine(char* buffer)
         pens[id].alive = 0;
 
         pens.erase(id);
+        mutex_lines.unlock();
+        mutex_pens.unlock();
         return 1;
     }
 

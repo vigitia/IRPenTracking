@@ -33,9 +33,11 @@ using namespace std;
 
 void clearScreen()
 {
+    mutex_lines.lock();
     lines.clear();
     documentLines.clear();
     currentLine.coords.clear();
+    mutex_lines.unlock();
 }
 
 void onExit(int signum)

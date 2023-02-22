@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <iostream>
+#include <mutex>
 
 #define MODE_FIFO 0
 #define MODE_UDS 1
@@ -104,6 +105,9 @@ inline int currentId = 0;
 inline int participantId = 0;
 inline int currentX, currentY = 0;
 inline int currentState = 0;
+
+inline mutex mutex_pens;
+inline mutex mutex_lines;
 
 inline uint32_t highlightColor = 0x9900FFFF;
 

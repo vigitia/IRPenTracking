@@ -133,10 +133,27 @@ void renderHighlights(SDL_Renderer* renderer)
 
 void renderLines(SDL_Renderer* renderer)
 {
+    mutex_lines.lock();
     for (auto const& line : lines)
     {
-        vector<Point> coords = line.coords;
-        renderLine(renderer, &coords, line.color);
+        if(line.alive && line.coords.size() > 0)
+        {
+            try {
+                vector<Point> coords = line.coords;
+                renderLine(renderer, &coords, line.color);
+            }
+            catch (...)
+            {
+                // never got here in testing
+                // TODO: remove?
+                cout << "Exception in renderLines()" << endl;
+                continue;
+            }
+        }
+        else
+        {
+            //cout << lines.size() << " " << line.id << endl;
+        }
     }
 
     if (document.alive)
@@ -147,7 +164,10 @@ void renderLines(SDL_Renderer* renderer)
 		renderLine(renderer, &coords, {255, 255, 0});
 	    }
     }
+    mutex_lines.unlock();
 
+    mutex_pens.lock();
+    // TODO: render outside of log
     for (auto const& entry : pens)
     {
         struct Pen pen = entry.second;
@@ -167,27 +187,35 @@ void renderLines(SDL_Renderer* renderer)
             }
         }
     }
+    mutex_pens.unlock();
 }
 
 void renderHoverIndicator(SDL_Renderer* renderer)
 {
-    // fixme
-    //filledCircleColor(renderer, currentX, currentY, 3, HOVER_INDICATOR_COLOR);
+    vector<Point> points;
 
+    // read coordinates into buffer so rendering takes place outside of lock
+    mutex_pens.lock();
     for (auto const& entry : pens)
     {
         struct Pen pen = entry.second;
 
         if(pen.state == 0 && pen.alive == 1)
         {
-            filledCircleColor(renderer, pen.position.x, pen.position.y, 3, HOVER_INDICATOR_COLOR);
+            points.push_back({pen.position.x, pen.position.y});
         }
+    }
+    mutex_pens.unlock();
+
+    for (auto point : points)
+    {
+        filledCircleColor(renderer, point.x, point.y, 3, HOVER_INDICATOR_COLOR);
     }
 }
 
 void renderLatencyTest(SDL_Renderer* renderer)
 {
-    // fixme
+    // TODO: fixme
     /*
     if(currentState == STATE_DRAW)
     {
