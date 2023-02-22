@@ -114,19 +114,7 @@ class Main:
     def send_heartbeat(self, document_found):
         message = f's {int(document_found)} |'
 
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                # print('SEND HEARTBEAT')
-                self.socket.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_heartbeat')
-                self.init_unix_socket()
-
-        return 1
+        self.send_message(message)
 
     # For documents demo
     def send_matrix(self, matrix):
@@ -140,19 +128,7 @@ class Main:
 
         message += '|'
 
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                # print('SEND MATRIX')
-                self.socket.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_matrix')
-                self.init_unix_socket()
-
-        return 1
+        self.send_message(message)
 
     # For documents demo
     def send_corner_points(self, converted_document_corner_points):
@@ -172,29 +148,13 @@ class Main:
 
         message += '|'
 
-        # print('message', message)
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            # print('SEND CORNER POINTS')
-            try:
-                self.socket.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_corner_points')
-                self.init_unix_socket()
-
-        return 1
+        self.send_message(message)
 
     # For documents demo
     # id: id of the rect (writing to an existing id should move the rect)
     # state: alive = 1, dead = 0; use it to remove unused rects!
     # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
     def send_rect(self, rect_id, state, coord_list):
-        if not self.uds_initialized:
-            return 0
 
         message = f'r {rect_id} '
         for coords in coord_list:
@@ -204,42 +164,18 @@ class Main:
 
         message += '|'
 
-        # print('message', message)
-
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                # print('SEND RECT')
-                self.socket.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in send_rect()')
-                self.init_unix_socket()
+        self.send_message(message)
 
         return 1
 
     # For documents demo
     def delete_line(self, line_id):
-        if not self.uds_initialized:
-            return 0
-
         message = f'd {line_id} |'
 
         print('DELETING LINE WITH ID', line_id)
         print('message:', message)
 
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                self.socket.sendall(message.encode())
-            except Exception as e:
-                print(e)
-                print('---------')
-                print('Broken Pipe in delete_line()')
-                self.init_unix_socket()
+        self.send_message(message)
 
     # For documents demo
     def clear_rects(self):
@@ -260,29 +196,13 @@ class Main:
     # ----------------------------------------------------------------------------------------------------------------
 
     def finish_line(self, pen_event_to_remove):
-        if not self.uds_initialized:
-            print('Error in finish_line(): uds not initialized')
-            return False
-
         message = 'f {} |'.format(pen_event_to_remove.id)
 
         print('Finish line', pen_event_to_remove.id)
 
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                self.socket.send(message.encode())
-            except Exception as e:
-                print('---------')
-                print(e)
-                print('Broken Pipe in finish_line()')
-                self.init_unix_socket()
-    def add_new_line_point(self, active_pen_event):
-        if not self.uds_initialized:
-            print('Error in add_new_line_point(): uds not initialized')
-            return False
+        self.send_message(message)
 
+    def add_new_line_point(self, active_pen_event):
         r = 255
         g = 255
         b = 255
@@ -299,16 +219,23 @@ class Main:
                                                        int(active_pen_event.y),
                                                        0 if active_pen_event.state == PenState.HOVER else 1)
 
-        if ENABLE_FIFO_PIPE:
-            os.write(self.pipeout, bytes(message, 'utf8'))
-        if ENABLE_UNIX_SOCKET:
-            try:
-                self.socket.send(message.encode())
-            except Exception as e:
-                print('---------')
-                print(e)
-                print('Broken Pipe in add_new_line_point()')
-                self.init_unix_socket()
+        self.send_message(message)
+
+    def send_message(self, message):
+        if not self.uds_initialized:
+            print('Error in finish_line(): uds not initialized')
+        else:
+            if ENABLE_FIFO_PIPE:
+                os.write(self.pipeout, bytes(message, 'utf8'))
+            if ENABLE_UNIX_SOCKET:
+                try:
+                    self.socket.send(message.encode())
+                except Exception as e:
+                    print('---------')
+                    print(e)
+                    print('ERROR: Broken Pipe!')
+                    self.init_unix_socket()
+
 
     # def append_line(self, line_id, line):
     #
