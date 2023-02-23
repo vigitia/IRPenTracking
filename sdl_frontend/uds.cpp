@@ -51,11 +51,18 @@ void *handle_uds(void *args)
     while(1)
     {
         // receive header message containing the length of the message
-        char header[4];
+        //char header[4];
+	//header[0] = 0;
+	//header[1] = 0;
+	//header[2] = 0;
+	//header[3] = 0;
+
+	char* header = (char *) malloc(4 * sizeof(char));
         int header_size = recv(client_socket, header, 4, MSG_WAITALL);
 
         // create buffer with appropriate size
         int buffer_length = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+	free(header);
         char buffer[buffer_length + 1];
 
         // receive actual message

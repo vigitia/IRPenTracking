@@ -198,6 +198,8 @@ class Main:
 
         self.send_message(message)
 
+    last_timestamp = 0
+
     def add_new_line_point(self, active_pen_event):
         r = 255
         g = 255
@@ -211,9 +213,15 @@ class Main:
             b = 0
 
         message = 'l {} {} {} {} {} {} {}'.format(active_pen_event.id, r, g, b,
-                                                       int(active_pen_event.x),
-                                                       int(active_pen_event.y),
-                                                       0 if active_pen_event.state == PenState.HOVER else 1)
+                                                  int(active_pen_event.x),
+                                                  int(active_pen_event.y),
+                                                  0 if active_pen_event.state == PenState.HOVER else 1)
+
+        now = time.time_ns()
+        diff = now - self.last_timestamp
+        print(diff)
+
+        self.last_timestamp = now
 
         self.send_message(message)
 
@@ -229,12 +237,19 @@ class Main:
                 try:
                     msg_encoded = bytearray(message, 'ascii')
                     size = len(msg_encoded)
+                    print('size', size)
+
+                    if size > 500:
+                        print('oh dear')
+
                     self.socket.send(size.to_bytes(4, 'big'))
-                    self.socket.send(msg_encoded) # , MSG_NOSIGNAL
+                    self.socket.send(msg_encoded , socket.MSG_NOSIGNAL)
                 except Exception as e:
                     print('---------')
                     print(e)
                     print('ERROR: Broken Pipe!')
+                    #print('size', size)
+                    time.sleep(5000)
                     self.init_unix_socket()
 
 
