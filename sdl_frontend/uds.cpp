@@ -8,6 +8,8 @@
 #include <pthread.h> 
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
 
 
 int init_uds()
@@ -46,51 +48,29 @@ int init_uds()
 
 void *handle_uds(void *args)
 {
-    const int buffer_length = 20;
-    char buffer[buffer_length];
-    string residual = "";
-
-    int id, x, y, state;
-    int size;
-
     while(1)
     {
-        size = recv(client_socket, buffer, buffer_length-1, MSG_WAITALL);
-        //size = read(client_socket, buffer, buffer_length-1);
-	
-	// print raw messages limited to buffer size
-	//cout << buffer << endl;
+        // receive header message containing the length of the message
+        char header[4];
+        int header_size = recv(client_socket, header, 4, MSG_WAITALL);
 
-	//cout << size << " -- " << buffer << endl;
-        if(size > 0)
-        {
-            vector<string> substrings = split(residual + buffer, "|");
-            int i = 0;
+        // create buffer with appropriate size
+        int buffer_length = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+        char buffer[buffer_length + 1];
 
-	    residual = "";
+        // receive actual message
+        int size = recv(client_socket, buffer, buffer_length, MSG_WAITALL);
 
-            for (auto message : substrings)
-            {
-                i++;
-                int result = parseMessage((char *) message.c_str());
+        // add terminating character to avoid junk in the end
+        buffer[buffer_length] = '\0';
 
-		//if (result == 0)
-		//{
-		//	cout << "failed " << i << " " << substrings.size() << " " << message << endl;
-		//}
+        // hand over to message parser
+        int result = parseMessage(buffer);
 
-                if (result == 0 && i == substrings.size())
-                {
-                    residual = message;
-                }
-
-		if (result == 1)
-		{
-			cout << message << endl;
-		}
-            }
-        }
-        //send(client_socket, "ok", 2, 0);
-        //usleep(500);
+        // for debugging
+        //if(result != 1)
+        //{
+        //    cout << buffer << endl;
+        //}
     }
 }
