@@ -62,12 +62,12 @@ class IRPen:
         self.ir_pen_cnn = IRPenCNN()
         self.pen_events_controller = PenEventsController()
 
-        self.test_data = []
-        with open('debug_data.txt', 'r') as file:
-            print('LOAD DEBUG DATA -> REMOVE AFTER TESTING')
-            for row in file:
-                self.test_data.append(eval(row))
-        print(len(self.test_data))
+        # self.test_data = []
+        # with open('debug_data.txt', 'r') as file:
+        #     print('LOAD DEBUG DATA -> REMOVE AFTER TESTING')
+        #     for row in file:
+        #         self.test_data.append(eval(row))
+        # print(len(self.test_data))
 
     # @timeit('Pen Events')
     # def get_ir_pen_events(self, camera_frames, transform_matrices):
@@ -190,9 +190,19 @@ class IRPen:
         new_data = self.get_new_pen_data(camera_frames, transform_matrices)
         # new_data = self.get_new_test_data()
 
+        # self.preview_rois(new_data, camera_frames[0])
+
         if DEBUG_MODE:
             self.preview_rois(new_data)
             self.preview_table_view(new_data)
+
+        timestamp = round(time.time() * 1000)
+
+        # for i in range(len(new_data)):
+        #     for entry in new_data[i]:
+        #         if entry['prediction'] == 'draw':
+        #             print('Save ROI')
+        #             cv2.imwrite('rois_draw/cam_{}_draw_{}.png'.format(i, timestamp), entry['roi'])
 
         # with open('debug_data.txt', 'a') as file:
         #     file.write(str(new_data) + '\n')
@@ -214,8 +224,8 @@ class IRPen:
         if len(active_pen_events) > 0:
             print('Active pen events', active_pen_events)
 
-        if len(active_pen_events) > 2:
-            print('a')
+        # if len(active_pen_events) > 2:
+        #     print('a')
 
         # TODO: REWORK RETURN. stored_lines not always needed
         return active_pen_events, stored_lines, pen_events_to_remove
@@ -251,7 +261,7 @@ class IRPen:
                 new_data[i].append({
                     'prediction': prediction,
                     'confidence': confidence,
-                    # 'roi': pen_event_roi,
+                    'roi': pen_event_roi,
                     'max_brightness': max_brightness_values[j],
                     'transformed_coords': new_transformed_coords,
                     'subpixel_coords': new_transformed_coords,  # TODO: subpixel_coords should be used here!
@@ -300,22 +310,42 @@ class IRPen:
 
         cv2.imshow('Table preview', zeros)
 
-    def preview_rois(self, new_data):
+    def preview_rois(self, new_data, frame):
 
         preview_image_all_rois = None
 
+        preview_roi_frame = np.zeros((2160, 3840), 'uint8')
+
         for i in range(len(new_data)):
             for entry in new_data[i]:
+
+                if i == 0:
+                    print(preview_roi_frame.shape, entry['roi'].shape)
+                    roi = entry['roi']
+                    w = roi.shape[1]
+                    h = roi.shape[0]
+                    x = int(entry['subpixel_coords'][0])
+                    y = int(entry['subpixel_coords'][1])
+                    print(int(y-h/2), int(y+h/2), int(x-w/2), int(x+w/2))
+
+                    try:
+                        preview_roi_frame[int(y-h/2): int(y+h/2), int(x-w/2): int(x+w/2)] = entry['roi']
+                    except Exception as e:
+                        print(e)
+
                 roi_preview = entry['roi'].copy()
                 roi_preview = cv2.resize(roi_preview, (960, 960), interpolation=cv2.INTER_AREA)
                 roi_preview = self.add_label(roi_preview, entry['prediction'], 80)
                 roi_preview = self.add_label(roi_preview, 'CAM ID: {}'.format(i), 130)
                 roi_preview = self.add_label(roi_preview, 'MAX: {}'.format(int(entry['max_brightness'])), 180)
+                roi_preview = self.add_label(roi_preview, 'POS: {}, {}'.format(int(entry['subpixel_coords'][0]), int(entry['subpixel_coords'][1])), 230)
 
                 if preview_image_all_rois is None:
                     preview_image_all_rois = roi_preview
                 else:
                     preview_image_all_rois = cv2.hconcat([preview_image_all_rois, roi_preview])
+
+        cv2.imshow('ROI OVERLAY', preview_roi_frame)
 
         if preview_image_all_rois is not None:
             cv2.imshow('All ROIs', preview_image_all_rois)
@@ -355,13 +385,15 @@ class IRPen:
                 prediction_0 = new_data[0][cam_0_index]['prediction']
                 prediction_1 = new_data[1][cam_1_index]['prediction']
 
+                n = 5
+
                 # If both points have similar y values
-                if y_distance_between_points_abs <= CROP_IMAGE_SIZE:
+                if y_distance_between_points_abs <= n * CROP_IMAGE_SIZE:
                     # L and R order impossible for a pair
-                    if x_distance_between_points < -CROP_IMAGE_SIZE:
+                    if x_distance_between_points < - n * CROP_IMAGE_SIZE:
                         continue
                     # Two points are close on both x and y-axis
-                    elif -CROP_IMAGE_SIZE <= x_distance_between_points <= CROP_IMAGE_SIZE:
+                    elif -n*CROP_IMAGE_SIZE <= x_distance_between_points <= n*CROP_IMAGE_SIZE:
                         if prediction_0 == 'draw' and prediction_1 == 'draw':
                             # New draw event from center point
                             (center_x, center_y) = self.get_center_point(new_data[0][cam_0_index]['subpixel_coords'],
