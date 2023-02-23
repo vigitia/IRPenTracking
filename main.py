@@ -112,7 +112,7 @@ class Main:
 
     # For documents demo
     def send_heartbeat(self, document_found):
-        message = f's {int(document_found)} |'
+        message = f's {int(document_found)}'
 
         self.send_message(message)
 
@@ -121,12 +121,10 @@ class Main:
         # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
         flat = [item for sublist in matrix for item in sublist]
 
-        message = f'm '
+        message = f'm'
 
         for i in flat:
-            message += f'{i} '
-
-        message += '|'
+            message += f' {i}'
 
         self.send_message(message)
 
@@ -135,18 +133,16 @@ class Main:
         if not self.uds_initialized:
             return 0
 
-        message = f'k '
+        message = f'k'
         if len(converted_document_corner_points) == 4:
 
             for point in converted_document_corner_points:
                 message += f'{int(point[0])} {int(point[1])} '
-            message += '1 '  # document exists
+            message += ' 1'  # document exists
         else:
 
             for i in range(9):
-                message += '0 '
-
-        message += '|'
+                message += ' 0'
 
         self.send_message(message)
 
@@ -156,13 +152,11 @@ class Main:
     # coords list: [(x1, y1), (x2, y2), (x3, y3), (x4, y4)] -- use exactly four entries and make sure they are sorted!
     def send_rect(self, rect_id, state, coord_list):
 
-        message = f'r {rect_id} '
+        message = f'r {rect_id}'
         for coords in coord_list:
             # message += f'{coords[0]} {coords[1]}'
-            message += f'{coords} '
-        message += f'{state} '
-
-        message += '|'
+            message += f' {coords}'
+        message += f' {state}'
 
         self.send_message(message)
 
@@ -170,7 +164,7 @@ class Main:
 
     # For documents demo
     def delete_line(self, line_id):
-        message = f'd {line_id} |'
+        message = f'd {line_id}'
 
         print('DELETING LINE WITH ID', line_id)
         print('message:', message)
@@ -196,7 +190,7 @@ class Main:
     # ----------------------------------------------------------------------------------------------------------------
 
     def finish_line(self, pen_event_to_remove):
-        message = 'f {} |'.format(pen_event_to_remove.id)
+        message = 'f {}'.format(pen_event_to_remove.id)
 
         print('Finish line', pen_event_to_remove.id)
 
@@ -214,7 +208,7 @@ class Main:
         if active_pen_event.id % 3 == 2:
             b = 0
 
-        message = 'l {} {} {} {} {} {} {} |'.format(active_pen_event.id, r, g, b,
+        message = 'l {} {} {} {} {} {} {}'.format(active_pen_event.id, r, g, b,
                                                        int(active_pen_event.x),
                                                        int(active_pen_event.y),
                                                        0 if active_pen_event.state == PenState.HOVER else 1)
@@ -226,10 +220,14 @@ class Main:
             print('Error in finish_line(): uds not initialized')
         else:
             if ENABLE_FIFO_PIPE:
+                # probably deprecated
                 os.write(self.pipeout, bytes(message, 'utf8'))
             if ENABLE_UNIX_SOCKET:
                 try:
-                    self.socket.send(message.encode())
+                    msg_encoded = bytearray(message, 'ascii')
+                    size = len(msg_encoded)
+                    sock.send(size.to_bytes(4, 'big'))
+                    sock.send(msg_encoded) # , MSG_NOSIGNAL
                 except Exception as e:
                     print('---------')
                     print(e)
