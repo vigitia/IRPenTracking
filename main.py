@@ -226,8 +226,8 @@ class Main:
                 try:
                     msg_encoded = bytearray(message, 'ascii')
                     size = len(msg_encoded)
-                    sock.send(size.to_bytes(4, 'big'))
-                    sock.send(msg_encoded) # , MSG_NOSIGNAL
+                    self.socket.send(size.to_bytes(4, 'big'))
+                    self.socket.send(msg_encoded) # , MSG_NOSIGNAL
                 except Exception as e:
                     print('---------')
                     print(e)
