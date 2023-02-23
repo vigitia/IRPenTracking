@@ -50,7 +50,7 @@ class IRPenCNN:
         #     image = image.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
 
         img_reshaped = img.reshape(-1, img.shape[0], img.shape[1], 1)
-        prediction = self.keras_lite_model.predict(img_reshaped)
+        prediction = self.keras_lite_model.predict_unsafe(img_reshaped)
         if not prediction.any():
             return STATES[-1], 0
         state = STATES[np.argmax(prediction)]

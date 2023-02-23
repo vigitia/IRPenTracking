@@ -3,6 +3,7 @@ import datetime
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
+import copy
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -49,14 +50,37 @@ class LiteModel:
         while self.working:
             pass
         self.working = True
+
         inp = inp.astype(self.input_dtype)
         count = inp.shape[0]
         out = np.zeros((count, self.output_shape[1]), dtype=self.output_dtype)
+
         for i in range(count):
             self.interpreter.set_tensor(self.input_index, inp[i:i+1])
             self.interpreter.invoke()
             out[i] = self.interpreter.get_tensor(self.output_index)[0]
+
         self.working = False
+        return out
+
+    #TODO: rename
+    def predict_unsafe(self, inp):
+        inp = inp.astype(self.input_dtype)
+        count = inp.shape[0]
+        out = np.zeros((count, self.output_shape[1]), dtype=self.output_dtype)
+
+        # TODO: this is probably very very dangerous
+        try:
+            interpreter = self.interpreter #copy.deepcopy(self.interpreter)
+
+            for i in range(count):
+                interpreter.set_tensor(self.input_index, inp[i:i+1])
+                interpreter.invoke()
+                out[i] = interpreter.get_tensor(self.output_index)[0]
+
+        except Exception as e:
+            print('Andis dangerous bit. Turns out = is not a deep copy.', e)
+
         return out
     
     def predict_single(self, inp):
