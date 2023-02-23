@@ -6,6 +6,7 @@ import time
 import cv2
 import socket
 import threading
+import queue
 
 from pen_state import PenState
 from ir_pen import IRPen, timeit
@@ -38,6 +39,8 @@ class Main:
 
     preview_initialized = False
 
+    message_queue = queue.Queue()
+
     def __init__(self):
 
         if SEND_TO_FRONTEND:
@@ -65,6 +68,9 @@ class Main:
         # Start a thread to keep this script alive
         thread = threading.Thread(target=self.main_thread)
         thread.start()
+
+        message_thread = threading.Thread(target=self.send_messages)
+        message_thread.start()
 
     def init_fifo_pipe(self):
         if not os.path.exists(PIPE_NAME):
@@ -225,32 +231,43 @@ class Main:
 
         self.send_message(message)
 
-    #@timeit('send_message')
     def send_message(self, message):
-        if not self.uds_initialized:
-            print('Error in finish_line(): uds not initialized')
-        else:
-            if ENABLE_FIFO_PIPE:
-                # probably deprecated
-                os.write(self.pipeout, bytes(message, 'utf8'))
-            if ENABLE_UNIX_SOCKET:
-                try:
-                    msg_encoded = bytearray(message, 'ascii')
-                    size = len(msg_encoded)
-                    print('size', size)
+        self.message_queue.put(message)
 
-                    if size > 500:
-                        print('oh dear')
+    # TODO: maybe move to main loop?
+    #@timeit('send_message')
+    def send_messages(self):
+        while True:
+            try:
+                message = self.message_queue.get(block=False)
+            except queue.Empty:
+                # no message in the queue
+                continue
 
-                    self.socket.send(size.to_bytes(4, 'big'))
-                    self.socket.send(msg_encoded , socket.MSG_NOSIGNAL)
-                except Exception as e:
-                    print('---------')
-                    print(e)
-                    print('ERROR: Broken Pipe!')
-                    #print('size', size)
-                    time.sleep(5000)
-                    self.init_unix_socket()
+            if not self.uds_initialized:
+                print('Error in finish_line(): uds not initialized')
+            else:
+                if ENABLE_FIFO_PIPE:
+                    # probably deprecated
+                    os.write(self.pipeout, bytes(message, 'utf8'))
+                if ENABLE_UNIX_SOCKET:
+                    try:
+                        msg_encoded = bytearray(message, 'ascii')
+                        size = len(msg_encoded)
+                        print('size', size)
+
+                        if size > 500:
+                            print('oh dear')
+
+                        self.socket.send(size.to_bytes(4, 'big'))
+                        self.socket.send(msg_encoded , socket.MSG_NOSIGNAL)
+                    except Exception as e:
+                        print('---------')
+                        print(e)
+                        print('ERROR: Broken Pipe!')
+                        #print('size', size)
+                        time.sleep(5000)
+                        self.init_unix_socket()
 
 
     # def append_line(self, line_id, line):
