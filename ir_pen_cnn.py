@@ -2,12 +2,29 @@
 import numpy as np
 from tensorflow import keras
 from tflite import LiteModel
+import datetime
 
 MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
 
 # Allowed states for CNN prediction
 STATES = ['draw', 'hover', 'hover_far', 'undefined']
 
+# For debugging purposes
+# Decorator to print the run time of a single function
+# Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
+def timeit(prefix):
+    def timeit_decorator(func):
+        def wrapper(*args, **kwargs):
+            start_time = datetime.datetime.now()
+            return_value = func(*args, **kwargs)
+            end_time = datetime.datetime.now()
+            run_time = (end_time - start_time).microseconds / 1000.0
+            print(prefix + "> " + str(run_time) + " ms", flush=True)
+            return return_value
+
+        return wrapper
+
+    return timeit_decorator
 
 class IRPenCNN:
     keras_lite_model = None
