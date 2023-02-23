@@ -234,6 +234,7 @@ class IRPen:
         if len(self.test_data) > 0:
             return self.test_data.pop(0)
 
+    #@('get_new_pen_data')
     def get_new_pen_data(self, camera_frames, transform_matrices):
         new_data = []
 
@@ -673,6 +674,7 @@ class IRPen:
         y_dist = abs(y1 - y2) / 2
         return min(x1, x2) + x_dist, min(y1, y2) + y_dist
 
+    #@timeit('get_all_rois')
     def get_all_rois(self, image):
 
         # TODO: If you get too many ROIs, the exposure of the camera should be reduced

@@ -1,12 +1,14 @@
 
 import os
 import sys
+import time
+
 import cv2
 import socket
 import threading
 
 from pen_state import PenState
-from ir_pen import IRPen
+from ir_pen import IRPen, timeit
 from flir_blackfly_s import FlirBlackflyS
 
 ENABLE_FIFO_PIPE = False
@@ -215,6 +217,7 @@ class Main:
 
         self.send_message(message)
 
+    #@timeit('send_message')
     def send_message(self, message):
         if not self.uds_initialized:
             print('Error in finish_line(): uds not initialized')
@@ -272,6 +275,7 @@ class Main:
             #  time.sleep() does not work here
             cv2.waitKey(1)
 
+    #@timeit('on_new_frame_group')
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
 
         if len(frames) > 0:
