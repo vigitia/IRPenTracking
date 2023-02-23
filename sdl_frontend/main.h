@@ -118,6 +118,8 @@ void saveImage();
 bool is_on_right_side(int x, int y, Point xy0, Point xy1);
 Point multiplyPointMatrix(Point point, float matrix[3][3]);
 const string currentDateTime();
+long long millis();
+long long micros();
 SDL_Point pointToSDL(Point p);
 
 int parseMessage(char* buffer);

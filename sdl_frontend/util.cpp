@@ -1,5 +1,6 @@
 #include "main.h"
 #include <ctime>
+#include <sys/time.h>
 #include <SDL2/SDL.h>
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
@@ -56,6 +57,22 @@ const string currentDateTime()
     strftime(buf, sizeof(buf), "%Y-%m-%d_%X", &tstruct);
 
     return buf;
+}
+
+long long millis()
+{
+    struct timeval te; 
+    gettimeofday(&te, NULL);
+    long long milliseconds = te.tv_sec * 1000LL + te.tv_usec / 1000;
+    return milliseconds;
+}
+
+long long micros()
+{
+    struct timeval te; 
+    gettimeofday(&te, NULL);
+    long long microseconds = te.tv_sec + te.tv_usec;
+    return microseconds;
 }
 
 SDL_Point pointToSDL(Point p)

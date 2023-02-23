@@ -44,6 +44,8 @@ int parseMessage(char* buffer)
     return 0;
 }
 
+long long last_micros = 0;
+
 int parseMessageLine(char* buffer)
 {
     int id, x, y, state;
@@ -54,6 +56,10 @@ int parseMessageLine(char* buffer)
     // only continue if all values could be read correctly
     if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
     {
+        long long cur_micros = micros();
+        cout << cur_micros - last_micros << endl;
+        last_micros = cur_micros;
+
         mutex_pens.lock();
         if(pens.find(id) == pens.end())
         {
