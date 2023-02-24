@@ -238,6 +238,7 @@ class Main:
     #@timeit('send_message')
     def send_messages(self):
         while True:
+            time.sleep(0.0001)
             try:
                 message = self.message_queue.get(block=False)
             except queue.Empty:
