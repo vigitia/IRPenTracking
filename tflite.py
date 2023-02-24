@@ -4,6 +4,7 @@ import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 import copy
+from threading import Lock
 
 def timeit(prefix):
     def timeit_decorator(func):
@@ -44,12 +45,11 @@ class LiteModel:
         self.input_dtype = input_det["dtype"]
         self.output_dtype = output_det["dtype"]
         self.working = False
+        self.lock = Lock()
 
     # @timeit('Predict tflite')
     def predict(self, inp):
-        while self.working:
-            pass
-        self.working = True
+        self.lock.acquire()
 
         inp = inp.astype(self.input_dtype)
         count = inp.shape[0]
@@ -60,7 +60,7 @@ class LiteModel:
             self.interpreter.invoke()
             out[i] = self.interpreter.get_tensor(self.output_index)[0]
 
-        self.working = False
+        self.lock.release()
         return out
 
     #TODO: rename
