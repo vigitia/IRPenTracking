@@ -157,8 +157,10 @@ class PrepareDataset:
     def prepare_final_dataset(self, images_draw_test, images_hover_test, images_draw_train, images_hover_train):
 
         # Only apply data augmentation to training data, NOT to test data
-        images_draw_train = self.data_augmentation(images_draw_train)
-        images_hover_train = self.data_augmentation(images_hover_train)
+        DATA_AUGMENTATION = False
+        if DATA_AUGMENTATION:
+            images_draw_train = self.data_augmentation(images_draw_train)
+            images_hover_train = self.data_augmentation(images_hover_train)
 
         # Shuffle images
         random.shuffle(images_draw_train)
