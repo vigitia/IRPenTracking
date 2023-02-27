@@ -35,6 +35,9 @@ class PrepareDataset:
         return train_X, train_label, test_X, test_label
 
     def get_image_folders(self, target_folder):
+
+        print('Step 1: Get image folders')
+
         draw_paths = []
         hover_paths = []
 
@@ -48,8 +51,9 @@ class PrepareDataset:
             else:
                 print('ERROR: Malformed folder name')
 
-        print('All folders with "DRAW"  images: ', draw_paths)
-        print('All folders with "HOVER" images: ', hover_paths)
+        print('All folders with "draw"  images: ', draw_paths)
+        print('All folders with "hover" images: ', hover_paths)
+        print('')
 
         return draw_paths, hover_paths
 
@@ -83,7 +87,7 @@ class PrepareDataset:
         for file in tqdm(files):
             image = cv2.imread(os.path.join(path, file), cv2.IMREAD_GRAYSCALE)
             if image.shape == (img_size, img_size) and np.max(
-                    image) > MIN_BRIGHTNESS_PREDICTION:  # and '681_597' not in file and '46_565' not in file:
+                    image) > MIN_BRIGHTNESS_PREDICTION:
 
                 # Remove Background "noise"
                 if REMOVE_BACKGROUND_NOISE:
@@ -102,14 +106,26 @@ class PrepareDataset:
         # TODO: Use exisiting data augmentation function from keras here!
         result = []
         for img in images:
-            result.append(img)
-            result.append(cv2.flip(img, flipCode=0))
-            for i in range(3):  # TODO: CHECK IF 4 is needed here
-                tmp = cv2.rotate(img, i)
-                for b in range(10, 11):
-                    tmp2 = np.clip(tmp * (b / 10), 0, 255)
-                    result.append(tmp2)
-                    result.append(cv2.flip(tmp2, flipCode=0))
+            rotate_90 = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            rotate_180 = cv2.rotate(img, cv2.ROTATE_180)
+            rotate_270 = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+            result.append(img)  # Add original image
+            result.append(cv2.flip(img, flipCode=0))  # Add flipped original
+            result.append(rotate_90)
+            result.append(cv2.flip(rotate_90, flipCode=0))
+            result.append(rotate_180)
+            result.append(cv2.flip(rotate_180, flipCode=0))
+            result.append(rotate_270)
+            result.append(cv2.flip(rotate_270, flipCode=0))
+
+            # TODO: Add brightness modifications back if wanted
+            # for i in range(3):
+            #     tmp = cv2.rotate(img, i)  # Rotate: ROTATE_180, ROTATE_90_CLOCKWISE, ROTATE_90_COUNTERCLOCKWISE
+            #     for b in range(10, 11):
+            #         tmp2 = np.clip(tmp * (b / 10), 0, 255)
+            #         result.append(tmp2)
+            #         result.append(cv2.flip(tmp2, flipCode=0))
         return result
 
         # data_augmentation_new = tf.keras.Sequential([
@@ -144,8 +160,11 @@ class PrepareDataset:
         images_draw_train = self.data_augmentation(images_draw_train)
         images_hover_train = self.data_augmentation(images_hover_train)
 
+        # Shuffle images
+        random.shuffle(images_draw_train)
+        random.shuffle(images_hover_train)
+
         # Combine
-        # TODO: Another shuffle needed?
         images_train = images_draw_train + images_hover_train
         images_test = images_draw_test + images_hover_test
 
@@ -203,4 +222,14 @@ class PrepareDataset:
         for ax, im in zip(grid, image_list):
             # Iterating over the grid returns the Axes.
             ax.imshow(im, 'gray')
+
+
+if __name__ == '__main__':
+    IMG_SIZE = 48  # The expected size of the input images
+
+    TARGET_FOLDER = 'training_images/2023-02-24'  # The folder containing the new images
+
+    prepare_dataset = PrepareDataset()
+
+    train_X, train_label, test_X, test_label = prepare_dataset.get_dataset(TARGET_FOLDER, IMG_SIZE)
 
