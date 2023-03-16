@@ -20,7 +20,7 @@ MAX_DISTANCE_FOR_MERGE = 500  # 200  # Maximum Distance between two points for t
 
 # Simple Smoothing of the output points. 1 -> No smoothing; 0.5 -> Calculate a new point and use 50% of the previous
 # point's and 50% of the new point's location.
-SMOOTHING_FACTOR = 1  # 0.2  # Value between 0 and 1, depending on if the old or the new value should count more.
+SMOOTHING_FACTOR = 0.2 #  # 0.2  # Value between 0 and 1, depending on if the old or the new value should count more.
 
 DEBUG_MODE = False
 

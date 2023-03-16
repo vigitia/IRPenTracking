@@ -11,21 +11,26 @@ import queue
 from pen_state import PenState
 from ir_pen import IRPen, timeit
 from flir_blackfly_s import FlirBlackflyS
+from logitech_brio import LogitechBrio
+
+from surface_extractor import SurfaceExtractor
+
+from pen_color_detector import PenColorDetector
 
 ENABLE_FIFO_PIPE = False
 ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
 PIPE_NAME = 'pipe_test'
 
-DEBUG_MODE = 0  # Enable for Debug print statements and preview windows
-SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
+DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
+SEND_TO_FRONTEND = False  # Enable if points should be forwarded to the sdl frontend
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 
 DOCUMENTS_DEMO = False
 
 if DOCUMENTS_DEMO:
-    from logitech_brio import LogitechBrio
+    # from logitech_brio import LogitechBrio
     from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 
@@ -41,6 +46,10 @@ class Main:
 
     message_queue = queue.Queue()
 
+    last_brio_frame = None
+
+    color_id_assignments = {}
+
     def __init__(self):
 
         if SEND_TO_FRONTEND:
@@ -49,8 +58,14 @@ class Main:
             if ENABLE_UNIX_SOCKET:
                 self.init_unix_socket()
 
+        self.surface_extractor = SurfaceExtractor()
+
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
+
+        self.logitech_brio_camera = LogitechBrio(self)
+        self.logitech_brio_camera.init_video_capture()
+        self.logitech_brio_camera.start()
 
         if TRAINING_DATA_COLLECTION_MODE:
             from training_images_collector import TrainingImagesCollector
@@ -61,9 +76,9 @@ class Main:
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
-            self.logitech_brio_camera = LogitechBrio(self)
-            self.logitech_brio_camera.init_video_capture()
-            self.logitech_brio_camera.start()
+            # self.logitech_brio_camera = LogitechBrio(self)
+            # self.logitech_brio_camera.init_video_capture()
+            # self.logitech_brio_camera.start()
 
         # Start a thread to keep this script alive
         thread = threading.Thread(target=self.main_thread)
@@ -89,34 +104,39 @@ class Main:
             sys.exit(1)
         self.uds_initialized = True
 
-    # ----------------------------------------------------------------------------------------------------------------
-
-    # For documents demo
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
 
-        document_found, highlight_dict, document_changed, document_removed, document_moved, \
-            converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        self.send_heartbeat(document_found)
 
-        if document_moved and not document_removed:
-            self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
-            try:
-                for highlight_id, rectangle in highlight_dict.items():
-                    self.send_rect(highlight_id, 1, rectangle)
-            except:
-                print('error sending highlights')
+        self.last_brio_frame = frame
 
-        if document_removed:
-            self.send_corner_points([])
+        if DOCUMENTS_DEMO:
+            document_found, highlight_dict, document_changed, document_removed, document_moved, \
+                converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
 
-        if document_found:
-            if len(document_moved_matrix) > 0:
-                self.send_matrix(document_moved_matrix)
+            self.send_heartbeat(document_found)
 
-        if document_changed or document_removed:
-            self.clear_rects()
+            if document_moved and not document_removed:
+                self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
+                try:
+                    for highlight_id, rectangle in highlight_dict.items():
+                        self.send_rect(highlight_id, 1, rectangle)
+                except:
+                    print('error sending highlights')
+
+            if document_removed:
+                self.send_corner_points([])
+
+            if document_found:
+                if len(document_moved_matrix) > 0:
+                    self.send_matrix(document_moved_matrix)
+
+            if document_changed or document_removed:
+                self.clear_rects()
+
+    # ----------------------------------------------------------------------------------------------------------------
+
 
     # For documents demo
     def send_heartbeat(self, document_found):
@@ -211,23 +231,23 @@ class Main:
         g = 255
         b = 255
 
-        if active_pen_event.id % 3 == 0:
-            r = 0
-        if active_pen_event.id % 3 == 1:
-            g = 0
-        if active_pen_event.id % 3 == 2:
-            b = 0
+        # if active_pen_event.id % 3 == 0:
+        #     r = 0
+        # if active_pen_event.id % 3 == 1:
+        #     g = 0
+        # if active_pen_event.id % 3 == 2:
+        #     b = 0
 
         message = 'l {} {} {} {} {} {} {}'.format(active_pen_event.id, r, g, b,
                                                   int(active_pen_event.x),
                                                   int(active_pen_event.y),
                                                   0 if active_pen_event.state == PenState.HOVER else 1)
 
-        now = time.time_ns()
-        diff = now - self.last_timestamp
-        print(diff)
-
-        self.last_timestamp = now
+        # now = time.time_ns()
+        # diff = now - self.last_timestamp
+        # print(diff)
+        #
+        # self.last_timestamp = now
 
         self.send_message(message)
 
@@ -255,7 +275,7 @@ class Main:
                     try:
                         msg_encoded = bytearray(message, 'ascii')
                         size = len(msg_encoded)
-                        print('size', size)
+                        # print('size', size)
 
                         if size > 500:
                             print('oh dear')
@@ -308,6 +328,28 @@ class Main:
             #  time.sleep() does not work here
             cv2.waitKey(1)
 
+    def assign_color_to_pen(self, active_pen_events):
+
+        relevant_pen_events = []
+
+        for pen_event in active_pen_events:
+            if pen_event.state == PenState.DRAG:
+                if pen_event.id not in self.color_id_assignments.keys():
+                    relevant_pen_events.append(pen_event)
+
+        if len(relevant_pen_events) > 0:
+
+            ids_and_points = [[pen_event.id, pen_event.x, pen_event.y] for pen_event in relevant_pen_events]
+
+            extracted_frame = self.surface_extractor.extract_table_area(self.last_brio_frame, 'Logitech Brio')
+            ids_and_colors = PenColorDetector.detect(extracted_frame, ids_and_points)
+
+            self.color_id_assignments.clear()
+            for k, v in ids_and_colors.items():
+                self.color_id_assignments[k] = v["color"]
+
+            print("RELEVANT", self.color_id_assignments)
+
     #@timeit('on_new_frame_group')
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
 
@@ -316,6 +358,8 @@ class Main:
                 self.training_images_collector.save_training_images(frames)
             else:
                 active_pen_events, stored_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events_new(frames, matrices)
+
+                self.assign_color_to_pen(active_pen_events)
 
                 if SEND_TO_FRONTEND:
                     for active_pen_event in active_pen_events:
