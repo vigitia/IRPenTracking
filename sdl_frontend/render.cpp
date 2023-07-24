@@ -267,9 +267,19 @@ void renderParticipantID(SDL_Renderer* renderer)
 
 void renderPathGame(SDL_Renderer* renderer)
 {
+    SDL_Rect pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+    SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
+
     renderParticipantID(renderer);
     renderPathGameTimer(renderer);
 
-    SDL_Rect pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
-    SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
+    // a bit hacky
+    // 4K mode is 1 --> FullHD pixel values are multiplied with 2 if in 4K mode
+    int start_x = 116 * (MODE + 1); // 233.482
+    int start_y = 627 * (MODE + 1); // 1254.285
+    int finish_x = 1780 * (MODE + 1); // 3559.482
+    int finish_y = 627 * (MODE + 1); // 1254.285
+
+    filledCircleColor(renderer, start_x, start_y, 8, 0xFF0000FF);
+    filledCircleColor(renderer, finish_x, finish_y, 2, 0xFF0000FF);
 }
