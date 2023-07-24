@@ -8,6 +8,7 @@ PathGame::PathGame()
 
 void PathGame::reset()
 {
+    events.clear();
     state = waiting;
 }
 
@@ -21,6 +22,11 @@ void PathGame::finish()
 {
     end_time = getTimer();
     state = finished;
+
+    for(const auto event : events)
+    {
+        cout << event.timestamp << ", " << event.x << ", " << event.y << ", " << event.state << endl;
+    }
 }
 
 bool PathGame::isPenInStartRegion(int x, int y)
@@ -36,6 +42,11 @@ bool PathGame::isPenInFinishRegion(int x, int y)
 void PathGame::update(int x, int y, int pen_state)
 {
     //cout << x << " " << y << " " << state << endl;
+
+    if (state == playing)
+    {
+        events.push_back({millis(), x, y, pen_state});
+    }
 
     if (state == waiting && isPenInStartRegion(x, y) && pen_state == STATE_DRAW)
     {

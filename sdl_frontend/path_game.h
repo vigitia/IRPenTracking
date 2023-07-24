@@ -1,6 +1,15 @@
 #ifndef PATH_GAME_H
 #define PATH_GAME_H
 
+#include <vector>
+
+struct PenEvent {
+    long long timestamp;
+    int x;
+    int y;
+    int state;
+};
+
 enum PathGameState {
     waiting,
     playing,
@@ -12,6 +21,7 @@ class PathGame
     private:
         bool isPenInStartRegion(int x, int y);
         bool isPenInFinishRegion(int x, int y);
+        vector<PenEvent> events;
 
     public:
         long long start_time;
