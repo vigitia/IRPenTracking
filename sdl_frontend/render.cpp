@@ -269,4 +269,20 @@ void renderPathGame(SDL_Renderer* renderer)
 {
     renderParticipantID(renderer);
     renderPathGameTimer(renderer);
+
+    SDL_Rect pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+    SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
+
+    int y_shift = (int) (0.2 * WINDOW_HEIGHT);
+    int height = (int) ((WINDOW_HEIGHT - y_shift) * 0.9);
+    int width = WINDOW_WIDTH;
+    int start_x = 200;
+    int end_x = width - 200;
+    uint8_t color_r = 0xFF;
+    uint8_t color_g = 0xFF;
+    uint8_t color_b = 0xFF;
+
+    int x_distance = 200;
+
+    int line_width_thick = 15;
 }

@@ -6,6 +6,8 @@
 
 inline SDL_Surface* imageSurface;
 inline SDL_Texture* imageTexture;
+inline SDL_Surface* pathSurface;
+inline SDL_Texture* pathTexture;
 inline bool SHOW_PARTICLES = false;
 inline vector<Particle> particles;
 inline bool showBrokenPipeIndicator = false;

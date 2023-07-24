@@ -18,14 +18,16 @@
 #define MODE_1080 0
 #define MODE_4K 1
 
-#define MODE MODE_4K
+#define MODE MODE_1080
 
 #if MODE == MODE_1080
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
+#define PATH_PATH "assets/path_1080.png"
 #else
 #define WINDOW_WIDTH 3840
 #define WINDOW_HEIGHT 2160
+#define PATH_PATH "assets/path_4k.png"
 #endif
 
 #define IMAGE_PATH "image.png"
