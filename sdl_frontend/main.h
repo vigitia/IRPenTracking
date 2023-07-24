@@ -61,7 +61,8 @@ enum Modes {
     save,
     latency,
     particle,
-    image
+    image,
+    path
 };
 
 struct Point {

@@ -210,6 +210,11 @@ int main(int argc, char* argv[])
                     case SDLK_a:
                         showBrokenPipeIndicator = false;
                         break;
+                    case SDLK_d:
+                        saveImage();
+                        participantId++;
+                        currentMode = path;
+                        break;
                     case SDLK_SPACE:
                         saveImage();
                         clearScreen();

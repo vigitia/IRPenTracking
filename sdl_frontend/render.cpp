@@ -19,6 +19,7 @@ void render(SDL_Renderer* renderer)
 
     //cout << "document alive render: " << document.alive << endl;
 
+    if(currentMode == path) renderPathGame(renderer);
     if(document.alive) renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
     if(currentMode == image) renderImage(renderer);
@@ -238,3 +239,18 @@ void renderBrokenPipeIndicator(SDL_Renderer* renderer)
     SDL_RenderFillRect(renderer, &brokenPipeIndicator);
 }
 
+void renderParticipantID(SDL_Rendererer* renderer)
+{
+    SDL_Rect pid_rect = { 50, 50, 100, 25 };
+    SDL_RenderCopy( renderer, textTexture, NULL, &pid_rect );
+
+    char pid_string[20];
+    sprintf(pid_string, "PID: %03d", participantId);
+    textSurface = TTF_RenderText_Solid( font, pid_string, textColor );
+    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
+}
+
+void renderPathGame(SDL_Renderer* renderer)
+{
+    renderParticipantID(renderer);
+}

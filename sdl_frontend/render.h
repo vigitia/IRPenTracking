@@ -22,5 +22,7 @@ void renderLines(SDL_Renderer* renderer);
 void renderHoverIndicator(SDL_Renderer* renderer);
 void renderLatencyTest(SDL_Renderer* renderer);
 void renderBrokenPipeIndicator(SDL_Renderer* renderer);
+void renderParticipantID(SDL_Renderer* renderer);
+void renderPathGame(SDL_Renderer* renderer);
 
 #endif
