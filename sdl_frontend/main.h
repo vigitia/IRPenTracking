@@ -124,6 +124,7 @@ const string currentDateTime();
 long long millis();
 long long micros();
 SDL_Point pointToSDL(Point p);
+float getDistance(float x1, float y1, float x2, float y2);
 
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);

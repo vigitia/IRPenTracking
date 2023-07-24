@@ -1,5 +1,6 @@
 #include "main.h"
 #include <ctime>
+#include <cmath>
 #include <sys/time.h>
 #include <SDL2/SDL.h>
 
@@ -79,4 +80,11 @@ SDL_Point pointToSDL(Point p)
 {
 	SDL_Point result = {(int) p.x, (int) p.y};
 	return result;
+}
+
+float getDistance(float x1, float y1, float x2, float y2)
+{
+    float a = abs(x1 - x2);
+    float b = abs(y1 - y2);
+    return sqrt(a * a + b * b);
 }
