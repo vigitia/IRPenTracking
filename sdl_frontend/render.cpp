@@ -2,6 +2,7 @@
 #include "render.h"
 #include "study.h"
 #include "document.h"
+#include "path_game.h"
 
 #include <vector>
 #include <map>
@@ -239,7 +240,21 @@ void renderBrokenPipeIndicator(SDL_Renderer* renderer)
     SDL_RenderFillRect(renderer, &brokenPipeIndicator);
 }
 
-void renderParticipantID(SDL_Rendererer* renderer)
+void renderPathGameTimer(SDL_Renderer* renderer)
+{
+    SDL_Rect timer_rect = { 50, 100, 100, 25 };
+    SDL_RenderCopy( renderer, textTexture, NULL, &timer_rect );
+
+    float timeRemaining = pathGame.getTimer();
+
+    char timer_string[20];
+    sprintf(timer_string, "%.3f", timeRemaining);
+
+    textSurface = TTF_RenderText_Solid( font, timer_string, textColor );
+    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
+}
+
+void renderParticipantID(SDL_Renderer* renderer)
 {
     SDL_Rect pid_rect = { 50, 50, 100, 25 };
     SDL_RenderCopy( renderer, textTexture, NULL, &pid_rect );
@@ -253,4 +268,5 @@ void renderParticipantID(SDL_Rendererer* renderer)
 void renderPathGame(SDL_Renderer* renderer)
 {
     renderParticipantID(renderer);
+    renderPathGameTimer(renderer);
 }

@@ -5,6 +5,7 @@
 #include "study.h"
 #include "particle.h"
 #include "render.h"
+#include "path_game.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -213,6 +214,7 @@ int main(int argc, char* argv[])
                     case SDLK_d:
                         saveImage();
                         participantId++;
+                        pathGame.reset();
                         currentMode = path;
                         break;
                     case SDLK_SPACE:
