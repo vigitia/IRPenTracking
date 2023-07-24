@@ -1,5 +1,6 @@
 #include "main.h"
 #include "path_game.h"
+#include <sstream>
 
 PathGame::PathGame()
 {
@@ -23,10 +24,18 @@ void PathGame::finish()
     end_time = getTimer();
     state = finished;
 
+    stringstream ss;
+    ss << "timestamp,x,y,state" << endl;
+
     for(const auto event : events)
     {
-        cout << event.timestamp << ", " << event.x << ", " << event.y << ", " << event.state << endl;
+        //cout << event.timestamp << ", " << event.x << ", " << event.y << ", " << event.state << endl;
+        ss << event.timestamp << "," << event.x << "," << event.y << "," << event.state << endl;
     }
+
+    string data = ss.str();
+
+    logData("testfile.csv", data);
 }
 
 bool PathGame::isPenInStartRegion(int x, int y)
@@ -41,8 +50,6 @@ bool PathGame::isPenInFinishRegion(int x, int y)
 
 void PathGame::update(int x, int y, int pen_state)
 {
-    //cout << x << " " << y << " " << state << endl;
-
     if (state == playing)
     {
         events.push_back({millis(), x, y, pen_state});

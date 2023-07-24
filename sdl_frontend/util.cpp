@@ -3,6 +3,10 @@
 #include <cmath>
 #include <sys/time.h>
 #include <SDL2/SDL.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
 bool is_on_right_side(int x, int y, Point xy0, Point xy1)
@@ -87,4 +91,20 @@ float getDistance(float x1, float y1, float x2, float y2)
     float a = abs(x1 - x2);
     float b = abs(y1 - y2);
     return sqrt(a * a + b * b);
+}
+
+void logData(const string& fileName, const string& data) 
+{
+    ofstream outputFile(fileName);
+
+    if (outputFile.is_open()) 
+    {
+        outputFile << data;
+
+        outputFile.close();
+    } 
+    else 
+    {
+        cerr << "logData - Error opening file: " << fileName << endl;
+    }
 }
