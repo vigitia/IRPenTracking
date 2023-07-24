@@ -215,6 +215,7 @@ int main(int argc, char* argv[])
                         break;
                     case SDLK_d:
                         saveImage();
+                        clearScreen();
                         participantId++;
                         pathGame.reset();
                         currentMode = path;
