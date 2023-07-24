@@ -1,4 +1,5 @@
 #include "main.h"
+#include "path_game.h"
 #include "document.h"
 
 int parseMessage(char* buffer)
@@ -104,6 +105,8 @@ int parseMessageLine(char* buffer)
                 pens[id].currentLine.coords.push_back({x, y});
             }
         }
+
+        pathGame.update(x, y, state);
 
         mutex_lines.unlock();
         mutex_pens.unlock();
