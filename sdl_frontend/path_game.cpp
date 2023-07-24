@@ -8,27 +8,49 @@ PathGame::PathGame()
 
 void PathGame::reset()
 {
-    state = wait;
+    state = waiting;
 }
 
 void PathGame::start()
 {
-    state = play;
+    state = playing;
     start_time = millis();
 }
 
-void PathGame::stop()
+void PathGame::finish()
 {
-    state = finish;
     end_time = getTimer();
+    state = finished;
 }
 
-void PathGame::update(int x, int y, int state)
+bool PathGame::isPenInStartRegion(int x, int y)
 {
-    cout << x << " " << y << " " << state << endl;
+    return getDistance(x, y, start_x, start_y) <= start_region_radius;
+}
+
+bool PathGame::isPenInFinishRegion(int x, int y)
+{
+    return getDistance(x, y, finish_x, finish_y) <= finish_region_radius;
+}
+
+void PathGame::update(int x, int y, int pen_state)
+{
+    //cout << x << " " << y << " " << state << endl;
+
+    if (state == waiting && isPenInStartRegion(x, y) && pen_state == STATE_DRAW)
+    {
+        start();
+    }
+
+    if (state == playing && isPenInFinishRegion(x, y))
+    {
+        finish();
+    }
 }
 
 float PathGame::getTimer()
 {
-    return ((float)(millis() - start_time)) / 1000;
+    if (state == waiting) return 0;
+    else if (state == playing) return ((float)(millis() - start_time)) / 1000;
+    else if (state == finished) return end_time;
 }
