@@ -142,6 +142,7 @@ int main(int argc, char* argv[])
     if(argc > 2)
     {
         participantId = atoi(argv[2]);
+        pathGame.participant_id = participantId;
     }
 
     mkdir(SCREENSHOT_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);

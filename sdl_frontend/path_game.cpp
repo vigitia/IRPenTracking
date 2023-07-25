@@ -26,8 +26,6 @@ PathGame::PathGame()
     accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
 
     pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
-
-    participant_id = participantId;
 }
 
 void PathGame::reset()
