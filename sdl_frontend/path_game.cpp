@@ -7,6 +7,7 @@
 #include <SDL2/SDL_image.h>
 #include <unistd.h>
 #include <fstream>
+#include <algorithm>
 
 PathGame::PathGame()
 {
@@ -43,6 +44,7 @@ void PathGame::reset()
     num_points_wrong = 0;
 
     participant_id++;
+    clearScreen();
     events.clear();
     state = waiting;
 }
@@ -187,6 +189,59 @@ void PathGame::renderAccuracy(SDL_Renderer* renderer)
     accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
 }
 
+void PathGame::renderHighscore(SDL_Renderer* renderer)
+{
+    vector<HighscoreEntry> entries;
+    ifstream file("highscore.csv");
+
+    string line;
+    getline(file, line); // skip first line with CSV header
+
+    while (getline(file, line)) 
+    {
+        stringstream ss(line);
+        HighscoreEntry entry;
+
+        string timestamp;
+        getline(ss, timestamp, ',');
+
+        ss >> entry.pid;
+        //getline(ss, entry.pid, ',');
+        ss.ignore();
+        ss >> entry.time;
+        ss.ignore();
+        ss >> entry.accuracy;
+
+        entries.push_back(entry);
+
+        //cout << entry.pid << " " << entry.time << " " << entry.accuracy << endl;
+    }
+
+    file.close();
+
+    sort(entries.begin(), entries.end(), compareHighscoreEntries);
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    for (int i = 0; i < 3; i++)
+    {
+        HighscoreEntry entry = entries.at(i);
+        cout << i << " - " << entry.pid << " " << entry.time << " " << entry.accuracy << endl;
+
+        char entry_string[200];
+        sprintf(entry_string, "%02d. %.2f   %.2f%%", i+1, entry.time, entry.accuracy);
+
+        SDL_Rect entry_rect = { 500 * resolution_factor, 200 + i * 180 * resolution_factor, 800 * resolution_factor, 130 * resolution_factor };
+        SDL_Surface* entry_surface = TTF_RenderText_Solid( font, entry_string, textColor );
+        SDL_Texture* entry_texture = SDL_CreateTextureFromSurface( renderer, entry_surface);
+        SDL_RenderCopy( renderer, entry_texture, NULL, &entry_rect );
+    }
+
+    SDL_RenderPresent(renderer);
+    usleep(3000000);
+}
+
 void PathGame::render(SDL_Renderer* renderer)
 {
     SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
@@ -194,7 +249,13 @@ void PathGame::render(SDL_Renderer* renderer)
     renderParticipantID(renderer);
     renderTimer(renderer);
     renderAccuracy(renderer);
-    renderProfilePicture(renderer);
+    //renderProfilePicture(renderer);
+
+    //if (state == finished)
+    //{
+    //    renderHighscore(renderer);
+    //    reset();
+    //}
 
     filledCircleColor(renderer, start_x, start_y, start_region_radius, 0xFF0000FF);
     filledCircleColor(renderer, finish_x, finish_y, finish_region_radius, 0xFF0000FF);

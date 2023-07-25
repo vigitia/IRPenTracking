@@ -84,6 +84,7 @@ class PathGame
         void renderProfilePicture(SDL_Renderer* renderer);
         void renderAccuracy(SDL_Renderer* renderer);
         void saveHighscore();
+        void renderHighscore(SDL_Renderer* renderer);
         //void saveProfilePicture(SDL_Renderer* renderer);
 };
 

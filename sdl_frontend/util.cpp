@@ -7,6 +7,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include "path_game.h"
 
 // https://stackoverflow.com/questions/63527698/determine-if-points-are-within-a-rotated-rectangle-standard-python-2-7-library
 bool is_on_right_side(int x, int y, Point xy0, Point xy1)
@@ -107,4 +108,9 @@ void logData(const string& fileName, const string& data)
     {
         cerr << "logData - Error opening file: " << fileName << endl;
     }
+}
+
+bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b)
+{
+    return a.time < b.time;
 }

@@ -98,6 +98,12 @@ struct Poly {
     bool alive;
 };
 
+struct HighscoreEntry {
+    int pid;
+    float time;
+    float accuracy;
+};
+
 inline SDL_Renderer* renderer;
 
 inline Modes currentMode = draw;
@@ -134,6 +140,7 @@ long long micros();
 SDL_Point pointToSDL(Point p);
 float getDistance(float x1, float y1, float x2, float y2);
 void logData(const string& fileName, const string& data);
+bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b);
 
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);
