@@ -22,6 +22,25 @@ class PathGame
         bool isPenInStartRegion(int x, int y);
         bool isPenInFinishRegion(int x, int y);
         vector<PenEvent> events;
+        int resolution_factor;
+
+        SDL_Rect profileTextRect;
+        SDL_Surface *profileTextSurface;
+        SDL_Texture *profileTextTexture;
+
+        SDL_Rect profileRect;
+
+        SDL_Rect timer_rect;
+        SDL_Surface *timerSurface;
+        SDL_Texture *timerTexture;
+
+        SDL_Rect pid_rect;
+        SDL_Surface *pidSurface;
+        SDL_Texture *pidTexture;
+
+        SDL_Rect pathRect;
+        SDL_Surface *pathSurface;
+        SDL_Texture *pathTexture;
 
     public:
         long long start_time;
@@ -47,6 +66,9 @@ class PathGame
         void finish();
         void update(int x, int y, int state);
         float getTimer();
+        void renderTimer(SDL_Renderer* renderer);
+        void renderParticipantID(SDL_Renderer* renderer);
+        void render(SDL_Renderer* renderer);
 };
 
 inline PathGame pathGame;

@@ -147,7 +147,6 @@ int main(int argc, char* argv[])
 
     crossesSurface = loadSurface(CROSSES_PATH);
     imageSurface = loadSurface(IMAGE_PATH);
-    pathSurface = loadSurface(PATH_PATH);
 
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
 
@@ -156,7 +155,6 @@ int main(int argc, char* argv[])
 
     crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
     imageTexture = SDL_CreateTextureFromSurface( renderer, imageSurface );
-    pathTexture = SDL_CreateTextureFromSurface( renderer, pathSurface );
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);

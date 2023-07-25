@@ -6,8 +6,6 @@
 
 inline SDL_Surface* imageSurface;
 inline SDL_Texture* imageTexture;
-inline SDL_Surface* pathSurface;
-inline SDL_Texture* pathTexture;
 inline bool SHOW_PARTICLES = false;
 inline vector<Particle> particles;
 inline bool showBrokenPipeIndicator = false;
@@ -25,6 +23,5 @@ void renderHoverIndicator(SDL_Renderer* renderer);
 void renderLatencyTest(SDL_Renderer* renderer);
 void renderBrokenPipeIndicator(SDL_Renderer* renderer);
 void renderParticipantID(SDL_Renderer* renderer);
-void renderPathGame(SDL_Renderer* renderer);
 
 #endif

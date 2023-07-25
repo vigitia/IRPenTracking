@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <iostream>
 #include <mutex>
@@ -99,6 +100,9 @@ struct Poly {
 inline SDL_Renderer* renderer;
 
 inline Modes currentMode = draw;
+
+inline TTF_Font* font;
+inline SDL_Color textColor = { 255, 255, 255 };
 
 inline vector<Line> lines;
 inline vector<Line> documentLines;

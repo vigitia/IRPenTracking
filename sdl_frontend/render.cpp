@@ -20,7 +20,7 @@ void render(SDL_Renderer* renderer)
 
     //cout << "document alive render: " << document.alive << endl;
 
-    if(currentMode == path) renderPathGame(renderer);
+    if(currentMode == path) pathGame.render(renderer);
     if(document.alive) renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
     if(currentMode == image) renderImage(renderer);
@@ -238,41 +238,4 @@ void renderBrokenPipeIndicator(SDL_Renderer* renderer)
     SDL_Rect brokenPipeIndicator = { 0, 0, 20, 20 };
 
     SDL_RenderFillRect(renderer, &brokenPipeIndicator);
-}
-
-void renderPathGameTimer(SDL_Renderer* renderer)
-{
-    SDL_Rect timer_rect = { 50, 100, 100, 25 };
-    SDL_RenderCopy( renderer, textTexture, NULL, &timer_rect );
-
-    float timeRemaining = pathGame.getTimer();
-
-    char timer_string[20];
-    sprintf(timer_string, "%.3f", timeRemaining);
-
-    textSurface = TTF_RenderText_Solid( font, timer_string, textColor );
-    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
-}
-
-void renderParticipantID(SDL_Renderer* renderer)
-{
-    SDL_Rect pid_rect = { 50, 50, 100, 25 };
-    SDL_RenderCopy( renderer, textTexture, NULL, &pid_rect );
-
-    char pid_string[20];
-    sprintf(pid_string, "PID: %03d", pathGame.participant_id);
-    textSurface = TTF_RenderText_Solid( font, pid_string, textColor );
-    textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
-}
-
-void renderPathGame(SDL_Renderer* renderer)
-{
-    SDL_Rect pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
-    SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
-
-    renderParticipantID(renderer);
-    renderPathGameTimer(renderer);
-
-    filledCircleColor(renderer, pathGame.start_x, pathGame.start_y, pathGame.start_region_radius, 0xFF0000FF);
-    filledCircleColor(renderer, pathGame.finish_x, pathGame.finish_y, pathGame.finish_region_radius, 0xFF0000FF);
 }
