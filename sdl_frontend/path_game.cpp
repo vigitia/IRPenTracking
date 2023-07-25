@@ -21,7 +21,12 @@ PathGame::PathGame()
     pid_rect = { 50, 50, 100, 25 };
     pidTexture = SDL_CreateTextureFromSurface( renderer, pidSurface );
 
+    acc_rect = { 50, 150, 200, 25 };
+    accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
+
     pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+
+    participant_id = participantId;
 }
 
 void PathGame::reset()
@@ -151,12 +156,29 @@ void PathGame::renderProfilePicture(SDL_Renderer* renderer)
     SDL_RenderDrawRect(renderer, &profileRect);
 }
 
+void PathGame::renderAccuracy(SDL_Renderer* renderer)
+{
+    SDL_RenderCopy( renderer, accTexture, NULL, &acc_rect );
+
+    float accuracy = 0.0f;
+    int points_total = num_points_correct + num_points_wrong;
+
+    if (points_total > 0) accuracy = ((float)num_points_correct / (float)points_total) * 100.0f;
+
+    char acc_string[50];
+    sprintf(acc_string, "Genauigkeit: %.2f\%", accuracy);
+
+    accSurface = TTF_RenderText_Solid( font, acc_string, textColor );
+    accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
+}
+
 void PathGame::render(SDL_Renderer* renderer)
 {
     SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
 
     renderParticipantID(renderer);
     renderTimer(renderer);
+    renderAccuracy(renderer);
     renderProfilePicture(renderer);
 
     filledCircleColor(renderer, start_x, start_y, start_region_radius, 0xFF0000FF);

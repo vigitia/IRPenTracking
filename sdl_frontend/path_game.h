@@ -37,6 +37,10 @@ class PathGame
         SDL_Surface *pidSurface;
         SDL_Texture *pidTexture;
 
+        SDL_Rect acc_rect;
+        SDL_Surface *accSurface;
+        SDL_Texture *accTexture;
+
         SDL_Rect pathRect;
         SDL_Surface *pathSurface;
         SDL_Texture *pathTexture;
@@ -77,6 +81,7 @@ class PathGame
         void renderParticipantID(SDL_Renderer* renderer);
         void render(SDL_Renderer* renderer);
         void renderProfilePicture(SDL_Renderer* renderer);
+        void renderAccuracy(SDL_Renderer* renderer);
         //void saveProfilePicture(SDL_Renderer* renderer);
 };
 
