@@ -8,6 +8,7 @@ struct PenEvent {
     int x;
     int y;
     int state;
+    int onLine;
 };
 
 enum PathGameState {
@@ -39,6 +40,11 @@ class PathGame
         SDL_Rect pathRect;
         SDL_Surface *pathSurface;
         SDL_Texture *pathTexture;
+
+        int num_points_correct = 0;
+        int num_points_wrong = 0;
+
+        bool checkPixel(int x, int y);
 
     public:
         long long start_time;

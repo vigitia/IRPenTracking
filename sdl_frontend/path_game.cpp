@@ -34,6 +34,9 @@ void PathGame::reset()
     profileTextSurface = TTF_RenderText_Solid( font, "Profilbild:", textColor );
     profileTextTexture = SDL_CreateTextureFromSurface( renderer, profileTextSurface );
 
+    num_points_correct = 0;
+    num_points_wrong = 0;
+
     participant_id++;
     events.clear();
     state = waiting;
@@ -51,12 +54,12 @@ void PathGame::finish()
     state = finished;
 
     stringstream ss;
-    ss << "timestamp,x,y,state" << endl;
+    ss << "timestamp,x,y,state,onLine" << endl;
 
     for(const auto event : events)
     {
         //cout << event.timestamp << ", " << event.x << ", " << event.y << ", " << event.state << endl;
-        ss << event.timestamp << "," << event.x << "," << event.y << "," << event.state << endl;
+        ss << event.timestamp << "," << event.x << "," << event.y << "," << event.state << "," << event.onLine << endl;
     }
 
     string data = ss.str();
@@ -79,11 +82,24 @@ bool PathGame::isPenInFinishRegion(int x, int y)
     return getDistance(x, y, finish_x, finish_y) <= finish_region_radius;
 }
 
+bool PathGame::checkPixel(int x, int y)
+{
+    int bpp = pathSurface->format->BytesPerPixel;
+    Uint8 *p = (Uint8*) pathSurface->pixels + y * pathSurface->pitch + x * bpp;
+
+    // if color is not black, pixel is on the line
+    return p[0] != 0;
+}
+
 void PathGame::update(int x, int y, int pen_state)
 {
     if (state == playing)
     {
-        events.push_back({millis(), x, y, pen_state});
+        bool pixelOnLine = checkPixel(x, y);
+        events.push_back({millis(), x, y, pen_state, pixelOnLine});
+
+        if (pixelOnLine) num_points_correct++;
+        else num_points_wrong++;
     }
 
     if (state == waiting && isPenInStartRegion(x, y) && pen_state == STATE_DRAW)
