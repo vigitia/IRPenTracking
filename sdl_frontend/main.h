@@ -32,6 +32,8 @@
 
 #define IMAGE_PATH "image.png"
 
+#define PATH_GAME_LOG_PATH "path_game_log"
+
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
 

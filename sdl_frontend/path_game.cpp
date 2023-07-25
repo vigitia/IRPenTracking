@@ -36,7 +36,10 @@ void PathGame::finish()
 
     string data = ss.str();
 
-    logData("testfile.csv", data);
+    char filename[400];
+    sprintf(filename, "%s/path_%lld_%d.csv", PATH_GAME_LOG_PATH, millis(), participant_id);
+
+    logData(filename, data);
 }
 
 bool PathGame::isPenInStartRegion(int x, int y)
