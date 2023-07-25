@@ -15,13 +15,14 @@ PathGame::PathGame()
     profileTextRect = { 100 * resolution_factor, 770 * resolution_factor, 100 * resolution_factor, 25 * resolution_factor };
     profileRect = { 100 * resolution_factor, 800 * resolution_factor, 150 * resolution_factor, 150 * resolution_factor };
 
-    timer_rect = { 50, 100, 100, 25 };
+    //timer_rect = { 50 * resolution_factor, 100 * resolution_factor, 100 * resolution_factor, 25 * resolution_factor };
+    timer_rect = { 300 * resolution_factor, 50 * resolution_factor, 300 * resolution_factor, 75 * resolution_factor };
     timerTexture = SDL_CreateTextureFromSurface( renderer, timerSurface );
 
-    pid_rect = { 50, 50, 100, 25 };
+    pid_rect = { 50 * resolution_factor, 50 * resolution_factor, 100 * resolution_factor, 25 * resolution_factor };
     pidTexture = SDL_CreateTextureFromSurface( renderer, pidSurface );
 
-    acc_rect = { 50, 150, 200, 25 };
+    acc_rect = { 800 * resolution_factor, 50 * resolution_factor, 500 * resolution_factor, 75 * resolution_factor };
     accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
 
     pathRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
@@ -129,10 +130,10 @@ void PathGame::renderTimer(SDL_Renderer* renderer)
 {
     SDL_RenderCopy( renderer, timerTexture, NULL, &timer_rect );
 
-    float timeRemaining = getTimer();
+    float timePassed = getTimer();
 
-    char timer_string[20];
-    sprintf(timer_string, "%.3f", timeRemaining);
+    char timer_string[30];
+    sprintf(timer_string, "Zeit: %.3f", timePassed);
 
     timerSurface = TTF_RenderText_Solid( font, timer_string, textColor );
     timerTexture = SDL_CreateTextureFromSurface( renderer, timerSurface );
@@ -166,7 +167,7 @@ void PathGame::renderAccuracy(SDL_Renderer* renderer)
     if (points_total > 0) accuracy = ((float)num_points_correct / (float)points_total) * 100.0f;
 
     char acc_string[50];
-    sprintf(acc_string, "Genauigkeit: %.2f\%", accuracy);
+    sprintf(acc_string, "Genauigkeit: %.2f%%", accuracy);
 
     accSurface = TTF_RenderText_Solid( font, acc_string, textColor );
     accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
