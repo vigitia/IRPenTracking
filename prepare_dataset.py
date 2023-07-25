@@ -140,14 +140,16 @@ class PrepareDataset:
         images_draw_train = []
         images_hover_train = []
 
+        SPLIT_NUMBER = 2
+
         for i, img in enumerate(images_draw):
-            if i % 5 == 0:
+            if i % SPLIT_NUMBER == 0:
                 images_draw_test.append(img)
             else:
                 images_draw_train.append(img)
 
         for i, img in enumerate(images_hover):
-            if i % 5 == 0:
+            if i % SPLIT_NUMBER == 0:
                 images_hover_test.append(img)
             else:
                 images_hover_train.append(img)

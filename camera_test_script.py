@@ -93,63 +93,63 @@ start_time = time.time()
 
 line_colors = {}
 
-uds_socket = None
-
-def init_unix_socket():
-    global uds_socket
-    uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-    print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
-    try:
-        uds_socket.connect(UNIX_SOCK_NAME)
-    except socket.error as error:
-        print('Error while connecting to UNIX Socket:', error)
-        print('Make sure that the frontend is already running before starting this python script')
-        sys.exit(1)
-
-
-def finish_line(pen_event_to_remove):
-    global uds_socket
-
-    message = 'f {} |'.format(pen_event_to_remove.id)
-
-    print('Finish line', pen_event_to_remove.id)
-
-    try:
-        uds_socket.send(message.encode())
-    except Exception as e:
-        print('---------')
-        print(e)
-        print('Broken Pipe in finish_line()')
-def add_new_line_point(active_pen_event):
-    global uds_socket
-
-    r = 255
-    g = 255
-    b = 255
-
-    if active_pen_event.id % 3 == 0:
-        r = 0
-    if active_pen_event.id % 3 == 1:
-        g = 0
-    if active_pen_event.id % 3 == 2:
-        b = 0
-
-    message = 'l {} {} {} {} {} {} {} |'.format(active_pen_event.id, r, g, b,
-                                                   int(active_pen_event.x),
-                                                   int(active_pen_event.y),
-                                                   0 if active_pen_event.state == PenState.HOVER else 1)
-
-    try:
-        uds_socket.send(message.encode())
-    except Exception as e:
-        print('---------')
-        print(e)
-        print('Broken Pipe in add_new_line_point()')
-        init_unix_socket()
-
-if SEND_TO_FRONTEND:
-    init_unix_socket()
+# uds_socket = None
+#
+# def init_unix_socket():
+#     global uds_socket
+#     uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+#
+#     print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
+#     try:
+#         uds_socket.connect(UNIX_SOCK_NAME)
+#     except socket.error as error:
+#         print('Error while connecting to UNIX Socket:', error)
+#         print('Make sure that the frontend is already running before starting this python script')
+#         sys.exit(1)
+#
+#
+# def finish_line(pen_event_to_remove):
+#     global uds_socket
+#
+#     message = 'f {} |'.format(pen_event_to_remove.id)
+#
+#     print('Finish line', pen_event_to_remove.id)
+#
+#     try:
+#         uds_socket.send(message.encode())
+#     except Exception as e:
+#         print('---------')
+#         print(e)
+#         print('Broken Pipe in finish_line()')
+# def add_new_line_point(active_pen_event):
+#     global uds_socket
+#
+#     r = 255
+#     g = 255
+#     b = 255
+#
+#     if active_pen_event.id % 3 == 0:
+#         r = 0
+#     if active_pen_event.id % 3 == 1:
+#         g = 0
+#     if active_pen_event.id % 3 == 2:
+#         b = 0
+#
+#     message = 'l {} {} {} {} {} {} {} |'.format(active_pen_event.id, r, g, b,
+#                                                    int(active_pen_event.x),
+#                                                    int(active_pen_event.y),
+#                                                    0 if active_pen_event.state == PenState.HOVER else 1)
+#
+#     try:
+#         uds_socket.send(message.encode())
+#     except Exception as e:
+#         print('---------')
+#         print(e)
+#         print('Broken Pipe in add_new_line_point()')
+#         init_unix_socket()
+#
+# if SEND_TO_FRONTEND:
+#     init_unix_socket()
 
 
 while True:
@@ -166,12 +166,12 @@ while True:
 
     active_pen_events, stored_lines, pen_events_to_remove = ir_pen.get_ir_pen_events_new([image0, image1], [matrix0, matrix1])
 
-    if SEND_TO_FRONTEND:
-        for active_pen_event in active_pen_events:
-            add_new_line_point(active_pen_event)
-
-        for pen_event in pen_events_to_remove:
-            finish_line(pen_event)
+    # if SEND_TO_FRONTEND:
+    #     for active_pen_event in active_pen_events:
+    #         add_new_line_point(active_pen_event)
+    #
+    #     for pen_event in pen_events_to_remove:
+    #         finish_line(pen_event)
 
     if PREVIEW_LINES:
         lines_preview = cv2.rectangle(lines_preview, [0, 0], [200, 200], (0, 0, 0), -1)

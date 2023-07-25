@@ -5,7 +5,7 @@ import glob
 # Based on: https://docs.opencv.org/master/dc/dbb/tutorial_py_calibration.html
 import yaml
 
-CHESSBOARD_SQUARES = (9, 6)
+CHESSBOARD_SQUARES = (11, 7)
 
 
 # Termination criteria

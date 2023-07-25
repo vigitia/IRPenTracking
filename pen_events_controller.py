@@ -107,7 +107,7 @@ class PenEventsController:
 
                 if time_since_last_seen > TIME_POINT_MISSING_THRESHOLD_MS:
                     print('Delete PenEvent {} ({} points): Inactive with last state {}'.format(
-                        active_pen_event.id, len(active_pen_event.history), active_pen_event.state))
+                        active_pen_event.id, len(active_pen_event.history), active_pen_event.true_state))
                     if len(active_pen_event.history) > 0:
                         # self.stored_lines.append(np.array(active_pen_event.history))
                         self.stored_lines.append({active_pen_event.id: active_pen_event.history})
@@ -136,6 +136,11 @@ class PenEventsController:
 
                         continue
 
+                    if final_pen_event.state == PenState.HOVER:
+                        if final_pen_event.state_history.count(PenState.DRAG) > NUM_HOVER_EVENTS_TO_END_LINE:
+                            print('Hover --> DRAG')
+                            final_pen_event.state = PenState.DRAG
+
             final_final_pen_events.append(final_pen_event)
 
         self.active_pen_events = final_final_pen_events
@@ -155,7 +160,7 @@ class PenEventsController:
         new_pen_event.history.append((active_pen_event.x, active_pen_event.y))  # Add the last point from the old event
 
         new_pen_event.state_history = active_pen_event.state_history  # Transfer over state history
-        new_pen_event.state_history.append(active_pen_event.state)  # Add last state from old PenEvent
+        new_pen_event.state_history.append(active_pen_event.true_state)  # Add last state from old PenEvent
 
         # Apply smoothing to the points by taking their previous positions into account
         new_pen_event.x = SMOOTHING_FACTOR * (new_pen_event.x - active_pen_event.x) + active_pen_event.x

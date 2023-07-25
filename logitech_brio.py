@@ -12,15 +12,18 @@ import time
 from surface_selector import SurfaceSelector
 from surface_extractor import SurfaceExtractor
 
+from pen_color_detector import PenColorDetector
+
 # TODO: exposure time und parameter setzen auf 33 und brightness hoch
 
 CAMERA_ID = 0
-RES_X = 1920  #3840  # 1280#3840#4096#
-RES_Y = 1080  # 2160  # 720#2160#2160#
-FPS = 30 # 15
+RES_X = 1280  # 1920  #3840  # 1280#3840#4096#
+RES_Y = 720  # 1080  # 2160  # 720#2160#2160#
+FPS = 60  # 30  # 15
 
-CALIBRATION_MODE = True
+CALIBRATION_MODE = False
 CAMERA_PARAMETER_NAME = 'Logitech Brio'
+
 
 class LogitechBrio:
 
@@ -103,6 +106,7 @@ class LogitechBrioDebugger:
         camera = LogitechBrio(self)
         camera.init_video_capture()
         camera.start()
+        self.pen_detector = PenColorDetector()
         
     def on_new_brio_frame(self, frame, homography_matrix):
         if CALIBRATION_MODE:
@@ -113,9 +117,13 @@ class LogitechBrioDebugger:
                 sys.exit(0)
         # print(frame.shape)
         else:
+
+
             extracted_frame = self.surface_extractor.extract_table_area(frame, CAMERA_PARAMETER_NAME)
-            cv2.imshow('Logitech Brio', frame)
-            cv2.imshow('Logitech Projection Area', extracted_frame)
+            pens = self.pen_detector.detect(extracted_frame, [[0, 3058, 1230], [1, 3058 / 2, 1230], [2, 100, 1230]])
+
+            #cv2.imshow('Logitech Brio', frame)
+            # cv2.imshow('Logitech Projection Area', extracted_frame)
             cv2.waitKey(1)
 
 
