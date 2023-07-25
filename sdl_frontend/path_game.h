@@ -77,11 +77,13 @@ class PathGame
         void finish();
         void update(int x, int y, int state);
         float getTimer();
+        float getAccuracy();
         void renderTimer(SDL_Renderer* renderer);
         void renderParticipantID(SDL_Renderer* renderer);
         void render(SDL_Renderer* renderer);
         void renderProfilePicture(SDL_Renderer* renderer);
         void renderAccuracy(SDL_Renderer* renderer);
+        void saveHighscore();
         //void saveProfilePicture(SDL_Renderer* renderer);
 };
 

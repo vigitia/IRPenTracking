@@ -6,6 +6,7 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_image.h>
 #include <unistd.h>
+#include <fstream>
 
 PathGame::PathGame()
 {
@@ -73,6 +74,8 @@ void PathGame::finish()
 
     logData(filename, data);
 
+    saveHighscore();
+
     isSavingProfilePicture = true;
 }
 
@@ -117,6 +120,14 @@ void PathGame::update(int x, int y, int pen_state)
     }
 }
 
+void PathGame::saveHighscore()
+{
+    ofstream outfile;
+
+    outfile.open("highscore.csv", ios_base::app);
+    outfile << millis() << "," << participant_id << "," << end_time << "," << getAccuracy() << endl; 
+}
+
 float PathGame::getTimer()
 {
     if (state == waiting) return 0;
@@ -155,17 +166,22 @@ void PathGame::renderProfilePicture(SDL_Renderer* renderer)
     SDL_RenderDrawRect(renderer, &profileRect);
 }
 
-void PathGame::renderAccuracy(SDL_Renderer* renderer)
+float PathGame::getAccuracy()
 {
-    SDL_RenderCopy( renderer, accTexture, NULL, &acc_rect );
-
     float accuracy = 0.0f;
     int points_total = num_points_correct + num_points_wrong;
 
     if (points_total > 0) accuracy = ((float)num_points_correct / (float)points_total) * 100.0f;
 
+    return accuracy;
+}
+
+void PathGame::renderAccuracy(SDL_Renderer* renderer)
+{
+    SDL_RenderCopy( renderer, accTexture, NULL, &acc_rect );
+
     char acc_string[50];
-    sprintf(acc_string, "Genauigkeit: %.2f%%", accuracy);
+    sprintf(acc_string, "Genauigkeit: %.2f%%", getAccuracy());
 
     accSurface = TTF_RenderText_Solid( font, acc_string, textColor );
     accTexture = SDL_CreateTextureFromSurface( renderer, accSurface );
