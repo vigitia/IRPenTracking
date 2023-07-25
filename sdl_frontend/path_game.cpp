@@ -4,11 +4,12 @@
 
 PathGame::PathGame()
 {
-    reset();
+
 }
 
 void PathGame::reset()
 {
+    participant_id++;
     events.clear();
     state = waiting;
 }

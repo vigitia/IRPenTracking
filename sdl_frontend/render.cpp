@@ -260,7 +260,7 @@ void renderParticipantID(SDL_Renderer* renderer)
     SDL_RenderCopy( renderer, textTexture, NULL, &pid_rect );
 
     char pid_string[20];
-    sprintf(pid_string, "PID: %03d", participantId);
+    sprintf(pid_string, "PID: %03d", pathGame.participant_id);
     textSurface = TTF_RenderText_Solid( font, pid_string, textColor );
     textTexture = SDL_CreateTextureFromSurface( renderer, textSurface );
 }

@@ -27,6 +27,7 @@ class PathGame
         long long start_time;
         long long current_time;
         float end_time;
+        int participant_id = 0;
 
         // a bit hacky
         // 4K mode is 1 --> FullHD pixel values are multiplied with 2 if in 4K mode
@@ -37,7 +38,7 @@ class PathGame
         int start_region_radius = 8 * (MODE + 1);
         int finish_region_radius = 2 * (MODE + 1);
 
-        PathGameState state;
+        PathGameState state = waiting;
 
         PathGame();
 
