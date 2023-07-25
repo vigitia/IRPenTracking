@@ -32,6 +32,7 @@
 #endif
 
 #define IMAGE_PATH "image.png"
+#define HIGHSCORE_PATH "highscore"
 
 #define PATH_GAME_LOG_PATH "path_game_log"
 
