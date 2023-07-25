@@ -58,7 +58,7 @@ int parseMessageLine(char* buffer)
     if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
     {
         long long cur_micros = micros();
-        cout << cur_micros - last_micros << endl;
+        //cout << cur_micros - last_micros << endl;
         last_micros = cur_micros;
 
         mutex_pens.lock();
