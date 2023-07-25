@@ -111,7 +111,7 @@ void saveProfilePicture()
     usleep(20000);
 
     char filename[400];
-    sprintf(filename, "%s/picture_%lld_%d.png", PATH_GAME_LOG_PATH, millis(), pathGame.participant_id);
+    sprintf(filename, "%s/%d.png", HIGHSCORE_PATH, pathGame.participant_id);
 
     SDL_RenderReadPixels(renderer, &pathGame.profileRect, format, surface->pixels, surface->pitch);
     IMG_SavePNG(surface, filename);
