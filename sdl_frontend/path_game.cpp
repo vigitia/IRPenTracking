@@ -5,6 +5,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_image.h>
+#include <unistd.h>
 
 PathGame::PathGame()
 {
@@ -64,6 +65,8 @@ void PathGame::finish()
     sprintf(filename, "%s/path_%lld_%d.csv", PATH_GAME_LOG_PATH, millis(), participant_id);
 
     logData(filename, data);
+
+    isSavingProfilePicture = true;
 }
 
 bool PathGame::isPenInStartRegion(int x, int y)
@@ -125,17 +128,41 @@ void PathGame::renderParticipantID(SDL_Renderer* renderer)
     pidTexture = SDL_CreateTextureFromSurface( renderer, pidSurface );
 }
 
+void PathGame::renderProfilePicture(SDL_Renderer* renderer)
+{
+    SDL_RenderCopy( renderer, profileTextTexture, NULL, &profileTextRect );
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderDrawRect(renderer, &profileRect);
+}
+
 void PathGame::render(SDL_Renderer* renderer)
 {
     SDL_RenderCopy(renderer, pathTexture, NULL, &pathRect);
 
     renderParticipantID(renderer);
     renderTimer(renderer);
-
-    SDL_RenderCopy( renderer, profileTextTexture, NULL, &profileTextRect );
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderDrawRect(renderer, &profileRect);
+    renderProfilePicture(renderer);
 
     filledCircleColor(renderer, start_x, start_y, start_region_radius, 0xFF0000FF);
     filledCircleColor(renderer, finish_x, finish_y, finish_region_radius, 0xFF0000FF);
 }
+
+/*
+void PathGame::saveProfilePicture(SDL_Renderer *renderer)
+{
+    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
+    cout << profileRect.w << " " << profileRect.h << endl;
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, profileRect.w, profileRect.h, 32, format);
+
+    //renderProfilePicture(renderer);
+    usleep(20000);
+
+    char filename[400];
+    sprintf(filename, "%s/picture_%lld_%d.png", PATH_GAME_LOG_PATH, millis(), participant_id);
+
+    SDL_RenderReadPixels(renderer, &profileRect, format, surface->pixels, surface->pitch);
+    IMG_SavePNG(surface, filename);
+
+    isSavingProfilePicture = false;
+}
+*/

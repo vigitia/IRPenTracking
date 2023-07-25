@@ -30,6 +30,7 @@ void render(SDL_Renderer* renderer)
     if(SHOW_PARTICLES) renderParticles(renderer);
     if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
+    if(pathGame.isSavingProfilePicture) saveProfilePicture();
     if(!isSaving) SDL_RenderPresent(renderer);
 }
 

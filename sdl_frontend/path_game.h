@@ -28,8 +28,6 @@ class PathGame
         SDL_Surface *profileTextSurface;
         SDL_Texture *profileTextTexture;
 
-        SDL_Rect profileRect;
-
         SDL_Rect timer_rect;
         SDL_Surface *timerSurface;
         SDL_Texture *timerTexture;
@@ -59,6 +57,9 @@ class PathGame
 
         PathGameState state = waiting;
 
+        bool isSavingProfilePicture = false;
+        SDL_Rect profileRect;
+
         PathGame();
 
         void reset();
@@ -69,6 +70,8 @@ class PathGame
         void renderTimer(SDL_Renderer* renderer);
         void renderParticipantID(SDL_Renderer* renderer);
         void render(SDL_Renderer* renderer);
+        void renderProfilePicture(SDL_Renderer* renderer);
+        //void saveProfilePicture(SDL_Renderer* renderer);
 };
 
 inline PathGame pathGame;

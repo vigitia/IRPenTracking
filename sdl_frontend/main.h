@@ -123,6 +123,7 @@ inline uint32_t highlightColor = 0x9900FFFF;
 void clearScreen();
 SDL_Surface* loadSurface(string path);
 void saveImage();
+void saveProfilePicture();
 
 bool is_on_right_side(int x, int y, Point xy0, Point xy1);
 Point multiplyPointMatrix(Point point, float matrix[3][3]);
