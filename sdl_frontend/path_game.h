@@ -63,7 +63,7 @@ class PathGame
         int finish_x = 1780 * (MODE + 1); // 3559.482
         int finish_y = 627 * (MODE + 1); // 1254.285
         int start_region_radius = 8 * (MODE + 1);
-        int finish_region_radius = 2 * (MODE + 1);
+        int finish_region_radius = 8 * (MODE + 1);
 
         PathGameState state = waiting;
 
