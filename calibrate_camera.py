@@ -11,7 +11,7 @@ from flir_blackfly_s import FlirBlackflyS
 from calibration_image_capture_service import CalibrationImageCaptureService
 from camera_calibration_service import CameraCalibrationService
 
-NUM_IMAGES_TARGET = 50
+NUM_IMAGES_TARGET = 10
 
 MANUAL_MODE = True
 
@@ -26,7 +26,6 @@ class CalibrateCamera:
     frames = []
     camera_serial_numbers = []
 
-
     def __init__(self):
         # camera_names = ['FlirBlackflyS 0', 'FlirBlackflyS 1']
         #
@@ -40,7 +39,7 @@ class CalibrateCamera:
         # self.realsense_d435_camera.init_video_capture()
         # self.realsense_d435_camera.start()
 
-        self.flir_blackfly_s = FlirBlackflyS(cam_exposure=200000, subscriber=self)
+        self.flir_blackfly_s = FlirBlackflyS(cam_exposure=300000, subscriber=self)
 
         thread = threading.Thread(target=self.debug_mode_thread)
         thread.start()
@@ -56,7 +55,7 @@ class CalibrateCamera:
             if key == 27:  # ESC
                 cv2.destroyAllWindows()
                 sys.exit(0)
-            elif key == 32 and MANUAL_MODE:
+            elif key == 32 and MANUAL_MODE:  # Space
                 for i, frame in enumerate(self.frames):
                     camera_serial_number = self.camera_serial_numbers[i]
                     if self.num_collected_calibration_frames[camera_serial_number] < NUM_IMAGES_TARGET:

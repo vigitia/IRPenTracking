@@ -15,6 +15,7 @@ class PenEvent:
 
         self.first_appearance = round(time.time() * 1000)
         self.state = state
+        self.true_state = state
         self.history = []  # All logged x and y positions as tuples
         self.state_history = []  # All logged states (Hover, Draw, ...)
 

@@ -28,8 +28,8 @@ pip3 install tensorflow
 
 For Flir BlackFly S cameras: Install Spinnaker SDK and PySpin by following the official guide: https://www.flir.com/products/spinnaker-sdk/
 
-For Intel Realsense D435 cameras (not recommended because of low camera resolution):
-```pip3 install pyrealsense2```
+~~For Intel Realsense D435 cameras (not recommended because of low camera resolution):
+```pip3 install pyrealsense2```~~ -> Currently not working
 
 
 ## Install dependencies for SDL frontend (optional)
@@ -47,12 +47,13 @@ sudo apt install libsdl2-ttf-dev
 
 Mount the projector in a way so that it projects onto a flat surface (see Figure 2). The cameras should be placed in a way so that they can see the entire projection surface.
 
-Set `CALIBRATION_MODE = True` in _flir_blackfly_s.py_ (or _realsense_d435.py_) and run the script.
-A preview of each camera's feed will appear. These windows will help you to adjust the cameras. 
-
+Run the script *flir_blacklfy_s_calibration_tool.py*
+A preview of each camera's feed will appear. These windows will help you to adjust the cameras.
+Enable the test pattern on your projector to properly see the projection area. 
 Afterwards, select the four corners of the projection area by clicking on them with your mouse cursor.
+You won't be able to see the projector image with your infrared cameras. We use tape to mark the four corner points 
 
-Finally, set `CALIBRATION_MODE = False`
+Each window will close after the four corners have been selected. A new calibration file called *config.ini* will appear in the project folder.
 
 # Step 3: Run the application
 
@@ -72,7 +73,7 @@ make
 ```
 
 Then start camera and pen tracking by running
-```python3 ir_pen.py```
+```python3 main.py```
 
 
 ---
@@ -80,10 +81,10 @@ Then start camera and pen tracking by running
 # Optional: Retrain the network
 
 If the provided CNN file does not work for you, you can make your own.
-Set `TRAINING_DATA_COLLECTION_MODE = True` in _ir_pen,py_. Now this script will save images.
+Set `TRAINING_DATA_COLLECTION_MODE = True` in _main,py_. Now this script will save images.
 Collect a few thousand images for drawing and a few thousand for hovering.
 
 Then open the Jupyter Notebook _train_network.ipynb_ and update the path to your training data.
-Run all cells. It will output a new CNN file that you can use in _ir_pen.py_
+Run all cells. It will output a new CNN file that you need to reference in _ir_pen_cnn.py_
 
 

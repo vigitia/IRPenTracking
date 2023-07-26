@@ -11,11 +11,13 @@ from surface_extractor import SurfaceExtractor
 
 DEBUG_MODE = False
 
+INTRINSIC_CAMERA_CALIBRATION = False
+
 CALIBRATION_DATA_PATH = ''  # Specify location where the calibration file should be saved
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
-EXPOSURE_TIME_MICROSECONDS = 600  # μs -> must be lower than the frame time (FRAMERATE / 1000)
+EXPOSURE_TIME_MICROSECONDS = 800  # 600  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 18  # Controls the amplification of the video signal in dB.
 FRAMERATE = 158  # Target number of Frames per Second (Min: 1, Max: 158)
 NUM_BUFFERS = 1  # Number of roi buffers per camera
@@ -55,47 +57,50 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         with Python strings are supported.
         """
 
+        # Check if all cameras are already inititalized
         global all_cameras_ready
         if not all_cameras_ready:
+            # print('OnDeviceEvent: Not all cameras initialized')
             return
 
         # Check if we receive the expected event type
-        if event_name == self.event_name:
-            # self.count += 1
-            # Print information on specified device event
-            # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.cam_id,
-            #                                                            self.count))
+        # if event_name == self.event_name:
+        # self.count += 1
+        # Print information on specified device event
+        # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.cam_id,
+        #                                                            self.count))
 
-            # start_time = datetime.datetime.now()
-            image_result = self.cam.GetNextImage(1000)
+        # start_time = datetime.datetime.now()
+        # TODO: How long to wait here?
+        image_result = self.cam.GetNextImage(10)
 
-            # print(image_result.GetTimeStamp() / 1e9)
+        # print(image_result.GetTimeStamp() / 1e9)
 
-            if image_result.IsIncomplete():  # Ensure roi completion
-                print('Image incomplete with roi status %d' % image_result.GetImageStatus())
-            else:
-                if self.cam_id == SERIAL_NUMBER_MASTER:
-                    global cam_image_master
-                    cam_image_master = image_result.GetNDArray()
-                    # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
-                elif self.cam_id == SERIAL_NUMBER_SLAVE:
-                    global cam_image_slave
-                    cam_image_slave = image_result.GetNDArray()
-                    self.check_both_frames_available()
-                    # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
-
-            #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
-            image_result.Release()
-
-            # end_time = datetime.datetime.now()
-            # run_time = (end_time - start_time).microseconds / 1000.0
-            # print('Time for self.cam.GetNextImage(1000)', run_time, self.cam_id)
-
-            # self.check_both_frames_available()
-
+        if image_result.IsIncomplete():  # Ensure roi completion
+            print('Warning: Image incomplete with roi status %d' % image_result.GetImageStatus())
         else:
-            # Print no information on non-specified event
-            print('\tDevice event occurred; not %s; ignoring...' % self.event_name)
+            if self.cam_id == SERIAL_NUMBER_MASTER:
+                global cam_image_master
+                cam_image_master = image_result.GetNDArray()
+                # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
+            elif self.cam_id == SERIAL_NUMBER_SLAVE:
+                global cam_image_slave
+                cam_image_slave = image_result.GetNDArray()
+                self.check_both_frames_available()
+                # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
+
+        #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
+        image_result.Release()
+
+        # end_time = datetime.datetime.now()
+        # run_time = (end_time - start_time).microseconds / 1000.0
+        # print('Time for self.cam.GetNextImage(1000)', run_time, self.cam_id)
+
+        # self.check_both_frames_available()
+
+        # else:
+        #     # Print no information on non-specified event
+        #     print('\tDevice event occurred; not %s; ignoring...' % self.event_name)
 
     def check_both_frames_available(self):
         global cam_image_master
@@ -113,6 +118,8 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             # Reset variables
             cam_image_master = None
             cam_image_slave = None
+        else:
+            print('Warning! Not both frames available!')
 
 
 class FlirBlackflyS:
@@ -176,7 +183,8 @@ class FlirBlackflyS:
             for i, cam in enumerate(self.cam_list):
                 self.__initialize_camera(cam, i, subscriber)
 
-            # self.load_camera_calibration_data(self.device_serial_numbers)
+            if INTRINSIC_CAMERA_CALIBRATION:
+                self.load_camera_calibration_data(self.device_serial_numbers)
 
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
@@ -197,7 +205,7 @@ class FlirBlackflyS:
         node_device_serial_number = PySpin.CStringPtr(cam.GetTLDeviceNodeMap().GetNode('DeviceSerialNumber'))
         if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
             device_serial_number = node_device_serial_number.GetValue()
-            print('Camera %d serial number: %s' % (i, device_serial_number))
+            print('\nCamera %d Serial Number: %s' % (i, device_serial_number))
         self.device_serial_numbers.append(device_serial_number)
 
         # Do not get matrices in calibration mode. The required config file does not exist yet
@@ -366,7 +374,7 @@ class FlirBlackflyS:
             return False
 
         stream_buffer_count_mode.SetIntValue(stream_buffer_count_mode_manual.GetValue())
-        print('\nStream Buffer Count Mode set to manual.')
+        print('PySpin:Camera:StreamBufferCountMode: Manual')
 
         # Retrieve and modify Stream Buffer Count
         buffer_count = PySpin.CIntegerPtr(s_node_map.GetNode('StreamBufferCountManual'))
@@ -375,13 +383,13 @@ class FlirBlackflyS:
             return False
 
         # Display Buffer Info
-        print('Default Buffer Handling Mode: %s' % handling_mode_entry.GetDisplayName())
-        print('Default Buffer Count: %d' % buffer_count.GetValue())
-        print('Maximum Buffer Count: %d' % buffer_count.GetMax())
+        # print('Default Buffer Handling Mode: %s' % handling_mode_entry.GetDisplayName())
+        # print('Default Buffer Count: %d' % buffer_count.GetValue())
+        # print('Maximum Buffer Count: %d' % buffer_count.GetMax())
 
         buffer_count.SetValue(NUM_BUFFERS)
 
-        print('Buffer count set to: %d' % buffer_count.GetValue())
+        print('PySpin:Camera:BufferCount: %d' % buffer_count.GetValue())
 
         # handling_mode_entry = handling_mode.GetEntryByName('NewestFirst')
         handling_mode_entry = handling_mode.GetEntryByName('NewestOnly')
@@ -389,7 +397,7 @@ class FlirBlackflyS:
         # handling_mode_entry = handling_mode.GetEntryByName('OldestFirstOverwrite')
 
         handling_mode.SetIntValue(handling_mode_entry.GetValue())
-        print('Buffer Handling Mode has been set to %s\n' % handling_mode_entry.GetDisplayName())
+        print('PySpin:Camera:BufferHandlingMode: %s' % handling_mode_entry.GetDisplayName())
 
         # TODO: Also set WIDTH AND HEIGHT, X_OFFSET, Y_OFFSET
 
@@ -544,8 +552,8 @@ class FlirBlackflyS:
             # scope.
 
             cam.RegisterEventHandler(device_event_handler, 'EventExposureEnd')
-            print('Device event handler registered specifically to EventExposureEnd events')
-            print('')
+            # print('Device event handler registered specifically to EventExposureEnd events')
+            # print('')
 
         except PySpin.SpinnakerException as ex:
             print('Error in configure_device_events(): %s' % ex)

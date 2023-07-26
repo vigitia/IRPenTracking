@@ -1,13 +1,17 @@
 
+import os
 import numpy as np
 from tensorflow import keras
 from tflite import LiteModel
 import datetime
 
-MODEL_PATH = 'cnn'  # Put the folder path here for the desired cnn
+MODEL_PATH = 'cnn'  # 'model_2023_026'  # 'cnn'  # Put the folder path here for the desired cnn
 
 # Allowed states for CNN prediction
 STATES = ['draw', 'hover', 'hover_far', 'undefined']
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress Tensorflow warnings
+
 
 # For debugging purposes
 # Decorator to print the run time of a single function
@@ -26,6 +30,7 @@ def timeit(prefix):
 
     return timeit_decorator
 
+
 class IRPenCNN:
     keras_lite_model = None
 
@@ -39,21 +44,14 @@ class IRPenCNN:
 
     # @timeit('Predict')
     def predict(self, img):
-        # if len(image.shape) == 3:
-        #     print(image[10,10,:])
-        #     image = image[:, :, :2]
-        #     print(image[10, 10, :], 'after')
-        # image = image.astype('float32') / 255
-        # if len(image.shape) == 3:
-        #     image = image.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 2)
-        # else:
-        #     image = image.reshape(-1, CROP_IMAGE_SIZE, CROP_IMAGE_SIZE, 1)
-
         img_reshaped = img.reshape(-1, img.shape[0], img.shape[1], 1)
+
         # use predict() for safe and less performant
         # use predict_unsafe() for best performance but we are not sure what could happen in the worst case
         prediction = self.keras_lite_model.predict_unsafe(img_reshaped)
+
         if not prediction.any():
+            print('No prediction possible!')
             return STATES[-1], 0
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
@@ -65,6 +63,6 @@ class IRPenCNN:
         #         self.active_learning_counter += 1
 
         # print(state)
-        if state == 'hover_far':
-            state = 'hover'
+        # if state == 'hover_far':
+        #     state = 'hover'
         return state, confidence

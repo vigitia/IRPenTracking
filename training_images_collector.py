@@ -6,17 +6,17 @@ import cv2
 # Enable to collect training images if you want to retrain the CNN (see train_network.ipynb)
 ACTIVE_LEARNING_COLLECTION_MODE = False
 
-TRAIN_PATH = 'training_images/2023-02-22'
-TRAIN_IMAGE_COUNT = 3000
+TRAIN_PATH = 'training_images/2023-02-24'
+TRAIN_IMAGE_COUNT = 5000
 
 TRAINING_CATEGORIES = ['draw', 'hover_close', 'hover_far']
 
-CATEGORY = TRAINING_CATEGORIES[0]
+CATEGORY = TRAINING_CATEGORIES[2]
 
-TRAINING_ROUND = 1  # Increment after each training round
+TRAINING_ROUND = 2  # Increment after each training round
 
 
-NUM_WAIT_FRAMES = 3
+NUM_WAIT_FRAMES = 10
 
 
 class TrainingImagesCollector:

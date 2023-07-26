@@ -24,7 +24,7 @@ PIPE_NAME = 'pipe_test'
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
-SEND_TO_FRONTEND = False  # Enable if points should be forwarded to the sdl frontend
+SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 
 DOCUMENTS_DEMO = False
@@ -49,6 +49,7 @@ class Main:
     last_brio_frame = None
 
     color_id_assignments = {}
+    known_pens = []
 
     def __init__(self):
 
@@ -59,6 +60,7 @@ class Main:
                 self.init_unix_socket()
 
         self.surface_extractor = SurfaceExtractor()
+        self.pen_detector = PenColorDetector()
 
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
@@ -106,8 +108,6 @@ class Main:
 
     def on_new_brio_frame(self, frame, homography_matrix):
         # print(frame.shape)
-
-
 
         self.last_brio_frame = frame
 
@@ -227,9 +227,19 @@ class Main:
     last_timestamp = 0
 
     def add_new_line_point(self, active_pen_event):
-        r = 255
-        g = 255
-        b = 255
+        r = 0
+        g = 0
+        b = 0
+
+        if active_pen_event.id in self.color_id_assignments.keys():
+            if active_pen_event.id in self.color_id_assignments:
+                col = self.color_id_assignments[active_pen_event.id]
+                r = 255 if col == "r" else 0
+                g = 255 if col == "g" else 0
+                b = 255 if col == "b" else 0
+        else:
+            r = g = b = 255
+
 
         # if active_pen_event.id % 3 == 0:
         #     r = 0
@@ -328,31 +338,38 @@ class Main:
             #  time.sleep() does not work here
             cv2.waitKey(1)
 
+    # @timeit('assign_color_to_pen()')
     def assign_color_to_pen(self, active_pen_events):
-
         relevant_pen_events = []
 
         for pen_event in active_pen_events:
             if pen_event.state == PenState.DRAG:
-                if pen_event.id not in self.color_id_assignments.keys():
+                if pen_event.id not in self.known_pens:
                     relevant_pen_events.append(pen_event)
+                    self.known_pens.append(pen_event.id)
+
+        for i in self.known_pens:
+            if i not in [pen_event.id for pen_event in active_pen_events]:
+                del self.known_pens[self.known_pens.index(i)]
 
         if len(relevant_pen_events) > 0:
-
+            self.color_id_assignments.clear()
             ids_and_points = [[pen_event.id, pen_event.x, pen_event.y] for pen_event in relevant_pen_events]
 
+            # TODO Vitus: Don't use extracted frame here
             extracted_frame = self.surface_extractor.extract_table_area(self.last_brio_frame, 'Logitech Brio')
-            ids_and_colors = PenColorDetector.detect(extracted_frame, ids_and_points)
+            # current_time = time.process_time()
 
-            self.color_id_assignments.clear()
-            for k, v in ids_and_colors.items():
-                self.color_id_assignments[k] = v["color"]
+            if extracted_frame is not None:
+                ids_and_colors = self.pen_detector.detect(extracted_frame, ids_and_points)
+                # print("TIME PenColorDetector", time.process_time() - current_time)
+                for k, v in ids_and_colors.items():
+                    self.color_id_assignments[k] = v["color"]
 
-            print("RELEVANT", self.color_id_assignments)
+        # self.color_id_assignments = {self.known_pens[-1]: "red"}
 
     #@timeit('on_new_frame_group')
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
-
         if len(frames) > 0:
             if TRAINING_DATA_COLLECTION_MODE:
                 self.training_images_collector.save_training_images(frames)

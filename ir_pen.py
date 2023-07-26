@@ -311,7 +311,7 @@ class IRPen:
 
         cv2.imshow('Table preview', zeros)
 
-    def preview_rois(self, new_data, frame):
+    def preview_rois(self, new_data):
 
         preview_image_all_rois = None
 
@@ -386,7 +386,7 @@ class IRPen:
                 prediction_0 = new_data[0][cam_0_index]['prediction']
                 prediction_1 = new_data[1][cam_1_index]['prediction']
 
-                n = 5
+                n = 2
 
                 # If both points have similar y values
                 if y_distance_between_points_abs <= n * CROP_IMAGE_SIZE:
