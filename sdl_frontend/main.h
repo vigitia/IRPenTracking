@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <iostream>
 #include <mutex>
@@ -18,17 +19,22 @@
 #define MODE_1080 0
 #define MODE_4K 1
 
-#define MODE MODE_4K
+#define MODE MODE_1080
 
 #if MODE == MODE_1080
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
+#define PATH_PATH "assets/path_1080.png"
 #else
 #define WINDOW_WIDTH 3840
 #define WINDOW_HEIGHT 2160
+#define PATH_PATH "assets/path_4k.png"
 #endif
 
 #define IMAGE_PATH "image.png"
+#define HIGHSCORE_PATH "highscore"
+
+#define PATH_GAME_LOG_PATH "path_game_log"
 
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
@@ -61,7 +67,8 @@ enum Modes {
     save,
     latency,
     particle,
-    image
+    image,
+    path
 };
 
 struct Point {
@@ -91,9 +98,18 @@ struct Poly {
     bool alive;
 };
 
+struct HighscoreEntry {
+    int pid;
+    float time;
+    float accuracy;
+};
+
 inline SDL_Renderer* renderer;
 
 inline Modes currentMode = draw;
+
+inline TTF_Font* font;
+inline SDL_Color textColor = { 255, 255, 255 };
 
 inline vector<Line> lines;
 inline vector<Line> documentLines;
@@ -114,6 +130,7 @@ inline uint32_t highlightColor = 0x9900FFFF;
 void clearScreen();
 SDL_Surface* loadSurface(string path);
 void saveImage();
+void saveProfilePicture();
 
 bool is_on_right_side(int x, int y, Point xy0, Point xy1);
 Point multiplyPointMatrix(Point point, float matrix[3][3]);
@@ -121,6 +138,9 @@ const string currentDateTime();
 long long millis();
 long long micros();
 SDL_Point pointToSDL(Point p);
+float getDistance(float x1, float y1, float x2, float y2);
+void logData(const string& fileName, const string& data);
+bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b);
 
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);

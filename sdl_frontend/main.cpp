@@ -5,6 +5,7 @@
 #include "study.h"
 #include "particle.h"
 #include "render.h"
+#include "path_game.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,6 +101,24 @@ void saveImage()
     isSaving = false;
 }
 
+void saveProfilePicture()
+{
+    const Uint32 format = SDL_PIXELFORMAT_ARGB8888;
+    cout << pathGame.profileRect.w << " " << pathGame.profileRect.h << endl;
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, pathGame.profileRect.w, pathGame.profileRect.h, 32, format);
+
+    //renderProfilePicture(renderer);
+    usleep(20000);
+
+    char filename[400];
+    sprintf(filename, "%s/%d.png", HIGHSCORE_PATH, pathGame.participant_id);
+
+    SDL_RenderReadPixels(renderer, &pathGame.profileRect, format, surface->pixels, surface->pitch);
+    IMG_SavePNG(surface, filename);
+
+    pathGame.isSavingProfilePicture = false;
+}
+
 int main(int argc, char* argv[]) 
 {
     signal(SIGINT, onExit);
@@ -123,6 +142,7 @@ int main(int argc, char* argv[])
     if(argc > 2)
     {
         participantId = atoi(argv[2]);
+        pathGame.participant_id = participantId;
     }
 
     mkdir(SCREENSHOT_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -209,6 +229,12 @@ int main(int argc, char* argv[])
                         break;
                     case SDLK_a:
                         showBrokenPipeIndicator = false;
+                        break;
+                    case SDLK_d:
+                        saveImage();
+                        clearScreen();
+                        pathGame.reset();
+                        currentMode = path;
                         break;
                     case SDLK_SPACE:
                         saveImage();

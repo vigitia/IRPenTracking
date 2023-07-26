@@ -1,4 +1,5 @@
 #include "main.h"
+#include "path_game.h"
 #include "document.h"
 
 int parseMessage(char* buffer)
@@ -57,7 +58,7 @@ int parseMessageLine(char* buffer)
     if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
     {
         long long cur_micros = micros();
-        cout << cur_micros - last_micros << endl;
+        //cout << cur_micros - last_micros << endl;
         last_micros = cur_micros;
 
         mutex_pens.lock();
@@ -104,6 +105,8 @@ int parseMessageLine(char* buffer)
                 pens[id].currentLine.coords.push_back({x, y});
             }
         }
+
+        pathGame.update(x, y, state);
 
         mutex_lines.unlock();
         mutex_pens.unlock();

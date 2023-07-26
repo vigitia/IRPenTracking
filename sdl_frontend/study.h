@@ -26,8 +26,6 @@ inline string currentPhrase;
 inline int currentTextSize = 0;
 
 inline SDL_Texture* textTexture;
-inline TTF_Font* font;
-inline SDL_Color textColor = { 255, 255, 255 };
 
 inline SDL_Surface* textSurface;
 inline SDL_Surface* crossesSurface;

@@ -2,6 +2,7 @@
 #include "render.h"
 #include "study.h"
 #include "document.h"
+#include "path_game.h"
 
 #include <vector>
 #include <map>
@@ -19,6 +20,7 @@ void render(SDL_Renderer* renderer)
 
     //cout << "document alive render: " << document.alive << endl;
 
+    if(currentMode == path) pathGame.render(renderer);
     if(document.alive) renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
     if(currentMode == image) renderImage(renderer);
@@ -28,6 +30,7 @@ void render(SDL_Renderer* renderer)
     if(SHOW_PARTICLES) renderParticles(renderer);
     if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
+    if(pathGame.isSavingProfilePicture) saveProfilePicture();
     if(!isSaving) SDL_RenderPresent(renderer);
 }
 
@@ -237,4 +240,3 @@ void renderBrokenPipeIndicator(SDL_Renderer* renderer)
 
     SDL_RenderFillRect(renderer, &brokenPipeIndicator);
 }
-
