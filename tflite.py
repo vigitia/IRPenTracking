@@ -20,6 +20,7 @@ def timeit(prefix):
         return wrapper
     return timeit_decorator
 
+
 # source: Michael Wurm, 2019 on medium
 # https://micwurm.medium.com/using-tf-lite-to-speed-up-predictions-a3954886eb98
 class LiteModel:
@@ -91,6 +92,7 @@ class LiteModel:
         out = self.interpreter.get_tensor(self.output_index)
         return out[0]
 
+
 if __name__ == '__main__':
     import cv2
     import os
@@ -129,7 +131,7 @@ if __name__ == '__main__':
         img = cv2.imread(draw_path + random.sample(image_paths_draw, 1)[0], cv2.IMREAD_GRAYSCALE)
         brightnesses.append(np.max(img))
         if np.max(img) < 50:
-            too_dark +=1
+            too_dark += 1
 
     print('TOO DARK:', too_dark/len(image_paths_draw))
 

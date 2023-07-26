@@ -9,7 +9,7 @@ from surface_selector import SurfaceSelector
 
 DEBUG_MODE = True
 EXTRACT_PROJECTION_AREA = False
-CALIBRATION_MODE = False
+CALIBRATION_MODE = True
 
 CAM_EXPOSURE_FOR_CALIBRATION = 200000  # Increase Brightness to better see the corners
 

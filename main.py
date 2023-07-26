@@ -11,7 +11,7 @@ import queue
 from pen_state import PenState
 from ir_pen import IRPen, timeit
 from flir_blackfly_s import FlirBlackflyS
-from logitech_brio import LogitechBrio
+
 
 from surface_extractor import SurfaceExtractor
 
@@ -22,6 +22,12 @@ ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
 PIPE_NAME = 'pipe_test'
 
+JUERGEN_MODE = False
+
+if JUERGEN_MODE:
+    from logitech_brio import LogitechBrio
+
+
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
 SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
@@ -30,7 +36,6 @@ TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 DOCUMENTS_DEMO = False
 
 if DOCUMENTS_DEMO:
-    # from logitech_brio import LogitechBrio
     from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 
@@ -65,9 +70,10 @@ class Main:
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
-        self.logitech_brio_camera = LogitechBrio(self)
-        self.logitech_brio_camera.init_video_capture()
-        self.logitech_brio_camera.start()
+        if JUERGEN_MODE:
+            self.logitech_brio_camera = LogitechBrio(self)
+            self.logitech_brio_camera.init_video_capture()
+            self.logitech_brio_camera.start()
 
         if TRAINING_DATA_COLLECTION_MODE:
             from training_images_collector import TrainingImagesCollector
@@ -77,10 +83,6 @@ class Main:
 
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
-
-            # self.logitech_brio_camera = LogitechBrio(self)
-            # self.logitech_brio_camera.init_video_capture()
-            # self.logitech_brio_camera.start()
 
         # Start a thread to keep this script alive
         thread = threading.Thread(target=self.main_thread)
@@ -376,7 +378,8 @@ class Main:
             else:
                 active_pen_events, stored_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events_new(frames, matrices)
 
-                self.assign_color_to_pen(active_pen_events)
+                if JUERGEN_MODE:
+                    self.assign_color_to_pen(active_pen_events)
 
                 if SEND_TO_FRONTEND:
                     for active_pen_event in active_pen_events:
