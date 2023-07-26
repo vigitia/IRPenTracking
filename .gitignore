@@ -142,5 +142,8 @@ sdl_frontend/sdl_frontend
 assets/berlin_out.pdf
 
 training_images/
+calibration_images/
+logs/
+projector_camera_calibration/
 
 rois_draw/
