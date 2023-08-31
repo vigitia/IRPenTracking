@@ -39,7 +39,7 @@ class PenEventsController:
     def merge_pen_events_new(self, new_pen_events):
         pen_events_to_remove = []  # Points that got deleted from active_points in the current frame
 
-        now = round(time.time() * 1000)  # Get current timestamp
+        now = time.time_ns() // 1_000_000  # round(time.time() * 1000)  # Get current timestamp
 
         # No new events. Check active events if missing for too long
         if len(new_pen_events) == 0 and len(self.active_pen_events) > 0:
@@ -52,7 +52,7 @@ class PenEventsController:
                 time_since_last_seen = now - active_pen_event.last_seen_timestamp
 
                 if time_since_last_seen > TIME_POINT_MISSING_THRESHOLD_MS:
-                    print('Delete PenEvent {} ({} points): Inactive with last state {}'.format(active_pen_event.id, len(active_pen_event.history), active_pen_event.state))
+                    print('Delete PenEvent {} ({} points): Inactive with last state {} while no new pen events present'.format(active_pen_event.id, len(active_pen_event.history), active_pen_event.state))
                     if len(active_pen_event.history) > 0:
                         # self.stored_lines.append(np.array(active_pen_event.history))
                         self.stored_lines.append({active_pen_event.id: active_pen_event.history})
@@ -105,6 +105,7 @@ class PenEventsController:
             if i not in merged_ids_active_pen_events:
                 time_since_last_seen = now - active_pen_event.last_seen_timestamp
 
+                # Mögliches Ende einer Linie
                 if time_since_last_seen > TIME_POINT_MISSING_THRESHOLD_MS:
                     print('Delete PenEvent {} ({} points): Inactive with last state {}'.format(
                         active_pen_event.id, len(active_pen_event.history), active_pen_event.true_state))
@@ -122,8 +123,18 @@ class PenEventsController:
         final_final_pen_events = []
         for final_pen_event in final_pen_events:
 
+            if len(final_pen_event.state_history) >= 2 and final_pen_event.state == PenState.HOVER and final_pen_event.state_history[-2] == PenState.DRAG:
+                print('Single hover to drag')
+                final_pen_event.state = PenState.DRAG
+
+            if len(final_pen_event.state_history) >= 2 and final_pen_event.state == PenState.DRAG and \
+                    final_pen_event.state_history[-2] == PenState.HOVER:
+                print('Single drag to hover')
+                final_pen_event.state = PenState.HOVER
+
             # Check if there are too many hover events. End event if this is the case
-            if len(final_pen_event.history) >= 1 and len(final_pen_event.state_history) >= NUM_HOVER_EVENTS_TO_END_LINE:
+            if len(final_pen_event.state_history) >= NUM_HOVER_EVENTS_TO_END_LINE:
+
                 # There needs to be at least one Draw event to delete a line (except through inactivity)
                 if PenState.DRAG in final_pen_event.state_history:
                     if final_pen_event.state_history[-NUM_HOVER_EVENTS_TO_END_LINE:].count(PenState.HOVER) == NUM_HOVER_EVENTS_TO_END_LINE:
@@ -136,10 +147,10 @@ class PenEventsController:
 
                         continue
 
-                    if final_pen_event.state == PenState.HOVER:
-                        if final_pen_event.state_history.count(PenState.DRAG) > NUM_HOVER_EVENTS_TO_END_LINE:
-                            print('Hover --> DRAG')
-                            final_pen_event.state = PenState.DRAG
+                    # if final_pen_event.state == PenState.HOVER:
+                    #     if final_pen_event.state_history.count(PenState.DRAG) > NUM_HOVER_EVENTS_TO_END_LINE:
+                    #         print('Hover --> DRAG')
+                    #         final_pen_event.state = PenState.DRAG
 
             final_final_pen_events.append(final_pen_event)
 
