@@ -727,6 +727,9 @@ class IRPen:
                 # TODO: Needs improvement, set also the surrounding area to black
                 image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
 
+
+        return rois_new, roi_coords_new, max_brightness_values
+
     # WIP!
     # def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
     #
