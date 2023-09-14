@@ -164,7 +164,7 @@ while True:
     # image0 = image0.GetNDArray()
     # image1 = image1.GetNDArray()
 
-    active_pen_events, stored_lines, pen_events_to_remove = ir_pen.get_ir_pen_events_new([image0, image1], [matrix0, matrix1])
+    active_pen_events, stored_lines, pen_events_to_remove = ir_pen.get_ir_pen_events([image0, image1], [matrix0, matrix1])
 
     # if SEND_TO_FRONTEND:
     #     for active_pen_event in active_pen_events:

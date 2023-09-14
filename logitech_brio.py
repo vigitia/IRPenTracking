@@ -78,7 +78,7 @@ class LogitechBrio:
                     print('WARNING: Output image resolution for additional camera is smaller then expected!')
                 # with self.read_lock:
                 if self.subscriber is not None:
-                    self.subscriber.on_new_brio_frame(frame, self.homography_matrix)
+                    self.subscriber.on_new_color_frame(frame, self.homography_matrix)
                 # self.frame = frame
                 if (time.time() - self.start_time) > 1:  # displays the frame rate every 1 second
                     # print("FPS: %s" % round(self.counter / (time.time() - self.start_time), 1))

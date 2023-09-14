@@ -12,20 +12,23 @@ from pen_events_controller import PenEventsController
 from ir_pen_cnn import IRPenCNN
 
 
-CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel
+CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel. Relevant for the CNN
 
 MIN_BRIGHTNESS_FOR_PREDICTION = 50  # A spot in the camera image needs to have at least X brightness to be considered.
 
 USE_MAX_DISTANCE_DRAW = False
 MAX_DISTANCE_DRAW = 500  # Maximum allowed pixel distance between two points to be considered the same line ID
 
-LATENCY_MEASURING_MODE = False
+# LATENCY_MEASURING_MODE = False
 
-WINDOW_WIDTH = 3840
-WINDOW_HEIGHT = 2160
+# Width and height of the output window/screen -> Target resolution
+# ToDo: Store this data somewhere else
+OUTPUT_WINDOW_WIDTH = 3840
+OUTPUT_WINDOW_HEIGHT = 2160
 
-CAMERA_WIDTH = 1920  # 848
-CAMERA_HEIGHT = 1200  # 480
+# Width and height of the received frames
+INPUT_FRAME_WIDTH = 1920  # 848
+INPUT_FRAME_HEIGHT = 1200  # 480
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
@@ -50,8 +53,8 @@ def timeit(prefix):
 
 class IRPen:
 
-    factor_width = WINDOW_WIDTH / CAMERA_WIDTH
-    factor_height = WINDOW_HEIGHT / CAMERA_HEIGHT
+    factor_width = OUTPUT_WINDOW_WIDTH / INPUT_FRAME_WIDTH
+    factor_height = OUTPUT_WINDOW_HEIGHT / INPUT_FRAME_HEIGHT
 
     # active_learning_counter = 0
     # active_learning_state = 'hover'
@@ -69,123 +72,8 @@ class IRPen:
         #         self.test_data.append(eval(row))
         # print(len(self.test_data))
 
-    # @timeit('Pen Events')
-    # def get_ir_pen_events(self, camera_frames, transform_matrices):
-    #
-    #     new_pen_events = []
-    #
-    #     predictions = []
-    #
-    #     rois = []
-    #     transformed_roi_coords = []
-    #     brightness_values = []
-    #     # subpixel_precision_coords = []
-    #
-    #     for i, frame in enumerate(camera_frames):
-    #
-    #         # TODO: Get here all spots and not just one
-    #         pen_event_roi, brightest, (x, y) = self.crop_image_old(frame)
-    #
-    #         if pen_event_roi is not None:
-    #             transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
-    #             # (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
-    #
-    #             rois.append(pen_event_roi)
-    #             transformed_roi_coords.append(transformed_coords)
-    #             brightness_values.append(np.sum(pen_event_roi))
-    #             # subpixel_precision_coords.append((x, y))
-    #
-    #     # TODO: TESTING ONLY! We currently do not call the find_pen_position_subpixel_crop() function
-    #     subpixel_precision_coords = transformed_roi_coords
-    #
-    #     # If we see only one point:
-    #     if len(subpixel_precision_coords) == 1:
-    #         prediction, confidence = self.ir_pen_cnn.predict(rois[0])
-    #         # print('One Point', prediction, confidence)
-    #         # TODO: Also consider confidence here
-    #         if prediction == 'draw':
-    #             # print('One point draw')
-    #             new_ir_pen_event = PenEvent(subpixel_precision_coords[0][0], subpixel_precision_coords[0][1], PenState.DRAG)
-    #             new_pen_events.append(new_ir_pen_event)
-    #
-    #         elif prediction == 'hover':
-    #             # print('One point hover')
-    #             new_ir_pen_event = PenEvent(subpixel_precision_coords[0][0], subpixel_precision_coords[0][1], PenState.HOVER)
-    #             new_pen_events.append(new_ir_pen_event)
-    #         else:
-    #             print('Error: Unknown state')
-    #
-    #     # If we see two points
-    #     elif len(subpixel_precision_coords) == 2:
-    #         # print('Two points')
-    #
-    #         # Calculate a new point that is the center between the two given points
-    #         (center_x, center_y) = self.get_center_point(subpixel_precision_coords[0], subpixel_precision_coords[1])
-    #
-    #         distance_between_points = distance.euclidean(subpixel_precision_coords[0], subpixel_precision_coords[1])
-    #         # print('DISTANCE:', distance_between_points, flush=True)
-    #
-    #         if USE_MAX_DISTANCE_DRAW and distance_between_points > MAX_DISTANCE_DRAW:
-    #             print('Distance too large -> Hover', distance_between_points)
-    #             # Calculate center between the two points
-    #
-    #             final_prediction = 'hover'
-    #         else:
-    #             for pen_event_roi in rois:
-    #                 prediction, confidence = self.ir_pen_cnn.predict(pen_event_roi)
-    #                 # print('Two Points', prediction, confidence)
-    #                 predictions.append(prediction)
-    #
-    #             if all(x == predictions[0] for x in predictions):
-    #                 # The predictions for all cameras are the same
-    #                 final_prediction = predictions[0]
-    #                 # print('Agreement on prediction')
-    #             else:
-    #                 brightest_image_index = brightness_values.index(max(brightness_values))
-    #                 # print('Brightness vs: {} > {}'.format(max(brightness_values), brightness_values))
-    #                 # print('Disagree -> roi {} wins because it is brighter'.format(brightest_image_index))
-    #                 # There is a disagreement
-    #                 # Currently we then use the prediction of the brightest point in all camera frames
-    #                 final_prediction = predictions[brightest_image_index]
-    #                 # TODO: OR HOVER WINS HERE
-    #
-    #         if final_prediction == 'draw':
-    #             # print('Status: Touch')
-    #             new_ir_pen_event = PenEvent(center_x, center_y, PenState.DRAG)
-    #             new_pen_events.append(new_ir_pen_event)
-    #
-    #         elif final_prediction == 'hover':
-    #             # print('Status: Hover')
-    #             new_ir_pen_event = PenEvent(center_x, center_y, PenState.HOVER)
-    #             new_pen_events.append(new_ir_pen_event)
-    #         else:
-    #             print('Error: Unknown state')
-    #             time.sleep(30)
-    #
-    #     if LATENCY_MEASURING_MODE:
-    #         if len(subpixel_precision_coords) == 0:
-    #             new_ir_pen_event = PenEvent(0, 0, PenState.HOVER)
-    #             new_pen_events.append(new_ir_pen_event)
-    #         else:
-    #             new_pen_events[-1] = PenEvent(center_x, center_y, PenState.DRAG)
-    #
-    #     # For distance/velocity calculation
-    #     # current_frame_time = time.time()
-    #     # delta_time = current_frame_time - self.last_frame_time
-    #     # dist = distance.euclidean((center_x, center_y),
-    #     #                           self.last_coords)
-    #     # self.last_coords = (center_x, center_y)
-    #     # self.last_frame_time = current_frame_time
-    #     # print('LOG {}, {}'.format(distance_between_points, abs(dist) / delta_time), flush=True)
-    #
-    #     # This function needs to be called even if there are no new pen events to update all existing events
-    #     active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_single(new_pen_events)
-    #
-    #     # TODO: REWORK RETURN. stored_lines not always needed
-    #     return active_pen_events, stored_lines, new_pen_events, pen_events_to_remove, rois
-
     # @ timeit('get_ir_pen_events_new')
-    def get_ir_pen_events_new(self, camera_frames, transform_matrices):
+    def get_ir_pen_events(self, camera_frames, transform_matrices):
 
         new_data = self.get_new_pen_data(camera_frames, transform_matrices)
         # new_data = self.get_new_test_data()
@@ -193,8 +81,8 @@ class IRPen:
         # self.preview_rois(new_data, camera_frames[0])
 
         if DEBUG_MODE:
-            self.preview_rois(new_data)
-            self.preview_table_view(new_data)
+            self.__debug_mode_preview_rois(new_data)
+            self.__debug_mode_preview_table_view(new_data)
 
         timestamp = round(time.time() * 1000)
 
@@ -237,7 +125,7 @@ class IRPen:
         if len(self.test_data) > 0:
             return self.test_data.pop(0)
 
-    #@('get_new_pen_data')
+    # @ timeit('get_new_pen_data')
     def get_new_pen_data(self, camera_frames, transform_matrices):
         new_data = []
 
@@ -297,7 +185,7 @@ class IRPen:
             time.sleep(5)
             sys.exit(1)
 
-    def preview_table_view(self, new_data):
+    def __debug_mode_preview_table_view(self, new_data):
 
         zeros = np.zeros((2160, 3840, 3), 'uint8')
 
@@ -314,11 +202,11 @@ class IRPen:
 
         cv2.imshow('Table preview', zeros)
 
-    def preview_rois(self, new_data):
+    def __debug_mode_preview_rois(self, new_data):
 
         preview_image_all_rois = None
 
-        preview_roi_frame = np.zeros((2160, 3840), 'uint8')
+        preview_roi_frame = np.zeros((OUTPUT_WINDOW_HEIGHT, OUTPUT_WINDOW_WIDTH), 'uint8')
 
         for i in range(len(new_data)):
             for entry in new_data[i]:
@@ -342,7 +230,8 @@ class IRPen:
                 roi_preview = self.add_label(roi_preview, entry['prediction'], 80)
                 roi_preview = self.add_label(roi_preview, 'CAM ID: {}'.format(i), 130)
                 roi_preview = self.add_label(roi_preview, 'MAX: {}'.format(int(entry['max_brightness'])), 180)
-                roi_preview = self.add_label(roi_preview, 'POS: {}, {}'.format(int(entry['subpixel_coords'][0]), int(entry['subpixel_coords'][1])), 230)
+                roi_preview = self.add_label(roi_preview, 'POS: {}, {}'.format(int(entry['subpixel_coords'][0]),
+                                                                               int(entry['subpixel_coords'][1])), 230)
 
                 if preview_image_all_rois is None:
                     preview_image_all_rois = roi_preview
@@ -403,7 +292,7 @@ class IRPen:
                             (center_x, center_y) = self.get_center_point(new_data[0][cam_0_index]['subpixel_coords'],
                                                                          new_data[1][cam_1_index]['subpixel_coords'])
 
-                            new_pen_events.append(self.generate_new_pen_event('draw', center_x, center_y))
+                            new_pen_events.append(self.__generate_new_pen_event('draw', center_x, center_y))
                             new_data[0][cam_0_index]['used'] = True
                             new_data[1][cam_1_index]['used'] = True
                         elif prediction_0 == 'hover' and prediction_1 == 'hover':
@@ -411,7 +300,7 @@ class IRPen:
                             (center_x, center_y) = self.get_center_point(new_data[0][cam_0_index]['subpixel_coords'],
                                                                          new_data[1][cam_1_index]['subpixel_coords'])
 
-                            new_pen_events.append(self.generate_new_pen_event('hover', center_x, center_y))
+                            new_pen_events.append(self.__generate_new_pen_event('hover', center_x, center_y))
                             new_data[0][cam_0_index]['used'] = True
                             new_data[1][cam_1_index]['used'] = True
                         else:
@@ -419,7 +308,7 @@ class IRPen:
                             (center_x, center_y) = self.get_center_point(new_data[0][cam_0_index]['subpixel_coords'],
                                                                          new_data[1][cam_1_index]['subpixel_coords'])
 
-                            new_pen_events.append(self.generate_new_pen_event('draw', center_x, center_y))
+                            new_pen_events.append(self.__generate_new_pen_event('draw', center_x, center_y))
                             new_data[0][cam_0_index]['used'] = True
                             new_data[1][cam_1_index]['used'] = True
 
@@ -433,7 +322,7 @@ class IRPen:
                             (center_x, center_y) = self.get_center_point(new_data[0][cam_0_index]['subpixel_coords'],
                                                                          new_data[1][cam_1_index]['subpixel_coords'])
 
-                            new_pen_events.append(self.generate_new_pen_event('hover', center_x, center_y))
+                            new_pen_events.append(self.__generate_new_pen_event('hover', center_x, center_y))
                             new_data[0][cam_0_index]['used'] = True
                             new_data[1][cam_1_index]['used'] = True
                         else:
@@ -448,9 +337,9 @@ class IRPen:
             for entry in new_data[i]:
                 if not entry['used']:
                     if entry['prediction'] == 'draw':
-                        new_pen_events.append(self.generate_new_pen_event('draw',
-                                                                          entry['subpixel_coords'][0],
-                                                                          entry['subpixel_coords'][1]))
+                        new_pen_events.append(self.__generate_new_pen_event('draw',
+                                                                            entry['subpixel_coords'][0],
+                                                                            entry['subpixel_coords'][1]))
                         entry['used'] = True
                     elif entry['prediction'] == 'hover':
                         # Ignore for now
@@ -509,9 +398,6 @@ class IRPen:
     #             print('Found {} remaining hover events for cam {}'.format(len(hover_events[i]), i))
     #
     #     return new_pen_events
-
-
-
 
     # WIP!
     # def generate_new_pen_events(self, coords, predictions, brightness_values):
@@ -657,7 +543,11 @@ class IRPen:
 
         return point_distance_pairs_by_y_value
 
-    def generate_new_pen_event(self, prediction, x, y):
+    def __generate_new_pen_event(self, prediction, x, y):
+        """ Generate a single new Pen Event
+
+        For a new Pen Event, we need the Type of the Pen Event (PenState), e.g. draw or hover and the x and y position.
+        """
         if prediction == 'draw':
             new_ir_pen_event = PenEvent(x, y, PenState.DRAG)
             return new_ir_pen_event
@@ -665,17 +555,8 @@ class IRPen:
             new_ir_pen_event = PenEvent(x, y, PenState.HOVER)
             return new_ir_pen_event
         else:
-            print('Error: Unknown state')
-            sys.exit(1)
-
-    # Calculate the center point between two given points
-    def get_center_point(self, p1, p2):
-        (x1, y1) = p1
-        (x2, y2) = p2
-
-        x_dist = abs(x1 - x2) / 2
-        y_dist = abs(y1 - y2) / 2
-        return min(x1, x2) + x_dist, min(y1, y2) + y_dist
+            raise Exception('Error: Unknown/Unexpected Pen Event state')
+            # sys.exit(1)
 
     #@timeit('get_all_rois')
     def get_all_rois(self, image):
@@ -737,6 +618,15 @@ class IRPen:
 
 
         return rois_new, roi_coords_new, max_brightness_values
+
+    # Helper Function: Calculate the center point between two given points
+    def get_center_point(self, p1, p2):
+        (x1, y1) = p1
+        (x2, y2) = p2
+
+        x_dist = abs(x1 - x2) / 2
+        y_dist = abs(y1 - y2) / 2
+        return min(x1, x2) + x_dist, min(y1, y2) + y_dist
 
     # WIP!
     # def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
@@ -932,3 +822,118 @@ class IRPen:
         # print(min_radius, cX, cY, position)
 
         return position, min_radius
+
+    # @timeit('Pen Events')
+    # def get_ir_pen_events(self, camera_frames, transform_matrices):
+    #
+    #     new_pen_events = []
+    #
+    #     predictions = []
+    #
+    #     rois = []
+    #     transformed_roi_coords = []
+    #     brightness_values = []
+    #     # subpixel_precision_coords = []
+    #
+    #     for i, frame in enumerate(camera_frames):
+    #
+    #         # TODO: Get here all spots and not just one
+    #         pen_event_roi, brightest, (x, y) = self.crop_image_old(frame)
+    #
+    #         if pen_event_roi is not None:
+    #             transformed_coords = self.transform_coords_to_output_res(x, y, transform_matrices[i])
+    #             # (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
+    #
+    #             rois.append(pen_event_roi)
+    #             transformed_roi_coords.append(transformed_coords)
+    #             brightness_values.append(np.sum(pen_event_roi))
+    #             # subpixel_precision_coords.append((x, y))
+    #
+    #     # TODO: TESTING ONLY! We currently do not call the find_pen_position_subpixel_crop() function
+    #     subpixel_precision_coords = transformed_roi_coords
+    #
+    #     # If we see only one point:
+    #     if len(subpixel_precision_coords) == 1:
+    #         prediction, confidence = self.ir_pen_cnn.predict(rois[0])
+    #         # print('One Point', prediction, confidence)
+    #         # TODO: Also consider confidence here
+    #         if prediction == 'draw':
+    #             # print('One point draw')
+    #             new_ir_pen_event = PenEvent(subpixel_precision_coords[0][0], subpixel_precision_coords[0][1], PenState.DRAG)
+    #             new_pen_events.append(new_ir_pen_event)
+    #
+    #         elif prediction == 'hover':
+    #             # print('One point hover')
+    #             new_ir_pen_event = PenEvent(subpixel_precision_coords[0][0], subpixel_precision_coords[0][1], PenState.HOVER)
+    #             new_pen_events.append(new_ir_pen_event)
+    #         else:
+    #             print('Error: Unknown state')
+    #
+    #     # If we see two points
+    #     elif len(subpixel_precision_coords) == 2:
+    #         # print('Two points')
+    #
+    #         # Calculate a new point that is the center between the two given points
+    #         (center_x, center_y) = self.get_center_point(subpixel_precision_coords[0], subpixel_precision_coords[1])
+    #
+    #         distance_between_points = distance.euclidean(subpixel_precision_coords[0], subpixel_precision_coords[1])
+    #         # print('DISTANCE:', distance_between_points, flush=True)
+    #
+    #         if USE_MAX_DISTANCE_DRAW and distance_between_points > MAX_DISTANCE_DRAW:
+    #             print('Distance too large -> Hover', distance_between_points)
+    #             # Calculate center between the two points
+    #
+    #             final_prediction = 'hover'
+    #         else:
+    #             for pen_event_roi in rois:
+    #                 prediction, confidence = self.ir_pen_cnn.predict(pen_event_roi)
+    #                 # print('Two Points', prediction, confidence)
+    #                 predictions.append(prediction)
+    #
+    #             if all(x == predictions[0] for x in predictions):
+    #                 # The predictions for all cameras are the same
+    #                 final_prediction = predictions[0]
+    #                 # print('Agreement on prediction')
+    #             else:
+    #                 brightest_image_index = brightness_values.index(max(brightness_values))
+    #                 # print('Brightness vs: {} > {}'.format(max(brightness_values), brightness_values))
+    #                 # print('Disagree -> roi {} wins because it is brighter'.format(brightest_image_index))
+    #                 # There is a disagreement
+    #                 # Currently we then use the prediction of the brightest point in all camera frames
+    #                 final_prediction = predictions[brightest_image_index]
+    #                 # TODO: OR HOVER WINS HERE
+    #
+    #         if final_prediction == 'draw':
+    #             # print('Status: Touch')
+    #             new_ir_pen_event = PenEvent(center_x, center_y, PenState.DRAG)
+    #             new_pen_events.append(new_ir_pen_event)
+    #
+    #         elif final_prediction == 'hover':
+    #             # print('Status: Hover')
+    #             new_ir_pen_event = PenEvent(center_x, center_y, PenState.HOVER)
+    #             new_pen_events.append(new_ir_pen_event)
+    #         else:
+    #             print('Error: Unknown state')
+    #             time.sleep(30)
+    #
+    #     if LATENCY_MEASURING_MODE:
+    #         if len(subpixel_precision_coords) == 0:
+    #             new_ir_pen_event = PenEvent(0, 0, PenState.HOVER)
+    #             new_pen_events.append(new_ir_pen_event)
+    #         else:
+    #             new_pen_events[-1] = PenEvent(center_x, center_y, PenState.DRAG)
+    #
+    #     # For distance/velocity calculation
+    #     # current_frame_time = time.time()
+    #     # delta_time = current_frame_time - self.last_frame_time
+    #     # dist = distance.euclidean((center_x, center_y),
+    #     #                           self.last_coords)
+    #     # self.last_coords = (center_x, center_y)
+    #     # self.last_frame_time = current_frame_time
+    #     # print('LOG {}, {}'.format(distance_between_points, abs(dist) / delta_time), flush=True)
+    #
+    #     # This function needs to be called even if there are no new pen events to update all existing events
+    #     active_pen_events, stored_lines, pen_events_to_remove = self.pen_events_controller.merge_pen_events_single(new_pen_events)
+    #
+    #     # TODO: REWORK RETURN. stored_lines not always needed
+    #     return active_pen_events, stored_lines, new_pen_events, pen_events_to_remove, rois

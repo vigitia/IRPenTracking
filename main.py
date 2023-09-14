@@ -40,6 +40,10 @@ if DOCUMENTS_DEMO:
 
 
 class Main:
+    """ Entry point to the TipTrack Software
+
+
+    """
 
     uds_initialized = False
     socket = None
@@ -51,22 +55,23 @@ class Main:
 
     message_queue = queue.Queue()
 
-    last_brio_frame = None
+    last_color_frame = None  # Temporary store last color frame here to be used if needed
 
-    color_id_assignments = {}
+    color_id_assignments = {}  # This dict will contain mappings between pen event IDs and their assigned color if available
     known_pens = []
 
     def __init__(self):
 
         if SEND_TO_FRONTEND:
             if ENABLE_FIFO_PIPE:
-                self.init_fifo_pipe()
-            if ENABLE_UNIX_SOCKET:
-                self.init_unix_socket()
+                self.__init_fifo_pipe()
+            elif ENABLE_UNIX_SOCKET:
+                self.__init_unix_socket()
+            else:
+                raise Exception('No protocol selected for sending data to the frontend')
 
         self.surface_extractor = SurfaceExtractor()
         self.pen_detector = PenColorDetector()
-
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
@@ -84,19 +89,21 @@ class Main:
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
-        # Start a thread to keep this script alive
+        # Start a thread that does nothing to keep this script alive
+        # ToDo: Check if there is a better way. The current design of the application requires this because the cameras
+        # run in their own threads and forward their data to this class.
         thread = threading.Thread(target=self.main_thread)
         thread.start()
 
         message_thread = threading.Thread(target=self.send_messages)
         message_thread.start()
 
-    def init_fifo_pipe(self):
+    def __init_fifo_pipe(self):
         if not os.path.exists(PIPE_NAME):
             os.mkfifo(PIPE_NAME)
         self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
 
-    def init_unix_socket(self):
+    def __init_unix_socket(self):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
         print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
@@ -108,10 +115,16 @@ class Main:
             sys.exit(1)
         self.uds_initialized = True
 
-    def on_new_brio_frame(self, frame, homography_matrix):
+    def on_new_color_frame(self, frame, homography_matrix):
+        """ Receive a new color frame
+
+        This function will be automatically called everytime a new color frame is available. Color frames can be used
+        in addition to the monochrome/infrared frames from the primary cameras.
+
+        """
         # print(frame.shape)
 
-        self.last_brio_frame = frame
+        self.last_color_frame = frame
 
         if DOCUMENTS_DEMO:
             document_found, highlight_dict, document_changed, document_removed, document_moved, \
@@ -140,13 +153,13 @@ class Main:
     # ----------------------------------------------------------------------------------------------------------------
 
 
-    # For documents demo
+    # Only for documents demo
     def send_heartbeat(self, document_found):
         message = f's {int(document_found)}'
 
         self.send_message(message)
 
-    # For documents demo
+    # Only for documents demo
     def send_matrix(self, matrix):
         # https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
         flat = [item for sublist in matrix for item in sublist]
@@ -158,7 +171,7 @@ class Main:
 
         self.send_message(message)
 
-    # For documents demo
+    # Only for documents demo
     def send_corner_points(self, converted_document_corner_points):
         if not self.uds_initialized:
             return 0
@@ -192,7 +205,7 @@ class Main:
 
         return 1
 
-    # For documents demo
+    # Only for documents demo
     def delete_line(self, line_id):
         message = f'd {line_id}'
 
@@ -201,7 +214,7 @@ class Main:
 
         self.send_message(message)
 
-    # For documents demo
+    # Only for documents demo
     def clear_rects(self):
         if not self.uds_initialized:
             return 0
@@ -215,11 +228,14 @@ class Main:
                 print(e)
                 print('---------')
                 print('Broken Pipe in clear_rects()')
-                self.init_unix_socket()
+                self.__init_unix_socket()
 
     # ----------------------------------------------------------------------------------------------------------------
 
     def finish_line(self, pen_event_to_remove):
+        """
+
+        """
         message = 'f {}'.format(pen_event_to_remove.id)
 
         print('Finish line', pen_event_to_remove.id)
@@ -270,15 +286,16 @@ class Main:
     #@timeit('send_message')
     def send_messages(self):
         while True:
+            # This sleep seems necessary. Otherwise, this loop will block everything else
             time.sleep(0.0001)
             try:
                 message = self.message_queue.get(block=False)
             except queue.Empty:
-                # no message in the queue
+                # No message in the queue
                 continue
 
             if not self.uds_initialized:
-                print('Error in finish_line(): uds not initialized')
+                raise Exception('Error in finish_line(): uds not initialized')
             else:
                 if ENABLE_FIFO_PIPE:
                     # probably deprecated
@@ -289,8 +306,10 @@ class Main:
                         size = len(msg_encoded)
                         # print('size', size)
 
-                        if size > 500:
-                            print('oh dear')
+                        MAX_MESSAGE_SIZE = 500
+
+                        if size > MAX_MESSAGE_SIZE:
+                            raise Exception('Unix Message way larger than expected. Seems fishy...')
 
                         self.socket.send(size.to_bytes(4, 'big'))
                         self.socket.send(msg_encoded , socket.MSG_NOSIGNAL)
@@ -299,8 +318,10 @@ class Main:
                         print(e)
                         print('ERROR: Broken Pipe!')
                         #print('size', size)
+
+                        # Restart the Unix socket after a short amount of time
                         time.sleep(5000)
-                        self.init_unix_socket()
+                        self.__init_unix_socket()
 
 
     # def append_line(self, line_id, line):
@@ -337,7 +358,7 @@ class Main:
     def main_thread(self):
         while True:
             # TODO: Check why we need a delay here. Without it, it will lag horribly.
-            #  time.sleep() does not work here
+            # time.sleep() does not work here
             cv2.waitKey(1)
 
     # @timeit('assign_color_to_pen()')
@@ -358,7 +379,7 @@ class Main:
             ids_and_points = [[pen_event.id, pen_event.x, pen_event.y] for pen_event in relevant_pen_events]
 
             # TODO Vitus: Don't use extracted frame here
-            extracted_frame = self.surface_extractor.extract_table_area(self.last_brio_frame, 'Logitech Brio')
+            extracted_frame = self.surface_extractor.extract_table_area(self.last_color_frame, 'Logitech Brio')
             # current_time = time.process_time()
 
             if extracted_frame is not None:
@@ -372,24 +393,36 @@ class Main:
 
     #@timeit('on_new_frame_group')
     def on_new_frame_group(self, frames, camera_serial_numbers, matrices):
+        """ When new frames are available from the primary camera(s).
+
+        This method will be called automatically every time new frames are available from the primary camera(s) used
+        for detecting the pen events on the surface.
+
+
+        """
         if len(frames) > 0:
+            # When in TRAINING_DATA_COLLECTION_MODE, we will only write the received frames to the hard drive
             if TRAINING_DATA_COLLECTION_MODE:
                 self.training_images_collector.save_training_images(frames)
+            # otherwise, the frames will be used to detect new pen events in the following steps
             else:
-                active_pen_events, stored_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events_new(frames, matrices)
+                self.__process_new_frames(frames, matrices)
 
-                if JUERGEN_MODE:
-                    self.assign_color_to_pen(active_pen_events)
+    def __process_new_frames(self, frames, matrices):
+        active_pen_events, stored_lines, pen_events_to_remove = self.ir_pen.get_ir_pen_events(frames, matrices)
 
-                if SEND_TO_FRONTEND:
-                    for active_pen_event in active_pen_events:
-                        self.add_new_line_point(active_pen_event)
+        if JUERGEN_MODE:
+            self.assign_color_to_pen(active_pen_events)
 
-                    for pen_event in pen_events_to_remove:
-                        self.finish_line(pen_event)
+        if SEND_TO_FRONTEND:
+            for active_pen_event in active_pen_events:
+                self.add_new_line_point(active_pen_event)
 
-                if DOCUMENTS_DEMO:
-                    self.analogue_digital_document.on_new_finished_lines(stored_lines)
+            for pen_event in pen_events_to_remove:
+                self.finish_line(pen_event)
+
+        if DOCUMENTS_DEMO:
+            self.analogue_digital_document.on_new_finished_lines(stored_lines)
 
 
 if __name__ == '__main__':
