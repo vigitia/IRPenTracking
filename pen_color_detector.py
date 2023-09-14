@@ -8,12 +8,20 @@ DEBUG = False
 
 class PenColorDetector:
     def __init__(self):
-        self.red_lower = np.array([146, 45, 60])
-        self.red_upper = np.array([184, 139, 112])
-        self.green_lower = np.array([65, 108, 60])
-        self.green_upper = np.array([93, 172, 106])
-        self.blue_lower = np.array([87, 176, 98])
-        self.blue_upper = np.array([105, 218, 221])
+        # Load profile SI_PENS_2 in GUVCVIEW
+        self.red_lower = np.array([0, 121, 140])
+        self.red_upper = np.array([11, 183, 193])
+        self.green_lower = np.array([37, 20, 114])
+        self.green_upper = np.array([79, 131, 157])
+        self.blue_lower = np.array([100, 53, 152])
+        self.blue_upper = np.array([106, 179, 221])
+
+        # self.red_lower = np.array([146, 45, 60])
+        # self.red_upper = np.array([184, 139, 112])
+        # self.green_lower = np.array([65, 108, 60])
+        # self.green_upper = np.array([93, 172, 106])
+        # self.blue_lower = np.array([87, 176, 98])
+        # self.blue_upper = np.array([105, 218, 221])
 
         self.start = True
 
@@ -127,6 +135,7 @@ class PenColorDetector:
 
     # @timeit('assign_color_to_pen()')
     def detect(self, frame, ids_and_points):
+        print(ids_and_points)
         id_pen_association = {}
 
         if self.start:

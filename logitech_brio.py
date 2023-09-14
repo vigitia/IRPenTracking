@@ -19,7 +19,7 @@ from pen_color_detector import PenColorDetector
 CAMERA_ID = 0
 RES_X = 1280  # 1920  #3840  # 1280#3840#4096#
 RES_Y = 720  # 1080  # 2160  # 720#2160#2160#
-FPS = 60  # 30  # 15
+FPS = 60 # 60  # 30  # 15
 
 CALIBRATION_MODE = False
 CAMERA_PARAMETER_NAME = 'Logitech Brio'
@@ -122,8 +122,8 @@ class LogitechBrioDebugger:
             extracted_frame = self.surface_extractor.extract_table_area(frame, CAMERA_PARAMETER_NAME)
             pens = self.pen_detector.detect(extracted_frame, [[0, 3058, 1230], [1, 3058 / 2, 1230], [2, 100, 1230]])
 
-            #cv2.imshow('Logitech Brio', frame)
-            # cv2.imshow('Logitech Projection Area', extracted_frame)
+            cv2.imshow('Logitech Brio', frame)
+            cv2.imshow('Logitech Projection Area', extracted_frame)
             cv2.waitKey(1)
 
 

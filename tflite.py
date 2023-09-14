@@ -80,7 +80,9 @@ class LiteModel:
                 out[i] = interpreter.get_tensor(self.output_index)[0]
 
         except Exception as e:
-            print('Andis dangerous bit. Turns out = is not a deep copy.', e)
+            pass
+            # TODO: Andis dangerous bit. Turns out = is not a deep copy.
+            # print('Andis dangerous bit. Turns out = is not a deep copy.', e)
 
         return out
     

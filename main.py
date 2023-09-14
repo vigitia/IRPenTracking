@@ -22,7 +22,7 @@ ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
 PIPE_NAME = 'pipe_test'
 
-JUERGEN_MODE = False
+JUERGEN_MODE = True
 
 if JUERGEN_MODE:
     from logitech_brio import LogitechBrio
@@ -355,7 +355,6 @@ class Main:
                 del self.known_pens[self.known_pens.index(i)]
 
         if len(relevant_pen_events) > 0:
-            self.color_id_assignments.clear()
             ids_and_points = [[pen_event.id, pen_event.x, pen_event.y] for pen_event in relevant_pen_events]
 
             # TODO Vitus: Don't use extracted frame here
@@ -366,6 +365,7 @@ class Main:
                 ids_and_colors = self.pen_detector.detect(extracted_frame, ids_and_points)
                 # print("TIME PenColorDetector", time.process_time() - current_time)
                 for k, v in ids_and_colors.items():
+                    self.color_id_assignments = {key: val for key, val in self.color_id_assignments.items() if val != v["color"]}
                     self.color_id_assignments[k] = v["color"]
 
         # self.color_id_assignments = {self.known_pens[-1]: "red"}

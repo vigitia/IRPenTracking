@@ -221,8 +221,11 @@ class IRPen:
 
         active_pen_events.sort(key=lambda x: x.id, reverse=False)
 
-        if len(active_pen_events) > 0:
-            print('Active pen events', active_pen_events)
+        # if len(active_pen_events) > 0:
+        #     print('Active pen events', active_pen_events)
+
+        #for active_pen_event in active_pen_events:
+        #     print(active_pen_event.id, active_pen_event.state, active_pen_event.state_history[-9:])
 
         # if len(active_pen_events) > 2:
         #     print('a')
@@ -701,20 +704,25 @@ class IRPen:
 
             # Stop if point is not bright enough to be considered
             if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
+                #if i > 0:
+                #    print('Stopped after {} iterations. Brightness values {}'.format(i, max_brightness_values))
                 return rois_new, roi_coords_new, max_brightness_values
 
             # Cut out region of interest around brightest point in image
             img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
 
+
             # If the point is close to the image border, the output image will be too small
             # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
             # Problems only appear on the image border.
+
             if img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
 
                 # image.setflags(write=1)
                 # Set all pixels in ROI to black
                 image_copy[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = cutout
                 # image.setflags(write=0)
+
 
                 rois_new.append(img_cropped)
                 roi_coords_new.append((max_x, max_y))

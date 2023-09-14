@@ -123,13 +123,15 @@ class PenEventsController:
         final_final_pen_events = []
         for final_pen_event in final_pen_events:
 
+            # Advanced filter of unexpected events: Single hover to drag
             if len(final_pen_event.state_history) >= 2 and final_pen_event.state == PenState.HOVER and final_pen_event.state_history[-2] == PenState.DRAG:
-                print('Single hover to drag')
+                # print('Single hover to drag')
                 final_pen_event.state = PenState.DRAG
 
+            # Advanced filter of unexpected events: Single drag to hover
             if len(final_pen_event.state_history) >= 2 and final_pen_event.state == PenState.DRAG and \
                     final_pen_event.state_history[-2] == PenState.HOVER:
-                print('Single drag to hover')
+                # print('Single drag to hover')
                 final_pen_event.state = PenState.HOVER
 
             # Check if there are too many hover events. End event if this is the case
