@@ -89,13 +89,7 @@ class Main:
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
-        # Start a thread that does nothing to keep this script alive
-        # ToDo: Check if there is a better way. The current design of the application requires this because the cameras
-        # run in their own threads and forward their data to this class.
-        thread = threading.Thread(target=self.main_thread)
-        thread.start()
-
-        message_thread = threading.Thread(target=self.send_messages)
+        message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
 
     def __init_fifo_pipe(self):
@@ -115,43 +109,11 @@ class Main:
             sys.exit(1)
         self.uds_initialized = True
 
-    def on_new_color_frame(self, frame, homography_matrix):
-        """ Receive a new color frame
-
-        This function will be automatically called everytime a new color frame is available. Color frames can be used
-        in addition to the monochrome/infrared frames from the primary cameras.
-
-        """
-        # print(frame.shape)
-
-        self.last_color_frame = frame
-
-        if DOCUMENTS_DEMO:
-            document_found, highlight_dict, document_changed, document_removed, document_moved, \
-                converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
-
-            self.send_heartbeat(document_found)
-
-            if document_moved and not document_removed:
-                self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
-                try:
-                    for highlight_id, rectangle in highlight_dict.items():
-                        self.send_rect(highlight_id, 1, rectangle)
-                except:
-                    print('error sending highlights')
-
-            if document_removed:
-                self.send_corner_points([])
-
-            if document_found:
-                if len(document_moved_matrix) > 0:
-                    self.send_matrix(document_moved_matrix)
-
-            if document_changed or document_removed:
-                self.clear_rects()
+    def main_loop(self):
+        while True:
+            self.__process_message_queue()
 
     # ----------------------------------------------------------------------------------------------------------------
-
 
     # Only for documents demo
     def send_heartbeat(self, document_found):
@@ -282,46 +244,43 @@ class Main:
     def send_message(self, message):
         self.message_queue.put(message)
 
-    # TODO: maybe move to main loop?
-    #@timeit('send_message')
-    def send_messages(self):
-        while True:
-            # This sleep seems necessary. Otherwise, this loop will block everything else
-            time.sleep(0.0001)
-            try:
-                message = self.message_queue.get(block=False)
-            except queue.Empty:
-                # No message in the queue
-                continue
+    def __process_message_queue(self):
+        # This sleep seems necessary. Otherwise, this loop will block everything else
+        time.sleep(0.0001)
+        try:
+            message = self.message_queue.get(block=False)
+        except queue.Empty:
+            # No message in the queue
+            return
 
-            if not self.uds_initialized:
-                raise Exception('Error in finish_line(): uds not initialized')
-            else:
-                if ENABLE_FIFO_PIPE:
-                    # probably deprecated
-                    os.write(self.pipeout, bytes(message, 'utf8'))
-                if ENABLE_UNIX_SOCKET:
-                    try:
-                        msg_encoded = bytearray(message, 'ascii')
-                        size = len(msg_encoded)
-                        # print('size', size)
+        if not self.uds_initialized:
+            raise Exception('Error in finish_line(): uds not initialized')
+        else:
+            if ENABLE_FIFO_PIPE:
+                # probably deprecated
+                os.write(self.pipeout, bytes(message, 'utf8'))
+            if ENABLE_UNIX_SOCKET:
+                try:
+                    msg_encoded = bytearray(message, 'ascii')
+                    size = len(msg_encoded)
+                    # print('size', size)
 
-                        MAX_MESSAGE_SIZE = 500
+                    MAX_MESSAGE_SIZE = 500
 
-                        if size > MAX_MESSAGE_SIZE:
-                            raise Exception('Unix Message way larger than expected. Seems fishy...')
+                    if size > MAX_MESSAGE_SIZE:
+                        raise Exception('Unix Message way larger than expected. Seems fishy...')
 
-                        self.socket.send(size.to_bytes(4, 'big'))
-                        self.socket.send(msg_encoded , socket.MSG_NOSIGNAL)
-                    except Exception as e:
-                        print('---------')
-                        print(e)
-                        print('ERROR: Broken Pipe!')
-                        #print('size', size)
+                    self.socket.send(size.to_bytes(4, 'big'))
+                    self.socket.send(msg_encoded, socket.MSG_NOSIGNAL)
+                except Exception as e:
+                    print('---------')
+                    print(e)
+                    print('ERROR: Broken Pipe!')
+                    # print('size', size)
 
-                        # Restart the Unix socket after a short amount of time
-                        time.sleep(5000)
-                        self.__init_unix_socket()
+                    # Restart the Unix socket after a short amount of time
+                    time.sleep(5000)
+                    self.__init_unix_socket()
 
 
     # def append_line(self, line_id, line):
@@ -354,12 +313,6 @@ class Main:
     #             print('---------')
     #             print('Broken Pipe in append_line')
     #             self.init_unix_socket()
-
-    def main_thread(self):
-        while True:
-            # TODO: Check why we need a delay here. Without it, it will lag horribly.
-            # time.sleep() does not work here
-            cv2.waitKey(1)
 
     # @timeit('assign_color_to_pen()')
     def assign_color_to_pen(self, active_pen_events):
@@ -423,6 +376,41 @@ class Main:
 
         if DOCUMENTS_DEMO:
             self.analogue_digital_document.on_new_finished_lines(stored_lines)
+
+    def on_new_color_frame(self, frame, homography_matrix):
+        """ Receive a new color frame
+
+        This function will be automatically called everytime a new color frame is available. Color frames can be used
+        in addition to the monochrome/infrared frames from the primary cameras.
+
+        """
+        # print(frame.shape)
+
+        self.last_color_frame = frame
+
+        if DOCUMENTS_DEMO:
+            document_found, highlight_dict, document_changed, document_removed, document_moved, \
+                converted_document_corner_points, document_moved_matrix = self.analogue_digital_document.get_highlight_rectangles(frame, homography_matrix)
+
+            self.send_heartbeat(document_found)
+
+            if document_moved and not document_removed:
+                self.send_corner_points(converted_document_corner_points)  # , int(not document_removed) Andi was here
+                try:
+                    for highlight_id, rectangle in highlight_dict.items():
+                        self.send_rect(highlight_id, 1, rectangle)
+                except:
+                    print('error sending highlights')
+
+            if document_removed:
+                self.send_corner_points([])
+
+            if document_found:
+                if len(document_moved_matrix) > 0:
+                    self.send_matrix(document_moved_matrix)
+
+            if document_changed or document_removed:
+                self.clear_rects()
 
 
 if __name__ == '__main__':

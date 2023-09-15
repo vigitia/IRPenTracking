@@ -3,7 +3,8 @@ import os
 import datetime
 from threading import Lock
 
-import tensorflow as tf
+# import tensorflow as tf
+from tensorflow import keras, lite
 # from tensorflow import keras
 import numpy as np
 
@@ -40,8 +41,8 @@ class IRPenCNN:
         self.__init_keras()
 
     def __init_keras(self):
-        tf.keras.backend.clear_session()
-        self.keras_lite_model = LiteModel.from_keras_model(tf.keras.models.load_model(MODEL_PATH))
+        keras.backend.clear_session()
+        self.keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
         # self.keras_lite_model = keras.models.load_model(MODEL_PATH)
 
     # @timeit('Predict')
@@ -79,13 +80,13 @@ class IRPenCNN:
 class LiteModel:
     @classmethod
     def from_file(cls, model_path):
-        return LiteModel(tf.lite.Interpreter(model_path=model_path))
+        return LiteModel(lite.Interpreter(model_path=model_path))
 
     @classmethod
     def from_keras_model(cls, kmodel):
-        converter = tf.lite.TFLiteConverter.from_keras_model(kmodel)
+        converter = lite.TFLiteConverter.from_keras_model(kmodel)
         tflite_model = converter.convert()
-        return LiteModel(tf.lite.Interpreter(model_content=tflite_model))
+        return LiteModel(lite.Interpreter(model_content=tflite_model))
 
     def __init__(self, interpreter):
         self.interpreter = interpreter
