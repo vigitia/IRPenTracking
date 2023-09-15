@@ -8,8 +8,8 @@ DEBUG_MODE = False
 
 FILENAME_INPUT = 'berlin.pdf'
 FILENAME_OUTPUT = 'berlin_out.pdf'
-FULL_PATH_INPUT = os.path.join(os.getcwd(), 'assets', FILENAME_INPUT)
-FULL_PATH_OUTPUT = os.path.join(os.getcwd(), 'assets', FILENAME_OUTPUT)
+FULL_PATH_INPUT = os.path.join(os.getcwd(), '../../assets', FILENAME_INPUT)
+FULL_PATH_OUTPUT = os.path.join(os.getcwd(), '../../assets', FILENAME_OUTPUT)
 
 
 class PDFAnnotationsService:

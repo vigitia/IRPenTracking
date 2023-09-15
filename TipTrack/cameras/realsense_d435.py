@@ -11,8 +11,8 @@ import numpy as np
 import time
 import datetime
 
-from surface_selector import SurfaceSelector
-from surface_extractor import SurfaceExtractor
+from TipTrack.utility.surface_selector import SurfaceSelector
+from TipTrack.utility.surface_extractor import SurfaceExtractor
 
 
 def timeit(prefix):

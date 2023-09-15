@@ -1,5 +1,5 @@
 import time
-from pen_state import PenState
+from TipTrack.pen_events.pen_state import PenState
 
 
 # Representation of a single pen event

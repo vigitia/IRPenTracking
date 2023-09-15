@@ -5,7 +5,7 @@ import cv2
 
 import PySpin
 
-from surface_extractor import SurfaceExtractor
+from TipTrack.utility.surface_extractor import SurfaceExtractor
 
 # CONSTANTS and Camera Settings
 
@@ -13,7 +13,7 @@ DEBUG_MODE = False
 
 INTRINSIC_CAMERA_CALIBRATION = False
 
-CALIBRATION_DATA_PATH = ''  # Specify location where the calibration file should be saved
+CALIBRATION_DATA_PATH = 'config'  # Specify location where the calibration file should be saved
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200

@@ -1,13 +1,12 @@
 import sys
 import time
 import threading
-from matplotlib import pyplot as plt
 from pyaxidraw import axidraw
 import signal
 import pandas as pd
 
-from ir_pen import IRPen, State
-from flir_blackfly_s import FlirBlackflyS
+from TipTrack.pen_events.ir_pen import IRPen
+from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 
 class CamController(threading.Thread):
 

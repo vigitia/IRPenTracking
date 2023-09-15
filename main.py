@@ -8,24 +8,24 @@ import socket
 import threading
 import queue
 
-from pen_state import PenState
-from ir_pen import IRPen, timeit
-from flir_blackfly_s import FlirBlackflyS
+from TipTrack.pen_events.pen_state import PenState
+from TipTrack.pen_events.ir_pen import IRPen
+from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 
 
-from surface_extractor import SurfaceExtractor
+from TipTrack.utility.surface_extractor import SurfaceExtractor
 
-from pen_color_detector import PenColorDetector
+from pen_color_detection.pen_color_detector import PenColorDetector
 
 ENABLE_FIFO_PIPE = False
 ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
 PIPE_NAME = 'pipe_test'
 
-JUERGEN_MODE = True
+JUERGEN_MODE = False
 
 if JUERGEN_MODE:
-    from logitech_brio import LogitechBrio
+    from TipTrack.cameras.logitech_brio import LogitechBrio
 
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
@@ -36,7 +36,7 @@ TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 DOCUMENTS_DEMO = False
 
 if DOCUMENTS_DEMO:
-    from AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
+    from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 
 class Main:
@@ -81,7 +81,7 @@ class Main:
             self.logitech_brio_camera.start()
 
         if TRAINING_DATA_COLLECTION_MODE:
-            from training_images_collector import TrainingImagesCollector
+            from TipTrack.utility.training_images_collector import TrainingImagesCollector
             exposure = self.flir_blackfly_s.get_exposure_time()
             gain = self.flir_blackfly_s.get_gain()
             self.training_images_collector = TrainingImagesCollector(self.ir_pen, exposure, gain)

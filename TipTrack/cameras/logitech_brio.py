@@ -9,10 +9,10 @@ import cv2
 import threading
 import time
 
-from surface_selector import SurfaceSelector
-from surface_extractor import SurfaceExtractor
+from TipTrack.utility.surface_selector import SurfaceSelector
+from TipTrack.utility.surface_extractor import SurfaceExtractor
 
-from pen_color_detector import PenColorDetector
+from pen_color_detection.pen_color_detector import PenColorDetector
 
 # TODO: exposure time und parameter setzen auf 33 und brightness hoch
 

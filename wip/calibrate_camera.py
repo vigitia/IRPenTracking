@@ -1,11 +1,10 @@
 import sys
 import threading
-import time
 
 import cv2
 
 
-from flir_blackfly_s import FlirBlackflyS
+from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 # from realsense_d435 import RealsenseD435Camera
 
 from calibration_image_capture_service import CalibrationImageCaptureService

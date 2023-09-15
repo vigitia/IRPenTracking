@@ -6,7 +6,7 @@ import cv2
 # Enable to collect training images if you want to retrain the CNN (see train_network.ipynb)
 ACTIVE_LEARNING_COLLECTION_MODE = False
 
-TRAIN_PATH = 'training_images/2023-02-24'
+TRAIN_PATH = '../../cnn/training_images/2023-02-24'
 TRAIN_IMAGE_COUNT = 5000
 
 TRAINING_CATEGORIES = ['draw', 'hover_close', 'hover_far']

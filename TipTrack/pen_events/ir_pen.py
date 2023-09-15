@@ -6,10 +6,10 @@ import numpy as np
 import skimage
 import cv2
 
-from pen_state import PenState
-from pen_event import PenEvent
-from pen_events_controller import PenEventsController
-from ir_pen_cnn import IRPenCNN
+from TipTrack.pen_events.pen_state import PenState
+from TipTrack.pen_events.pen_event import PenEvent
+from TipTrack.pen_events.pen_events_controller import PenEventsController
+from TipTrack.pen_events.ir_pen_cnn import IRPenCNN
 
 
 CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel. Relevant for the CNN

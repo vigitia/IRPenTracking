@@ -6,10 +6,9 @@ import PySpin
 import cv2
 import numpy as np
 import time
-import socket
 
-from pen_state import PenState
-from ir_pen import IRPen
+from TipTrack.pen_events.pen_state import PenState
+from TipTrack.pen_events.ir_pen import IRPen
 from surface_extractor import SurfaceExtractor
 
 ir_pen = IRPen()

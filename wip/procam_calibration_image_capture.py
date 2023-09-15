@@ -1,11 +1,9 @@
 
 import os
 import sys
-import threading
-import time
 
 import cv2
-from flir_blackfly_s import FlirBlackflyS
+from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 # import PySpin
 
 CAMERA_RESOLUTION = ()

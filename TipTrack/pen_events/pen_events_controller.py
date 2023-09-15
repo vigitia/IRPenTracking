@@ -1,9 +1,9 @@
 
 import time
 import numpy as np
-
 from scipy.spatial import distance
-from pen_state import PenState
+
+from TipTrack.pen_events.pen_state import PenState
 
 
 # Hover will be selected over Draw if Hover Event is within the last X event states.

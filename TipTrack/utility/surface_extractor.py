@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import configparser
 
-CONFIG_FILE_NAME = 'config.ini'
+CONFIG_FILE_NAME = 'TipTrack/config/config.ini'
 
 FLIP_IMAGE = False  # Flip the output image 180° -> Needed if cameras see the projection area upside down
 

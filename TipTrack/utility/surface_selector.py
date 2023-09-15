@@ -12,7 +12,7 @@ CIRCLE_DIAMETER = 2
 CIRCLE_COLOR = (0, 255, 0)
 FONT_COLOR = (0, 0, 255)
 
-CONFIG_FILE_NAME = 'config.ini'
+CONFIG_FILE_NAME = '../config/config.ini'
 
 
 class SurfaceSelector:

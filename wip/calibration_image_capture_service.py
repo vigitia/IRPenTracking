@@ -48,8 +48,8 @@ class CalibrationImageCaptureService:
         return self.picture_index_for_camera[camera_serial_number]
 
     def save_image(self, image, camera_serial_number):
-        if not os.path.exists('calibration_images'):
-            os.makedirs('calibration_images')
+        if not os.path.exists('../cnn/calibration_images'):
+            os.makedirs('../cnn/calibration_images')
         if not os.path.exists('calibration_images/Flir Blackfly S {}'.format(camera_serial_number)):
             os.makedirs('calibration_images/Flir Blackfly S {}'.format(camera_serial_number))
 

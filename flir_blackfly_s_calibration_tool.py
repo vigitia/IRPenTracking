@@ -4,8 +4,8 @@ import time
 import threading
 import cv2
 
-from flir_blackfly_s import FlirBlackflyS
-from surface_selector import SurfaceSelector
+from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
+from TipTrack.utility.surface_selector import SurfaceSelector
 
 DEBUG_MODE = True
 EXTRACT_PROJECTION_AREA = False

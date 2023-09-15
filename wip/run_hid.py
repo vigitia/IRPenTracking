@@ -7,10 +7,10 @@ import datetime
 import threading
 import time
 
-from ir_pen import IRPen, PenState
+from TipTrack.pen_events.ir_pen import IRPen, PenState
 from pen_hid import InputSimulator
 
-from flir_blackfly_s import FlirBlackflyS
+from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 # from realsense_d435 import RealsenseD435Camera
 
 

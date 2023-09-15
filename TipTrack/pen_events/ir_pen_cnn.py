@@ -1,24 +1,77 @@
-import datetime
 
-import tensorflow as tf
-from tensorflow import keras
-import numpy as np
-import copy
+import os
+import datetime
 from threading import Lock
 
+import tensorflow as tf
+# from tensorflow import keras
+import numpy as np
+
+MODEL_PATH = 'cnn/models/TipTrack_CNN'  # 'model_2023_026'  # 'cnn'  # Put the folder path here for the desired cnn
+
+# Allowed states for CNN prediction
+STATES = ['draw', 'hover', 'hover_far', 'undefined']
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress Tensorflow warnings
+
+
+# For debugging purposes
+# Decorator to print the run time of a single function
+# Based on: https://stackoverflow.com/questions/1622943/timeit-versus-timing-decorator
 def timeit(prefix):
     def timeit_decorator(func):
         def wrapper(*args, **kwargs):
             start_time = datetime.datetime.now()
-            # print("I " + prefix + "> " + str(start_time))
-            retval = func(*args, **kwargs)
+            return_value = func(*args, **kwargs)
             end_time = datetime.datetime.now()
             run_time = (end_time - start_time).microseconds / 1000.0
-            # print("O " + prefix + "> " + str(end_time) + " (" + str(run_time) + " ms)")
             print(prefix + "> " + str(run_time) + " ms", flush=True)
-            return retval
+            return return_value
+
         return wrapper
+
     return timeit_decorator
+
+
+class IRPenCNN:
+    keras_lite_model = None
+
+    def __init__(self):
+        self.__init_keras()
+
+    def __init_keras(self):
+        tf.keras.backend.clear_session()
+        self.keras_lite_model = LiteModel.from_keras_model(tf.keras.models.load_model(MODEL_PATH))
+        # self.keras_lite_model = keras.models.load_model(MODEL_PATH)
+
+    # @timeit('Predict')
+    def predict(self, img):
+        img_reshaped = img.reshape(-1, img.shape[0], img.shape[1], 1)
+
+        # use predict() for safe and less performant
+        # use predict_unsafe() for best performance but we are not sure what could happen in the worst case
+        prediction = self.keras_lite_model.predict_unsafe(img_reshaped)
+
+        if not prediction.any():
+            print('No prediction possible!')
+            return STATES[-1], 0
+        state = STATES[np.argmax(prediction)]
+        confidence = np.max(prediction)
+
+        # if ACTIVE_LEARNING_COLLECTION_MODE:
+        #     if state != self.active_learning_state:
+        #         cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', image)
+        #         print(f'saving frame {self.active_learning_counter}')
+        #         self.active_learning_counter += 1
+
+        # print(state)
+        # if state == 'hover_far':
+        #     state = 'hover'
+        return state, confidence
+
+
+
+
 
 
 # source: Michael Wurm, 2019 on medium
@@ -27,13 +80,13 @@ class LiteModel:
     @classmethod
     def from_file(cls, model_path):
         return LiteModel(tf.lite.Interpreter(model_path=model_path))
-    
+
     @classmethod
     def from_keras_model(cls, kmodel):
         converter = tf.lite.TFLiteConverter.from_keras_model(kmodel)
         tflite_model = converter.convert()
         return LiteModel(tf.lite.Interpreter(model_content=tflite_model))
-    
+
     def __init__(self, interpreter):
         self.interpreter = interpreter
         self.interpreter.allocate_tensors()
@@ -57,14 +110,14 @@ class LiteModel:
         out = np.zeros((count, self.output_shape[1]), dtype=self.output_dtype)
 
         for i in range(count):
-            self.interpreter.set_tensor(self.input_index, inp[i:i+1])
+            self.interpreter.set_tensor(self.input_index, inp[i:i + 1])
             self.interpreter.invoke()
             out[i] = self.interpreter.get_tensor(self.output_index)[0]
 
         self.lock.release()
         return out
 
-    #TODO: rename
+    # TODO: rename
     def predict_unsafe(self, inp):
         inp = inp.astype(self.input_dtype)
         count = inp.shape[0]
@@ -72,10 +125,10 @@ class LiteModel:
 
         # TODO: this is probably very very dangerous
         try:
-            interpreter = self.interpreter #copy.deepcopy(self.interpreter)
+            interpreter = self.interpreter  # copy.deepcopy(self.interpreter)
 
             for i in range(count):
-                interpreter.set_tensor(self.input_index, inp[i:i+1])
+                interpreter.set_tensor(self.input_index, inp[i:i + 1])
                 interpreter.invoke()
                 out[i] = interpreter.get_tensor(self.output_index)[0]
 
@@ -85,7 +138,7 @@ class LiteModel:
             # print('Andis dangerous bit. Turns out = is not a deep copy.', e)
 
         return out
-    
+
     def predict_single(self, inp):
         """ Like predict(), but only for a single record. The input data can be a Python list. """
         inp = np.array([inp], dtype=self.input_dtype)
@@ -106,7 +159,7 @@ if __name__ == '__main__':
     MODEL_PATH = 'evaluation/model_new_projector_5'
     keras.backend.clear_session()
     keras_lite_model = LiteModel.from_keras_model(keras.models.load_model(MODEL_PATH))
-    #keras_lite_model = keras.models.load_model(MODEL_PATH)
+    # keras_lite_model = keras.models.load_model(MODEL_PATH)
     print(os.getcwd())
     draw_path = 'out3/2022-08-02/draw_1_400_18/'
     image_paths_draw = os.listdir(draw_path)
@@ -135,7 +188,7 @@ if __name__ == '__main__':
         if np.max(img) < 50:
             too_dark += 1
 
-    print('TOO DARK:', too_dark/len(image_paths_draw))
+    print('TOO DARK:', too_dark / len(image_paths_draw))
 
     for i in range(1000):
         condition = 'hover' if int(random.random() * 1000) % 2 == 0 else 'draw'
@@ -147,8 +200,8 @@ if __name__ == '__main__':
         else:
             num_hover += 1
             img = cv2.imread(hover_path + random.sample(image_paths_hover, 1)[0], cv2.IMREAD_GRAYSCALE)
-        #cv2.imshow('test', image)
-        #cv2.waitKey(0)
+        # cv2.imshow('test', image)
+        # cv2.waitKey(0)
         img = img.reshape(-1, 48, 48, 1)
         print(condition)
         prediction = keras_lite_model.predict(img)
@@ -159,12 +212,12 @@ if __name__ == '__main__':
                 correct_draw += 1
             if condition == 'hover':
                 correct_hover += 1
-            correct +=1
+            correct += 1
         # print(condition, state)
     print('----')
     print('Correct total:', correct, '%')
-    print('Correct Draw:', correct_draw, ' / ', num_draw) #int((correct_draw/num_draw)*100), '%')
+    print('Correct Draw:', correct_draw, ' / ', num_draw)  # int((correct_draw/num_draw)*100), '%')
     print('Correct Hover:', correct_hover, ' / ', num_hover)  # int((correct_draw/num_draw)*100), '%')
-    plt.boxplot(brightnesses)#, np.ones(len(brightnesses), np.uint8))
+    plt.boxplot(brightnesses)  # , np.ones(len(brightnesses), np.uint8))
     plt.scatter(np.ones(len(brightnesses), np.uint8), brightnesses, alpha=0.2)
     plt.show()
