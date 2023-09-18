@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import math
+import os.path
+
 import cv2
 import configparser
 
@@ -12,7 +14,8 @@ CIRCLE_DIAMETER = 2
 CIRCLE_COLOR = (0, 255, 0)
 FONT_COLOR = (0, 0, 255)
 
-CONFIG_FILE_NAME = '../config/config.ini'
+CONFIG_FILE_PATH = '../config'
+CONFIG_FILE_NAME = 'config.ini'
 
 
 class SurfaceSelector:
@@ -43,7 +46,7 @@ class SurfaceSelector:
     # In the config file, info like the table corner coordinates are stored
     def read_config_file(self):
         config = configparser.ConfigParser()
-        config.read(CONFIG_FILE_NAME)
+        config.read(os.path.join(CONFIG_FILE_PATH, CONFIG_FILE_NAME))
         print('Sections in config file:', config.sections())
 
         if len(config.sections()) > 0:
@@ -110,7 +113,7 @@ class SurfaceSelector:
 
         # Update config
         config = configparser.ConfigParser()
-        config.read(CONFIG_FILE_NAME)
+        config.read(os.path.join(CONFIG_FILE_PATH, CONFIG_FILE_NAME))
 
         if camera_parameter_name not in config.sections():
             config.add_section(camera_parameter_name)
@@ -120,5 +123,5 @@ class SurfaceSelector:
         config.set(camera_parameter_name, 'CornerBottomLeft', str(self.calibration_data['corner_bottom_left']))
         config.set(camera_parameter_name, 'CornerBottomRight', str(self.calibration_data['corner_bottom_right']))
 
-        with open(CONFIG_FILE_NAME, 'w') as configfile:
+        with open(os.path.join(CONFIG_FILE_PATH, CONFIG_FILE_NAME), 'w') as configfile:
             config.write(configfile)

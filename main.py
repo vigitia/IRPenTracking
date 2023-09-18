@@ -1,9 +1,7 @@
+#!/usr/bin/python3
 
-import os
 import sys
 import time
-
-import cv2
 import socket
 import threading
 import queue
@@ -11,30 +9,28 @@ import queue
 from TipTrack.pen_events.pen_state import PenState
 from TipTrack.pen_events.ir_pen import IRPen
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
-
-
 from TipTrack.utility.surface_extractor import SurfaceExtractor
 
 from pen_color_detection.pen_color_detector import PenColorDetector
 
-ENABLE_FIFO_PIPE = False
-ENABLE_UNIX_SOCKET = True
 UNIX_SOCK_NAME = 'uds_test'
-PIPE_NAME = 'pipe_test'
+TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
+DEBUG_MODE = False  # Enable for Debug print statements and preview windows
+
+# Select Frontend and other target applications here:
+
+SEND_DATA_USING_UNIX_SOCKET = True  # Enable if points should be forwarded using a Unix Socket
+if SEND_DATA_USING_UNIX_SOCKET:
+    import subprocess
+    subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
+
+    time.sleep(2)
 
 JUERGEN_MODE = False
-
 if JUERGEN_MODE:
     from TipTrack.cameras.logitech_brio import LogitechBrio
 
-
-DEBUG_MODE = False  # Enable for Debug print statements and preview windows
-
-SEND_TO_FRONTEND = True  # Enable if points should be forwarded to the sdl frontend
-TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
-
 DOCUMENTS_DEMO = False
-
 if DOCUMENTS_DEMO:
     from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
@@ -46,36 +42,23 @@ class Main:
     """
 
     uds_initialized = False
-    socket = None
-    pipeout = None
-
-    last_heartbeat_timestamp = 0
-
-    preview_initialized = False
-
+    unix_socket = None
     message_queue = queue.Queue()
-
     last_color_frame = None  # Temporary store last color frame here to be used if needed
-
     color_id_assignments = {}  # This dict will contain mappings between pen event IDs and their assigned color if available
     known_pens = []
 
     def __init__(self):
 
-        if SEND_TO_FRONTEND:
-            if ENABLE_FIFO_PIPE:
-                self.__init_fifo_pipe()
-            elif ENABLE_UNIX_SOCKET:
-                self.__init_unix_socket()
-            else:
-                raise Exception('No protocol selected for sending data to the frontend')
+        if SEND_DATA_USING_UNIX_SOCKET:
+            self.__init_unix_socket()
 
         self.surface_extractor = SurfaceExtractor()
-        self.pen_detector = PenColorDetector()
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
         if JUERGEN_MODE:
+            self.pen_detector = PenColorDetector()
             self.logitech_brio_camera = LogitechBrio(self)
             self.logitech_brio_camera.init_video_capture()
             self.logitech_brio_camera.start()
@@ -89,20 +72,16 @@ class Main:
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
+        # Start main loop in its own thread
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
 
-    def __init_fifo_pipe(self):
-        if not os.path.exists(PIPE_NAME):
-            os.mkfifo(PIPE_NAME)
-        self.pipeout = os.open(PIPE_NAME, os.O_WRONLY)
-
     def __init_unix_socket(self):
-        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
         print('Connecting to UNIX Socket %s' % UNIX_SOCK_NAME)
         try:
-            self.socket.connect(UNIX_SOCK_NAME)
+            self.unix_socket.connect(UNIX_SOCK_NAME)
         except socket.error as error:
             print('Error while connecting to UNIX Socket:', error)
             print('Make sure that the frontend is already running before starting this python script')
@@ -136,7 +115,7 @@ class Main:
     # Only for documents demo
     def send_corner_points(self, converted_document_corner_points):
         if not self.uds_initialized:
-            return 0
+            raise Exception('Unix Socket not initialized')
 
         message = f'k'
         if len(converted_document_corner_points) == 4:
@@ -179,12 +158,12 @@ class Main:
     # Only for documents demo
     def clear_rects(self):
         if not self.uds_initialized:
-            return 0
+            raise Exception('Unix Socket not initialized')
 
-        if ENABLE_UNIX_SOCKET:
+        if SEND_DATA_USING_UNIX_SOCKET:
             try:
                 print('CLEAR RECTS')
-                self.socket.sendall('c |'.encode())
+                self.unix_socket.sendall('c |'.encode())
                 return 1
             except Exception as e:
                 print(e)
@@ -247,19 +226,16 @@ class Main:
     def __process_message_queue(self):
         # This sleep seems necessary. Otherwise, this loop will block everything else
         time.sleep(0.0001)
-        try:
-            message = self.message_queue.get(block=False)
-        except queue.Empty:
-            # No message in the queue
-            return
+        if SEND_DATA_USING_UNIX_SOCKET:
+            try:
+                message = self.message_queue.get(block=False)
+            except queue.Empty:
+                # No message in the queue
+                return
 
-        if not self.uds_initialized:
-            raise Exception('Error in finish_line(): uds not initialized')
-        else:
-            if ENABLE_FIFO_PIPE:
-                # probably deprecated
-                os.write(self.pipeout, bytes(message, 'utf8'))
-            if ENABLE_UNIX_SOCKET:
+            if not self.uds_initialized:
+                raise Exception('Unix Socket not initialized')
+            else:
                 try:
                     msg_encoded = bytearray(message, 'ascii')
                     size = len(msg_encoded)
@@ -270,15 +246,15 @@ class Main:
                     if size > MAX_MESSAGE_SIZE:
                         raise Exception('Unix Message way larger than expected. Seems fishy...')
 
-                    self.socket.send(size.to_bytes(4, 'big'))
-                    self.socket.send(msg_encoded, socket.MSG_NOSIGNAL)
+                    self.unix_socket.send(size.to_bytes(4, 'big'))
+                    self.unix_socket.send(msg_encoded, socket.MSG_NOSIGNAL)
                 except Exception as e:
                     print('---------')
                     print(e)
                     print('ERROR: Broken Pipe!')
                     # print('size', size)
 
-                    # Restart the Unix socket after a short amount of time
+                    # Restart the Unix unix_socket after a short amount of time
                     time.sleep(5000)
                     self.__init_unix_socket()
 
@@ -367,7 +343,7 @@ class Main:
         if JUERGEN_MODE:
             self.assign_color_to_pen(active_pen_events)
 
-        if SEND_TO_FRONTEND:
+        if SEND_DATA_USING_UNIX_SOCKET:
             for active_pen_event in active_pen_events:
                 self.add_new_line_point(active_pen_event)
 

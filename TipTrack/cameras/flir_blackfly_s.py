@@ -1,4 +1,4 @@
-
+import datetime
 import os
 import time
 import cv2
@@ -11,7 +11,7 @@ from TipTrack.utility.surface_extractor import SurfaceExtractor
 
 DEBUG_MODE = False
 
-INTRINSIC_CAMERA_CALIBRATION = False
+LOAD_INTRINSIC_CAMERA_CALIBRATION = False
 
 CALIBRATION_DATA_PATH = 'config'  # Specify location where the calibration file should be saved
 
@@ -35,17 +35,16 @@ matrices = [[]]
 
 
 class DeviceEventHandler(PySpin.DeviceEventHandler):
-    """
-    This class defines the properties, parameters, and the event handler itself.
+    """ This class defines a custom Event Handler for camera events.
+
+        We want to listen here for the 'EventExposureEnd' in particular.
     """
 
-    start_time = time.time()
-    frame_counter = 0
+    start_time = datetime.datetime.now()
+    # frame_counter = 0
 
-    def __init__(self, event_name, cam_id, cam, subscriber):
+    def __init__(self, cam_id, cam, subscriber):
         super(DeviceEventHandler, self).__init__()
-        self.event_name = event_name
-        # self.count = 0
         self.cam_id = cam_id
         self.cam = cam
         self.subscriber = subscriber
@@ -63,15 +62,13 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             # print('OnDeviceEvent: Not all cameras initialized')
             return
 
-        # Check if we receive the expected event type
-        # if event_name == self.event_name:
         # self.count += 1
         # Print information on specified device event
         # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.cam_id,
         #                                                            self.count))
 
         # start_time = datetime.datetime.now()
-        # TODO: How long to wait here?
+        # TODO: How long to wait here? -> Define grabTimeout
         image_result = self.cam.GetNextImage(10)
 
         # print(image_result.GetTimeStamp() / 1e9)
@@ -96,12 +93,6 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         # run_time = (end_time - start_time).microseconds / 1000.0
         # print('Time for self.cam.GetNextImage(1000)', run_time, self.cam_id)
 
-        # self.check_both_frames_available()
-
-        # else:
-        #     # Print no information on non-specified event
-        #     print('\tDevice event occurred; not %s; ignoring...' % self.event_name)
-
     def check_both_frames_available(self):
         global cam_image_master
         global cam_image_slave
@@ -118,8 +109,15 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             # Reset variables
             cam_image_master = None
             cam_image_slave = None
+
+            end_time = datetime.datetime.now()
+            run_time = (end_time - self.start_time).microseconds / 1000.0
+            expected_time_between_frames_ms = round(1000 / FRAMERATE, 2)
+            if run_time > expected_time_between_frames_ms * 1.5:
+                print('WARNING: Time to get both frames was {}ms, but should be {}ms'.format(run_time, expected_time_between_frames_ms))
+            self.start_time = datetime.datetime.now()
         else:
-            print('Warning! Not both frames available!')
+            print('Warning! Not both frames available! Master available: {}, Slave available: {}'.format(cam_image_master is not None, cam_image_slave is not None))
 
 
 class FlirBlackflyS:
@@ -183,7 +181,7 @@ class FlirBlackflyS:
             for i, cam in enumerate(self.cam_list):
                 self.__initialize_camera(cam, i, subscriber)
 
-            if INTRINSIC_CAMERA_CALIBRATION:
+            if LOAD_INTRINSIC_CAMERA_CALIBRATION:
                 self.load_camera_calibration_data(self.device_serial_numbers)
 
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
@@ -536,7 +534,7 @@ class FlirBlackflyS:
             # events are registered generically, all event types will trigger a
             # device event; on the other hand, if an event handler is registered
             # specifically, only that event will trigger an event.
-            device_event_handler = DeviceEventHandler('EventExposureEnd', cam_id, cam, subscriber)
+            device_event_handler = DeviceEventHandler(cam_id, cam, subscriber)
 
             # Register device event handler
             #

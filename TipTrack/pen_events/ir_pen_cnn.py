@@ -3,10 +3,9 @@ import os
 import datetime
 from threading import Lock
 
-# import tensorflow as tf
 from tensorflow import keras, lite
-# from tensorflow import keras
 import numpy as np
+
 
 MODEL_PATH = 'cnn/models/TipTrack_CNN'  # 'model_2023_026'  # 'cnn'  # Put the folder path here for the desired cnn
 
@@ -50,12 +49,14 @@ class IRPenCNN:
         img_reshaped = img.reshape(-1, img.shape[0], img.shape[1], 1)
 
         # use predict() for safe and less performant
-        # use predict_unsafe() for best performance but we are not sure what could happen in the worst case
+        # use predict_unsafe() for best performance, but we are not sure what could happen in the worst case
         prediction = self.keras_lite_model.predict_unsafe(img_reshaped)
 
         if not prediction.any():
-            print('No prediction possible!')
+            print('No prediction possible! ', prediction)
             return STATES[-1], 0
+        #else:
+        #    print('Prediction:', np.argmax(prediction))
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
 
@@ -69,10 +70,6 @@ class IRPenCNN:
         # if state == 'hover_far':
         #     state = 'hover'
         return state, confidence
-
-
-
-
 
 
 # source: Michael Wurm, 2019 on medium
@@ -149,6 +146,8 @@ class LiteModel:
         return out[0]
 
 
+# Old Code to test this script
+# TODO: Rework
 if __name__ == '__main__':
     import cv2
     import os
