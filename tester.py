@@ -4,7 +4,7 @@ from datetime import datetime
 import cv2
 
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
-
+from TipTrack.pen_events.ir_pen import IRPen
 
 class TipTrackTester:
 
@@ -16,6 +16,7 @@ class TipTrackTester:
 
     def __init__(self):
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
+        self.ir_pen = IRPen()
 
         self.main_loop()
 
@@ -23,6 +24,10 @@ class TipTrackTester:
         # print('new frames')
         self.frames = frames
         self.camera_serial_numbers = camera_serial_numbers
+
+        new_pen_data = self.ir_pen.get_new_pen_data(frames, camera_serial_numbers)
+
+        print(new_pen_data)
 
         self.frame_counter += 1
         if self.frame_counter == 158:

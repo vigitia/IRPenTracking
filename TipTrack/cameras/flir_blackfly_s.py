@@ -7,6 +7,7 @@ import PySpin
 
 from TipTrack.utility.surface_extractor import SurfaceExtractor
 
+
 # CONSTANTS and Camera Settings
 
 DEBUG_MODE = False
@@ -208,7 +209,7 @@ class FlirBlackflyS:
         node_device_serial_number = PySpin.CStringPtr(cam.GetTLDeviceNodeMap().GetNode('DeviceSerialNumber'))
         if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
             device_serial_number = node_device_serial_number.GetValue()
-            print('\n[Flir BlackFly S]: Camera %d Serial Number: %s' % (i, device_serial_number))
+            print('[Flir BlackFly S]: Camera %d Serial Number: %s' % (i, device_serial_number))
         self.device_serial_numbers.append(device_serial_number)
 
         # Do not get matrices in calibration mode. The required config file does not exist yet
@@ -294,7 +295,6 @@ class FlirBlackflyS:
         # Set Acquisition Mode to Continuous: acquires images continuously
         if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
             cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-            print("[Flir BlackFly S]: AcquistionMode: {}".format(cam.AcquisitionMode.GetValue()))
         else:
             print("[Flir BlackFly S]: Error setting AcquisionMode: no access")
             return False
@@ -302,7 +302,6 @@ class FlirBlackflyS:
         # Set AutoExposure off
         if cam.ExposureAuto.GetAccessMode() == PySpin.RW:
             cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-            print('[Flir BlackFly S]: PySpin:Camera:ExposureAuto: {}'.format(cam.ExposureAuto.GetValue()))
         else:
             print('[Flir BlackFly S]: PySpin:Camera:Failed to turn off Autoexposure')
             return False
@@ -320,7 +319,6 @@ class FlirBlackflyS:
         if cam.ExposureTime.GetAccessMode() == PySpin.RW:
             cam.ExposureTime.SetValue(
                 max(cam.ExposureTime.GetMin(), min(cam.ExposureTime.GetMax(), float(EXPOSURE_TIME_MICROSECONDS))))
-            print('[Flir BlackFly S]: PySpin:Camera:Exposure:{}'.format(cam.ExposureTime.GetValue()))
         else:
             print('[Flir BlackFly S]: PySpin:Camera:Failed to set exposure to:{}'.format(EXPOSURE_TIME_MICROSECONDS))
             return False
@@ -328,7 +326,6 @@ class FlirBlackflyS:
         # Set GainAuto to off.
         if cam.GainAuto.GetAccessMode() == PySpin.RW:
             cam.GainAuto.SetValue(PySpin.GainAuto_Off)
-            print('[Flir BlackFly S]: PySpin:Camera:GainAuto: {}'.format(cam.GainAuto.GetValue()))
         else:
             print('[Flir BlackFly S]: PySpin:Camera:Failed to set GainAuto to off')
             return False
@@ -337,7 +334,6 @@ class FlirBlackflyS:
         if cam.Gain.GetAccessMode() == PySpin.RW:
             cam.Gain.SetValue(
                 max(cam.Gain.GetMin(), min(cam.Gain.GetMax(), float(GAIN))))
-            print("[Flir BlackFly S]: PySpin:Camera:Gain:{}".format(cam.Gain.GetValue()))
         else:
             print("[Flir BlackFly S]: PySpin:Camera:Failed to set Gain to:{}".format(GAIN))
             return False
@@ -349,7 +345,6 @@ class FlirBlackflyS:
             # Set Acquisiton Frame Rate Enable = True to be able to manually set the framerate
             if cam.AcquisitionFrameRateEnable.GetAccessMode() == PySpin.RW:
                 cam.AcquisitionFrameRateEnable.SetValue(True)
-                print("[Flir BlackFly S]: PySpin:Camera:AcquisionFrameRateEnable: {}".format(cam.AcquisitionFrameRateEnable.GetValue()))
             else:
                 print("[Flir BlackFly S]: PySpin:Camera:AcquisionFrameRateEnable: no access")
                 return False
@@ -357,7 +352,6 @@ class FlirBlackflyS:
             # Set Camera Acquisition Framerate
             if cam.AcquisitionFrameRate.GetAccessMode() == PySpin.RW:
                 cam.AcquisitionFrameRate.SetValue(min(cam.AcquisitionFrameRate.GetMax(), FRAMERATE))
-                print('[Flir BlackFly S]: PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
             else:
                 print("[Flir BlackFly S]: PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
                 return False
@@ -389,7 +383,6 @@ class FlirBlackflyS:
             return False
 
         stream_buffer_count_mode.SetIntValue(stream_buffer_count_mode_manual.GetValue())
-        print('[Flir BlackFly S]: PySpin:Camera:StreamBufferCountMode: Manual')
 
         # Retrieve and modify Stream Buffer Count
         buffer_count = PySpin.CIntegerPtr(s_node_map.GetNode('StreamBufferCountManual'))
@@ -404,15 +397,12 @@ class FlirBlackflyS:
 
         buffer_count.SetValue(NUM_BUFFERS)
 
-        print('[Flir BlackFly S]: PySpin:Camera:BufferCount: %d' % buffer_count.GetValue())
-
         # handling_mode_entry = handling_mode.GetEntryByName('NewestFirst')
         handling_mode_entry = handling_mode.GetEntryByName('NewestOnly')
         # handling_mode_entry = handling_mode.GetEntryByName('OldestFirst')
         # handling_mode_entry = handling_mode.GetEntryByName('OldestFirstOverwrite')
 
         handling_mode.SetIntValue(handling_mode_entry.GetValue())
-        print('[Flir BlackFly S]: PySpin:Camera:BufferHandlingMode: %s' % handling_mode_entry.GetDisplayName())
 
         # TODO: Also set WIDTH AND HEIGHT, X_OFFSET, Y_OFFSET
 
@@ -447,6 +437,20 @@ class FlirBlackflyS:
         #     print('Height set to %i' % node_height.GetValue())
         # else:
         #     print('Height not available')
+
+        if DEBUG_MODE:
+            print("[Flir BlackFly S]: AcquistionMode: {}".format(cam.AcquisitionMode.GetValue()))
+            print('[Flir BlackFly S]: ExposureAuto: {}'.format(cam.ExposureAuto.GetValue()))
+            print('[Flir BlackFly S]: PySpin:Camera:Exposure:{}'.format(cam.ExposureTime.GetValue()))
+            print('[Flir BlackFly S]: PySpin:Camera:GainAuto: {}'.format(cam.GainAuto.GetValue()))
+            print("[Flir BlackFly S]: PySpin:Camera:Gain:{}".format(cam.Gain.GetValue()))
+            print("[Flir BlackFly S]: PySpin:Camera:AcquisionFrameRateEnable: {}".format(
+                cam.AcquisitionFrameRateEnable.GetValue()))
+            print('[Flir BlackFly S]: PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
+            print('[Flir BlackFly S]: PySpin:Camera:StreamBufferCountMode: Manual')
+            print('[Flir BlackFly S]: PySpin:Camera:BufferCount: %d' % buffer_count.GetValue())
+            print('[Flir BlackFly S]: PySpin:Camera:BufferHandlingMode: %s' % handling_mode_entry.GetDisplayName())
+            print('------------------------------------------------------------------')
 
         return True
 
