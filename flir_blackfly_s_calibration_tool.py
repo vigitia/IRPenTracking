@@ -1,5 +1,5 @@
 
-import sys
+
 import time
 import threading
 import cv2
@@ -8,7 +8,7 @@ from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_selector import SurfaceSelector
 
 EXTRACT_PROJECTION_AREA = False
-PREVIEW_MODE = False  # Em
+PREVIEW_MODE = True  # Em
 
 CAM_EXPOSURE_FOR_CALIBRATION = 100000  # Increase Brightness to better see the corners
 
@@ -59,7 +59,7 @@ class FlirBlackFlySCalibrationTool:
 
                         window_name_extracted = 'Flir Camera {} Extracted'.format(self.camera_serial_numbers[i])
 
-                        # cv2.imshow(window_name, frame)
+                        cv2.imshow(window_name, frame)
 
                         # if EXTRACT_PROJECTION_AREA:
                         #     global surface_extractor

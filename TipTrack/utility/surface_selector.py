@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import math
 import os.path
 
 import cv2
@@ -11,10 +10,10 @@ import configparser
 from ast import literal_eval as make_tuple  # Needed to convert strings stored in config file back to tuples
 
 CIRCLE_DIAMETER = 2
-CIRCLE_COLOR = (0, 255, 0)
-FONT_COLOR = (0, 0, 255)
+CIRCLE_COLOR = (255, 255, 255)
+FONT_COLOR = (0, 0, 0)
 
-CONFIG_FILE_PATH = '../config'
+CONFIG_FILE_PATH = os.path.join(os.getcwd(), 'TipTrack', 'config')
 CONFIG_FILE_NAME = 'config.ini'
 
 
@@ -45,8 +44,15 @@ class SurfaceSelector:
 
     # In the config file, info like the table corner coordinates are stored
     def read_config_file(self):
+
         config = configparser.ConfigParser()
+
+        if not os.path.exists(CONFIG_FILE_PATH):
+            print('No config file found, creating one...')
+            config.write(open(os.path.join(CONFIG_FILE_PATH, CONFIG_FILE_NAME), 'w'))
+
         config.read(os.path.join(CONFIG_FILE_PATH, CONFIG_FILE_NAME))
+
         print('Sections in config file:', config.sections())
 
         if len(config.sections()) > 0:
@@ -59,8 +65,8 @@ class SurfaceSelector:
                 }
 
             print('[Calibration Mode]: Successfully read data from config file')
-        else:
-            print('[Calibration Mode]: Error reading data from config file')
+        # else:
+        #     print('[Calibration Mode]: Error reading data from config file')
 
     def select_surface(self, frame, camera_parameter_name):
         calibration_finished = False

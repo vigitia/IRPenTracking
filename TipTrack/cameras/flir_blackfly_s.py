@@ -13,6 +13,7 @@ DEBUG_MODE = False
 
 LOAD_INTRINSIC_CAMERA_CALIBRATION = False
 
+# TODO: FIX PATH
 CALIBRATION_DATA_PATH = 'config'  # Specify location where the calibration file should be saved
 
 FRAME_WIDTH = 1920  # 800  # 1920
@@ -26,11 +27,12 @@ NUM_BUFFERS = 1  # Number of roi buffers per camera
 SERIAL_NUMBER_MASTER = str(22260470)
 SERIAL_NUMBER_SLAVE = str(22260466)
 
+
+# Global variables
+
 cam_image_master = None
 cam_image_slave = None
-
 all_cameras_ready = False
-
 matrices = [[]]
 
 
@@ -50,13 +52,15 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         self.subscriber = subscriber
 
     def OnDeviceEvent(self, event_name):
-        """
-        Callback function when a device event occurs.
-        Note event_name is a wrapped gcstring, not a Python string, but basic operations such as printing and comparing
-        with Python strings are supported.
+        """ OnDeviceEvent
+
+            Callback function when a device event occurs.
+
+            Note event_name is a wrapped gcstring, not a Python string, but basic operations such as printing and
+            comparing with Python strings are supported.
         """
 
-        # Check if all cameras are already inititalized
+        # Check if all cameras are already initialized
         global all_cameras_ready
         if not all_cameras_ready:
             # print('OnDeviceEvent: Not all cameras initialized')
@@ -136,11 +140,12 @@ class FlirBlackflyS:
     frame_counter = 0
 
     def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, subscriber=None, calibration_mode=False):
+
+        # Overwrite the default exposure time if needed
         global EXPOSURE_TIME_MICROSECONDS
         EXPOSURE_TIME_MICROSECONDS = cam_exposure
 
         self.calibration_mode = calibration_mode
-
         self.surface_extractor = SurfaceExtractor()
 
         self.init_cameras(subscriber)
