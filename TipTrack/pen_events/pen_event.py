@@ -2,13 +2,16 @@ import time
 from TipTrack.pen_events.pen_state import PenState
 
 
-# Representation of a single pen event
 class PenEvent:
+    """ PenEvent
+
+        Representation of a single pen event
+    """
 
     def __init__(self, x, y, state=PenState.NEW):
-        self.x = x
+        self.x = x  # Current x coordinate
         self.y = y
-        self.id = -1
+        self.id = -1  # ID of the PenEvent (-1 means that no ID has been assigned yet)
 
         # self.missing = False
         self.last_seen_timestamp = 0
@@ -23,5 +26,5 @@ class PenEvent:
         return tuple([self.x, self.y])
 
     def __repr__(self):
-        return 'PenEvent {} at ({}, {}) -> {}. Num Points: {}'.format(str(self.id), str(int(self.x)), str(int(self.y)),
-                                                                      self.state, len(self.history))
+        return 'PenEvent {} at ({}, {}) -> {}. Num Points: {}'.format(str(self.id), str(int(self.x)),
+                                                                      str(int(self.y)), self.state, len(self.history))
