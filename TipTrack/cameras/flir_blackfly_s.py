@@ -73,12 +73,12 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
 
         # start_time = datetime.datetime.now()
         # TODO: How long to wait here? -> Define grabTimeout
-        image_result = self.cam.GetNextImage(10)
+        image_result = self.cam.GetNextImage(100)
 
         # print(image_result.GetTimeStamp() / 1e9)
 
         if image_result.IsIncomplete():  # Ensure roi completion
-            print('Warning: Image incomplete with roi status %d' % image_result.GetImageStatus())
+            print('[Flir BlackFly S]: Warning: Image incomplete with roi status %d' % image_result.GetImageStatus())
         else:
             if self.cam_id == SERIAL_NUMBER_MASTER:
                 global cam_image_master
@@ -118,10 +118,10 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             run_time = (end_time - self.start_time).microseconds / 1000.0
             expected_time_between_frames_ms = round(1000 / FRAMERATE, 2)
             if run_time > expected_time_between_frames_ms * 1.5:
-                print('WARNING: Time to get both frames was {}ms, but should be {}ms'.format(run_time, expected_time_between_frames_ms))
+                print('[Flir BlackFly S]: WARNING: Time to get both frames was {}ms, but should be {}ms'.format(run_time, expected_time_between_frames_ms))
             self.start_time = datetime.datetime.now()
         else:
-            print('Warning! Not both frames available! Master available: {}, Slave available: {}'.format(cam_image_master is not None, cam_image_slave is not None))
+            print('[Flir BlackFly S]: Warning! Not both frames available! Master available: {}, Slave available: {}'.format(cam_image_master is not None, cam_image_slave is not None))
 
 
 class FlirBlackflyS:
@@ -161,18 +161,18 @@ class FlirBlackflyS:
 
         if DEBUG_MODE:
             version = self.pyspin_system.GetLibraryVersion()  # Get current library version
-            print('Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
+            print('[Flir BlackFly S]: Library version: %d.%d.%d.%d' % (version.major, version.minor, version.type, version.build))
 
         self.cam_list = self.pyspin_system.GetCameras()  # Retrieve list of cameras from the pyspin_system
 
         num_cameras = self.cam_list.GetSize()
-        print('Number of cameras detected: %d' % num_cameras)
+        print('[Flir BlackFly S]: Number of cameras detected: %d' % num_cameras)
 
         # Finish if there are no cameras
         if num_cameras == 0:
             self.cam_list.Clear()  # Clear camera list before releasing pyspin_system
             self.pyspin_system.ReleaseInstance()  # Release pyspin_system instance
-            print('No cameras found')
+            print('[Flir BlackFly S]: No cameras found')
             return
 
         try:
@@ -199,7 +199,7 @@ class FlirBlackflyS:
             all_cameras_ready = True
 
         except PySpin.SpinnakerException as ex:
-            print('SpinnakerException: %s' % ex)
+            print('[Flir BlackFly S]: SpinnakerException: %s' % ex)
 
     def __initialize_camera(self, cam, i, subscriber):
         # Retrieve device serial numbers
@@ -208,7 +208,7 @@ class FlirBlackflyS:
         node_device_serial_number = PySpin.CStringPtr(cam.GetTLDeviceNodeMap().GetNode('DeviceSerialNumber'))
         if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
             device_serial_number = node_device_serial_number.GetValue()
-            print('\nCamera %d Serial Number: %s' % (i, device_serial_number))
+            print('\n[Flir BlackFly S]: Camera %d Serial Number: %s' % (i, device_serial_number))
         self.device_serial_numbers.append(device_serial_number)
 
         # Do not get matrices in calibration mode. The required config file does not exist yet
@@ -216,6 +216,7 @@ class FlirBlackflyS:
             global matrices
 
             if device_serial_number == SERIAL_NUMBER_MASTER:
+                # Make sure that the master camera will always be the first in the list
                 matrices[0] = self.surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT,
                                                                     'Flir Blackfly S {}'.format(device_serial_number))
             else:
@@ -232,10 +233,15 @@ class FlirBlackflyS:
 
         success = self.apply_camera_settings(cam, device_serial_number)
         if not success:
-            print('Errors while applying settings to the cameras')
+            print('[Flir BlackFly S]: Errors while applying settings to the cameras')
             time.sleep(10)
 
     def init_hardware_trigger(self, cam, device_serial_number):
+        """ init_hardware_trigger
+
+            This will setup the cameras in a way so that the master camera will control when all other cameras
+            take a picture. This should sync the images as good as possible.
+        """
         if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
             cam.TriggerMode.SetValue(PySpin.TriggerMode_Off)
             cam.TriggerSource.SetValue(PySpin.TriggerSource_Software)
@@ -251,10 +257,16 @@ class FlirBlackflyS:
             cam.TriggerActivation.SetValue(PySpin.TriggerActivation_FallingEdge)
             cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
         else:
-            print('WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
+            print('[Flir BlackFly S]: WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
 
     def load_camera_calibration_data(self, camera_serial_numbers):
-        print('load calibration data')
+        """
+
+            Work in progress to undistort each camera frame
+
+
+        """
+        print('[Flir BlackFly S]: load calibration data')
 
         for i, camera_serial_number in enumerate(camera_serial_numbers):
             self.camera_matrices.append([None])
@@ -274,33 +286,33 @@ class FlirBlackflyS:
 
                 cv_file.release()
             except Exception as e:
-                print('Error in load_camera_calibration_data():', e)
-                print('Cant load calibration data for Flir Blackfly S {}.yml'.format(i))
+                print('[Flir BlackFly S]: Error in load_camera_calibration_data():', e)
+                print('[Flir BlackFly S]: Cant load calibration data for Flir Blackfly S {}.yml'.format(i))
 
     def apply_camera_settings(self, cam, serial_number):
 
         # Set Acquisition Mode to Continuous: acquires images continuously
         if cam.AcquisitionMode.GetAccessMode() == PySpin.RW:
             cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-            print("PySpin:Camera:AcquistionMode: {}".format(cam.AcquisitionMode.GetValue()))
+            print("[Flir BlackFly S]: AcquistionMode: {}".format(cam.AcquisitionMode.GetValue()))
         else:
-            print("PySpin:Camera:AcquisionMode: no access")
+            print("[Flir BlackFly S]: Error setting AcquisionMode: no access")
             return False
 
-        # Set Autoexposure off
+        # Set AutoExposure off
         if cam.ExposureAuto.GetAccessMode() == PySpin.RW:
             cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-            print("PySpin:Camera:ExposureAuto: {}".format(cam.ExposureAuto.GetValue()))
+            print('[Flir BlackFly S]: PySpin:Camera:ExposureAuto: {}'.format(cam.ExposureAuto.GetValue()))
         else:
-            print("PySpin:Camera:Failed to set Autoexposure to off")
+            print('[Flir BlackFly S]: PySpin:Camera:Failed to turn off Autoexposure')
             return False
 
-        # Check if Autoexposure is off and exposure mode is set to "Timed" (needed for manually setting exposure)
+        # Check if AutoExposure is off and exposure mode is set to "Timed" (needed for manually setting exposure)
         if cam.ExposureMode.GetValue() != PySpin.ExposureMode_Timed:
-            print("PySpin:Camera:Can not set exposure! Exposure Mode needs to be Timed")
+            print('[Flir BlackFly S]: PySpin:Camera: Can not set exposure! Exposure Mode needs to be Timed')
             return False
         if cam.ExposureAuto.GetValue() != PySpin.ExposureAuto_Off:
-            print("PySpin:Camera:Can not set exposure! Exposure is Auto")
+            print('[Flir BlackFly S]: PySpin:Camera: Can not set exposure! Exposure is Auto')
             return False
 
         # Set Exposure Time (in microseconds).
@@ -308,26 +320,26 @@ class FlirBlackflyS:
         if cam.ExposureTime.GetAccessMode() == PySpin.RW:
             cam.ExposureTime.SetValue(
                 max(cam.ExposureTime.GetMin(), min(cam.ExposureTime.GetMax(), float(EXPOSURE_TIME_MICROSECONDS))))
-            print("PySpin:Camera:Exposure:{}".format(cam.ExposureTime.GetValue()))
+            print('[Flir BlackFly S]: PySpin:Camera:Exposure:{}'.format(cam.ExposureTime.GetValue()))
         else:
-            print("PySpin:Camera:Failed to set exposure to:{}".format(EXPOSURE_TIME_MICROSECONDS))
+            print('[Flir BlackFly S]: PySpin:Camera:Failed to set exposure to:{}'.format(EXPOSURE_TIME_MICROSECONDS))
             return False
 
         # Set GainAuto to off.
         if cam.GainAuto.GetAccessMode() == PySpin.RW:
             cam.GainAuto.SetValue(PySpin.GainAuto_Off)
-            print("PySpin:Camera:GainAuto: {}".format(cam.GainAuto.GetValue()))
+            print('[Flir BlackFly S]: PySpin:Camera:GainAuto: {}'.format(cam.GainAuto.GetValue()))
         else:
-            print("PySpin:Camera:Failed to set GainAuto to off")
+            print('[Flir BlackFly S]: PySpin:Camera:Failed to set GainAuto to off')
             return False
 
         # Set Gain. Controls the amplification of the video signal in dB.
         if cam.Gain.GetAccessMode() == PySpin.RW:
             cam.Gain.SetValue(
                 max(cam.Gain.GetMin(), min(cam.Gain.GetMax(), float(GAIN))))
-            print("PySpin:Camera:Gain:{}".format(cam.Gain.GetValue()))
+            print("[Flir BlackFly S]: PySpin:Camera:Gain:{}".format(cam.Gain.GetValue()))
         else:
-            print("PySpin:Camera:Failed to set Gain to:{}".format(GAIN))
+            print("[Flir BlackFly S]: PySpin:Camera:Failed to set Gain to:{}".format(GAIN))
             return False
 
         # TODO: Check if manually setting the Black Level has any impact on our output frames
@@ -337,17 +349,17 @@ class FlirBlackflyS:
             # Set Acquisiton Frame Rate Enable = True to be able to manually set the framerate
             if cam.AcquisitionFrameRateEnable.GetAccessMode() == PySpin.RW:
                 cam.AcquisitionFrameRateEnable.SetValue(True)
-                print("PySpin:Camera:AcquisionFrameRateEnable: {}".format(cam.AcquisitionFrameRateEnable.GetValue()))
+                print("[Flir BlackFly S]: PySpin:Camera:AcquisionFrameRateEnable: {}".format(cam.AcquisitionFrameRateEnable.GetValue()))
             else:
-                print("PySpin:Camera:AcquisionFrameRateEnable: no access")
+                print("[Flir BlackFly S]: PySpin:Camera:AcquisionFrameRateEnable: no access")
                 return False
 
             # Set Camera Acquisition Framerate
             if cam.AcquisitionFrameRate.GetAccessMode() == PySpin.RW:
                 cam.AcquisitionFrameRate.SetValue(min(cam.AcquisitionFrameRate.GetMax(), FRAMERATE))
-                print('PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
+                print('[Flir BlackFly S]: PySpin:Camera:CameraAcquisitionFramerate:', cam.AcquisitionFrameRate.GetValue())
             else:
-                print("PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
+                print("[Flir BlackFly S]: PySpin:Camera:Failed to set CameraAcquisitionFramerate to:{}".format(FRAMERATE))
                 return False
 
         # Retrieve Stream Parameters device nodemap
@@ -356,33 +368,33 @@ class FlirBlackflyS:
         # Retrieve Buffer Handling Mode Information
         handling_mode = PySpin.CEnumerationPtr(s_node_map.GetNode('StreamBufferHandlingMode'))
         if not PySpin.IsAvailable(handling_mode) or not PySpin.IsWritable(handling_mode):
-            print('Unable to set Buffer Handling mode (node retrieval). Aborting...\n')
+            print('[Flir BlackFly S]: Unable to set Buffer Handling mode (node retrieval). Aborting...\n')
             return False
 
         handling_mode_entry = PySpin.CEnumEntryPtr(handling_mode.GetCurrentEntry())
         if not PySpin.IsAvailable(handling_mode_entry) or not PySpin.IsReadable(handling_mode_entry):
-            print('Unable to set Buffer Handling mode (Entry retrieval). Aborting...\n')
+            print('[Flir BlackFly S]: Unable to set Buffer Handling mode (Entry retrieval). Aborting...\n')
             return False
 
         # Set stream buffer Count Mode to manual
         stream_buffer_count_mode = PySpin.CEnumerationPtr(s_node_map.GetNode('StreamBufferCountMode'))
         if not PySpin.IsAvailable(stream_buffer_count_mode) or not PySpin.IsWritable(stream_buffer_count_mode):
-            print('Unable to set Buffer Count Mode (node retrieval). Aborting...\n')
+            print('[Flir BlackFly S]: Unable to set Buffer Count Mode (node retrieval). Aborting...\n')
             return False
 
         stream_buffer_count_mode_manual = PySpin.CEnumEntryPtr(stream_buffer_count_mode.GetEntryByName('Manual'))
         if not PySpin.IsAvailable(stream_buffer_count_mode_manual) or not PySpin.IsReadable(
                 stream_buffer_count_mode_manual):
-            print('Unable to set Buffer Count Mode entry (Entry retrieval). Aborting...\n')
+            print('[Flir BlackFly S]: Unable to set Buffer Count Mode entry (Entry retrieval). Aborting...\n')
             return False
 
         stream_buffer_count_mode.SetIntValue(stream_buffer_count_mode_manual.GetValue())
-        print('PySpin:Camera:StreamBufferCountMode: Manual')
+        print('[Flir BlackFly S]: PySpin:Camera:StreamBufferCountMode: Manual')
 
         # Retrieve and modify Stream Buffer Count
         buffer_count = PySpin.CIntegerPtr(s_node_map.GetNode('StreamBufferCountManual'))
         if not PySpin.IsAvailable(buffer_count) or not PySpin.IsWritable(buffer_count):
-            print('Unable to set Buffer Count (Integer node retrieval). Aborting...\n')
+            print('[Flir BlackFly S]: Unable to set Buffer Count (Integer node retrieval). Aborting...\n')
             return False
 
         # Display Buffer Info
@@ -392,7 +404,7 @@ class FlirBlackflyS:
 
         buffer_count.SetValue(NUM_BUFFERS)
 
-        print('PySpin:Camera:BufferCount: %d' % buffer_count.GetValue())
+        print('[Flir BlackFly S]: PySpin:Camera:BufferCount: %d' % buffer_count.GetValue())
 
         # handling_mode_entry = handling_mode.GetEntryByName('NewestFirst')
         handling_mode_entry = handling_mode.GetEntryByName('NewestOnly')
@@ -400,7 +412,7 @@ class FlirBlackflyS:
         # handling_mode_entry = handling_mode.GetEntryByName('OldestFirstOverwrite')
 
         handling_mode.SetIntValue(handling_mode_entry.GetValue())
-        print('PySpin:Camera:BufferHandlingMode: %s' % handling_mode_entry.GetDisplayName())
+        print('[Flir BlackFly S]: PySpin:Camera:BufferHandlingMode: %s' % handling_mode_entry.GetDisplayName())
 
         # TODO: Also set WIDTH AND HEIGHT, X_OFFSET, Y_OFFSET
 
@@ -440,7 +452,7 @@ class FlirBlackflyS:
 
     def print_device_info(self, nodemap, cam_num):
 
-        print('Printing device information for camera %d... \n' % cam_num)
+        print('[Flir BlackFly S]: Printing device information for camera %d... \n' % cam_num)
 
         try:
             result = True
@@ -450,22 +462,23 @@ class FlirBlackflyS:
                 features = node_device_information.GetFeatures()
                 for feature in features:
                     node_feature = PySpin.CValuePtr(feature)
-                    print('%s: %s' % (node_feature.GetName(), node_feature.ToString() if PySpin.IsReadable(
+                    print('[Flir BlackFly S]: %s: %s' % (node_feature.GetName(), node_feature.ToString() if PySpin.IsReadable(
                                           node_feature) else 'Node not readable'))
             else:
-                print('Device control information not available.')
-            print()
+                print('[Flir BlackFly S]: Device control information not available.')
 
         except PySpin.SpinnakerException as ex:
-            print('Error in print_device_info(): %s' % ex)
+            print('[Flir BlackFly S]: Error in print_device_info(): %s' % ex)
             return False
 
         return result
 
     def configure_device_events(self, cam, cam_id, subscriber):
-        """
-        This function configures the example to execute device events by enabling all types of device events, and then
-        creating and registering a device event handler that only concerns itself with an end of exposure event.
+        """ configure_device_events
+
+            This function configures the example to execute device events by enabling all types of device events,
+            and then creating and registering a device event handler that only concerns itself with an end of exposure
+            event.
         """
 
         try:
@@ -488,7 +501,7 @@ class FlirBlackflyS:
             #  use-case might be to enable only the events of interest.
             node_event_selector = PySpin.CEnumerationPtr(nodemap.GetNode('EventSelector'))
             if not PySpin.IsAvailable(node_event_selector) or not PySpin.IsReadable(node_event_selector):
-                print('Unable to retrieve event selector entries. Aborting...')
+                print('[Flir BlackFly S]: Unable to retrieve event selector entries. Aborting...')
                 return False
 
             # TODO: Only listen for Exposure End Event
@@ -563,18 +576,18 @@ class FlirBlackflyS:
             success = False
 
         if not success:
-            print('Error in configure_device_events()')
+            print('[Flir BlackFly S]: Error in configure_device_events()')
             time.sleep(10)
 
         return device_event_handler
 
     def end_camera_capture(self):
-        print('End Camera Capture')
+        print('[Flir BlackFly S]: End Camera Capture')
         for i, cam in enumerate(self.cam_list):
             cam.EndAcquisition()  # End acquisition
 
             cam.UnregisterEventHandler(self.device_event_handlers[i])
-            print('Device event handler unregistered')
+            print('[Flir BlackFly S]: Device event handler unregistered')
 
             # Deinitialize camera. Each camera needs to be deinitialized once all images have been acquired.
             cam.DeInit()

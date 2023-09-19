@@ -28,8 +28,8 @@ class FlirBlackFlySCalibrationTool:
     finished_camera_calibrations = []
 
     def __init__(self):
-        self.main_thread = threading.Thread(target=self.main_thread)
-        self.main_thread.start()
+        #self.main_thread = threading.Thread(target=self.main_thread)
+        #self.main_thread.start()
 
         if PREVIEW_MODE:
             self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
@@ -37,11 +37,13 @@ class FlirBlackFlySCalibrationTool:
             self.surface_selector = SurfaceSelector()
             self.flir_blackfly_s = FlirBlackflyS(cam_exposure=CAM_EXPOSURE_FOR_CALIBRATION, subscriber=self)
 
+        self.main_loop()
+
         # Hacky workarount to keep main thread alive
         # TODO: Improve this
-        time.sleep(86400)  # Wait really long (24h)
+        # time.sleep(86400)  # Wait really long (24h)
 
-    def main_thread(self):
+    def main_loop(self):
         while True:
 
             extracted_frames = []
