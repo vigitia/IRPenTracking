@@ -11,6 +11,8 @@ from TipTrack.pen_events.pen_event import PenEvent
 from TipTrack.pen_events.pen_events_controller import PenEventsController
 from TipTrack.pen_events.ir_pen_cnn import IRPenCNN
 
+from TipTrack.utility.roi_extractor import ROIExtractor
+
 
 CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel. Relevant for the CNN
 
@@ -61,9 +63,17 @@ class IRPen:
     # last_coords = (0, 0)
     # last_frame_time = time.time()
 
-    def __init__(self):
+    def __init__(self, debug_mode=DEBUG_MODE):
+        global DEBUG_MODE
+        DEBUG_MODE = debug_mode
+
+        if DEBUG_MODE:
+            cv2.namedWindow('Overlay', cv2.WINDOW_NORMAL)
+            cv2.setWindowProperty('Overlay', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
         self.ir_pen_cnn = IRPenCNN()
         self.pen_events_controller = PenEventsController()
+        self.roi_extractor = ROIExtractor(CROP_IMAGE_SIZE)
 
         # self.test_data = []
         # with open('debug_data.txt', 'r') as file:
@@ -99,7 +109,7 @@ class IRPen:
         new_pen_events = self.generate_new_pen_events(new_data)
 
         if len(new_pen_events) > 2:
-            print('TOO MANY NEW PEN EVENTS!')
+            print('[IRPen]: TOO MANY NEW PEN EVENTS!')
 
         # if len(new_pen_events) > 0:
         #     print('New pen Events:', new_pen_events)
@@ -136,13 +146,13 @@ class IRPen:
             # TODO: Check why we crash here sometimes
             try:
                 # Extract all ROIs from the current frame
-                rois_new, roi_coords_new, max_brightness_values = self.get_all_rois(frame)
+                rois_new, roi_coords_new, max_brightness_values = self.roi_extractor.get_all_rois(frame)
             except Exception as e:
-                print('ERROR in/after "self.get_all_rois(frame):"', e)
+                print('[IRPen]: ERROR in/after "self.get_all_rois(frame):"', e)
                 rois_new, roi_coords_new, max_brightness_values = [], [], []
 
             for j, pen_event_roi in enumerate(rois_new):
-                prediction, confidence = self.ir_pen_cnn.predict(pen_event_roi)
+                prediction, confidence = self.ir_pen_cnn.get_prediction(pen_event_roi)
                 new_transformed_coords = self.transform_coords_to_output_res(roi_coords_new[j][0], roi_coords_new[j][1],
                                                                              transform_matrices[i])
 
@@ -150,7 +160,7 @@ class IRPen:
                 # (x, y), radius = self.find_pen_position_subpixel_crop(pen_event_roi, transformed_coords)
                 # subpixel_coords[i].append((x, y))
 
-                new_data[i].append({
+                new_event = {
                     'prediction': prediction,
                     'confidence': confidence,
                     'roi': pen_event_roi,
@@ -158,13 +168,16 @@ class IRPen:
                     'transformed_coords': new_transformed_coords,
                     'subpixel_coords': new_transformed_coords,  # TODO: subpixel_coords should be used here!
                     'used': False  # Flag to check if the ROI has been used to generate a pen event
-                })
+                }
+
+                new_data[i].append(new_event)
 
         return new_data
 
     # By using the transform matrix handed over by the camera, the given coordinate will be transformed from camera
     # space to projector space
     def transform_coords_to_output_res(self, x, y, transform_matrix):
+
         try:
             coords = np.array([x, y, 1])
 
@@ -174,15 +187,14 @@ class IRPen:
             transformed_coords = (transformed_coords[0] / transformed_coords[2],
                                   transformed_coords[1] / transformed_coords[2])
 
-            # Coordinates are now aligned with the projection area but still need to be upscaled to the output resolution
+            # Coordinates are now aligned with the projection area but still need to be upscaled to the output
+            # resolution
             transformed_coords = (transformed_coords[0] * self.factor_width, transformed_coords[1] * self.factor_height)
 
             return transformed_coords
         except Exception as e:
+            print('[IRPen]: Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
             print(e)
-            print('Error in transform_coords_to_output_res(). Maybe the transform_matrix is malformed?')
-            print('This error could also appear if CALIBRATION_MODE is still enabled in flir_blackfly_s.py')
-            time.sleep(5)
             sys.exit(1)
 
     def __debug_mode_preview_table_view(self, new_data):
@@ -203,6 +215,12 @@ class IRPen:
         cv2.imshow('Table preview', zeros)
 
     def __debug_mode_preview_rois(self, new_data):
+        """ Debug Mode Preview ROIs
+
+            Requires this method to be called from the main thread. Otherwise, cv2.imshow won't work.
+
+
+        """
 
         preview_image_all_rois = None
 
@@ -238,7 +256,7 @@ class IRPen:
                 else:
                     preview_image_all_rois = cv2.hconcat([preview_image_all_rois, roi_preview])
 
-        cv2.imshow('ROI OVERLAY', preview_roi_frame)
+        cv2.imshow('Overlay', preview_roi_frame)
 
         if preview_image_all_rois is not None:
             cv2.imshow('All ROIs', preview_image_all_rois)
@@ -558,67 +576,6 @@ class IRPen:
             raise Exception('Error: Unknown/Unexpected Pen Event state')
             # sys.exit(1)
 
-    #@timeit('get_all_rois')
-    def get_all_rois(self, image):
-
-        # TODO: If you get too many ROIs, the exposure of the camera should be reduced
-        # TODO: Maybe some sort of auto calibration could fix this
-
-        rois_new = []
-        roi_coords_new = []
-        max_brightness_values = []
-
-        margin = int(CROP_IMAGE_SIZE / 2)
-
-        # Create a black rectangle to fill the ROIs after their extraction
-        cutout = np.zeros((CROP_IMAGE_SIZE, CROP_IMAGE_SIZE), 'uint8')
-
-        MAX_NUMBER_OF_ROIS_PER_FRAME = 10
-
-        # TODO: Try to only copy the ROI and not the entire image. Does not work because I can't set the image flag to writeable.
-        image_copy = image.copy()
-
-        for i in range(MAX_NUMBER_OF_ROIS_PER_FRAME):
-
-            # Get max brightness value of frame and its location
-            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image_copy)
-
-            # Stop if point is not bright enough to be considered
-            if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
-                #if i > 0:
-                #    print('Stopped after {} iterations. Brightness values {}'.format(i, max_brightness_values))
-                return rois_new, roi_coords_new, max_brightness_values
-
-            # Cut out region of interest around brightest point in image
-            img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
-
-
-            # If the point is close to the image border, the output image will be too small
-            # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
-            # Problems only appear on the image border.
-
-            if img_cropped.shape[0] == CROP_IMAGE_SIZE and img_cropped.shape[1] == CROP_IMAGE_SIZE:
-
-                # image.setflags(write=1)
-                # Set all pixels in ROI to black
-                image_copy[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = cutout
-                # image.setflags(write=0)
-
-
-                rois_new.append(img_cropped)
-                roi_coords_new.append((max_x, max_y))
-                max_brightness_values.append(brightest)
-
-            else:
-                # print('ROI shape too small')
-
-                # Set just this pixel to black
-                # TODO: Needs improvement, set also the surrounding area to black
-                image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
-
-
-        return rois_new, roi_coords_new, max_brightness_values
-
     # Helper Function: Calculate the center point between two given points
     def get_center_point(self, p1, p2):
         (x1, y1) = p1
@@ -627,117 +584,6 @@ class IRPen:
         x_dist = abs(x1 - x2) / 2
         y_dist = abs(y1 - y2) / 2
         return min(x1, x2) + x_dist, min(y1, y2) + y_dist
-
-    # WIP!
-    # def get_all_rois(self, img, size=CROP_IMAGE_SIZE):
-    #
-    #     rois = []
-    #     roi_coords = []
-    #     max_brightness_values = []
-    #
-    #     for i in range(10):
-    #         margin = int(size / 2)
-    #         _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(img)
-    #
-    #         # Dead pixel fix
-    #         if max_x == 46 and max_y == 565:
-    #             # TODO: Find solution for dead pixel
-    #             continue
-    #
-    #         if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
-    #             break
-    #
-    #         img_cropped = img[max_y - margin: max_y + margin, max_x - margin: max_x + margin].copy()
-    #
-    #         # print('Shape in crop 1:', img_cropped.shape, max_x, max_y)
-    #
-    #         if img_cropped.shape == (size, size):
-    #             rois.append(img_cropped)
-    #             roi_coords.append((max_x, max_y))
-    #             max_brightness_values.append(int(brightest))
-    #         else:
-    #             print('TODO: WRONG SHAPE')
-    #
-    #         img.setflags(write=True)
-    #         img[max_y - margin: max_y + margin, max_x - margin: max_x + margin] = 0
-    #         img.setflags(write=False)
-    #
-    #     return rois, roi_coords, max_brightness_values
-
-    def crop_image_old(self, image):
-        margin = int(CROP_IMAGE_SIZE / 2)
-
-        # Get max brightness value of frame and its location
-        _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image)
-
-        # Stop if point is not bright enough to be considered
-        if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
-            return None, brightest, (max_x, max_y)
-
-        # Cut out region of interest around brightest point in image
-        img_cropped = image[max_y - margin: max_y + margin, max_x - margin: max_x + margin]
-
-        # If the point is close to the image border, the output image will be too small
-        # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
-        # Problems only appear on the image border.
-        if img_cropped.shape[0] != CROP_IMAGE_SIZE or img_cropped.shape[1] != CROP_IMAGE_SIZE:
-            # img_cropped, brightest, (max_x, max_y) = self.crop_image_2(image)
-            print('!#-#-#-#-#-#-#-#-#')
-            print('Shape in crop 1:', img_cropped.shape, max_x, max_y)
-            return None, brightest, (max_x, max_y)
-            # time.sleep(20)
-
-        # img_cropped_large = cv2.resize(img_cropped, (480, 480), interpolation=cv2.INTER_LINEAR)
-        # cv2.imshow('large', img_cropped_large)
-        return img_cropped, brightest, (max_x, max_y)
-
-    # TODO: CHECK this function. Currently not in use
-    def crop_image_2_old(self, img):
-        # print('using crop_image_2() function')
-        margin = int(CROP_IMAGE_SIZE / 2)
-        brightest = int(np.max(img))
-        _, thresh = cv2.threshold(img, brightest - 1, 255, cv2.THRESH_BINARY)
-        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # print(contours)
-
-        contours = contours[0] if len(contours) == 2 else contours[1]
-
-        x_values = []
-        y_values = []
-        for cnt in contours:
-            for point in cnt:
-                point = point[0]
-                # print(point)
-                x_values.append(point[0])
-                y_values.append(point[1])
-
-        # print('x', np.max(x_values), np.min(x_values))
-        # print('y', np.max(y_values), np.min(y_values))
-        d_x = np.max(x_values) - np.min(x_values)
-        d_y = np.max(y_values) - np.min(y_values)
-        center_x = int(np.min(x_values) + d_x / 2)
-        center_y = int(np.min(y_values) + d_y / 2)
-        # print(center_x, center_y)
-
-        left = np.max([0, center_x - margin])
-        top = np.max([0, center_y - margin])
-
-        # print(left, top)
-
-        if left + CROP_IMAGE_SIZE >= img.shape[1]:
-            # left -= (left + size - image.shape[1] - 1)
-            left = img.shape[1] - CROP_IMAGE_SIZE - 1
-        if top + CROP_IMAGE_SIZE >= img.shape[0]:
-            # top -= (top + size - image.shape[0] - 1)
-            top = img.shape[0] - CROP_IMAGE_SIZE - 1
-
-        # _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image)
-        img_cropped = img[top: top + CROP_IMAGE_SIZE, left: left + CROP_IMAGE_SIZE]
-
-        print('Shape in crop 2:', img_cropped.shape, left + margin, top + margin)
-
-        return img_cropped, np.max(img_cropped), (left + margin, top + margin)
 
     # TODO: Fix possible offset
     def find_pen_position_subpixel_crop(self, roi, center_original):
