@@ -45,18 +45,18 @@ class IRPenCNN:
         # self.keras_lite_model = keras.models.load_model(MODEL_PATH)
 
     # @timeit('Predict')
-    def predict(self, img):
+    def get_prediction(self, img):
         img_reshaped = img.reshape(-1, img.shape[0], img.shape[1], 1)
 
         # use predict() for safe and less performant
         # use predict_unsafe() for best performance, but we are not sure what could happen in the worst case
         prediction = self.keras_lite_model.predict_unsafe(img_reshaped)
+        # prediction = self.keras_lite_model.predict(img_reshaped)
 
         if not prediction.any():
-            print('No prediction possible! ', prediction)
+            print('[IRPenCNN]: Prediction failed! ROI shape:', img.shape)
             return STATES[-1], 0
-        #else:
-        #    print('Prediction:', np.argmax(prediction))
+
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
 

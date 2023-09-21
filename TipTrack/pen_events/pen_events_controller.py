@@ -163,7 +163,8 @@ class PenEventsController:
     # Combine a PenEvent from the previous frame with a new PenEvent from the current frame
     def __merge_events(self, active_pen_event, new_pen_event, current_timestamp, active_pen_events, new_pen_events):
         if (distance.euclidean(new_pen_event.get_coordinates(), active_pen_event.get_coordinates())) > 200:
-            print('Dist')
+            # print('Dist')
+            pass
 
         new_pen_event.id = active_pen_event.id  # Use existing ID
         new_pen_event.last_seen_timestamp = current_timestamp

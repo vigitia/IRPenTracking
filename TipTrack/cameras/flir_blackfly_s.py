@@ -19,7 +19,7 @@ CALIBRATION_DATA_PATH = 'config'  # Specify location where the calibration file 
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
-EXPOSURE_TIME_MICROSECONDS = 800  # 600  # μs -> must be lower than the frame time (FRAMERATE / 1000)
+EXPOSURE_TIME_MICROSECONDS = 600  # 600  # μs -> must be lower than the frame time (FRAMERATE / 1000)
 GAIN = 18  # Controls the amplification of the video signal in dB.
 FRAMERATE = 158  # Target number of Frames per Second (Min: 1, Max: 158)
 NUM_BUFFERS = 1  # Number of roi buffers per camera

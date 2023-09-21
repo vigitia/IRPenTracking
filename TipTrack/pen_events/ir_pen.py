@@ -16,8 +16,6 @@ from TipTrack.utility.roi_extractor import ROIExtractor
 
 CROP_IMAGE_SIZE = 48  # Currently 48x48 Pixel. Relevant for the CNN
 
-MIN_BRIGHTNESS_FOR_PREDICTION = 50  # A spot in the camera image needs to have at least X brightness to be considered.
-
 USE_MAX_DISTANCE_DRAW = False
 MAX_DISTANCE_DRAW = 500  # Maximum allowed pixel distance between two points to be considered the same line ID
 
@@ -143,13 +141,7 @@ class IRPen:
 
             new_data.append([])
 
-            # TODO: Check why we crash here sometimes
-            try:
-                # Extract all ROIs from the current frame
-                rois_new, roi_coords_new, max_brightness_values = self.roi_extractor.get_all_rois(frame)
-            except Exception as e:
-                print('[IRPen]: ERROR in/after "self.get_all_rois(frame):"', e)
-                rois_new, roi_coords_new, max_brightness_values = [], [], []
+            rois_new, roi_coords_new, max_brightness_values = self.roi_extractor.get_all_rois(frame)
 
             for j, pen_event_roi in enumerate(rois_new):
                 prediction, confidence = self.ir_pen_cnn.get_prediction(pen_event_roi)

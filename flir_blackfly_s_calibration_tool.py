@@ -8,7 +8,7 @@ from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_selector import SurfaceSelector
 
 EXTRACT_PROJECTION_AREA = False
-PREVIEW_MODE = True  # Em
+PREVIEW_MODE = False  # Em
 
 CAM_EXPOSURE_FOR_CALIBRATION = 100000  # Increase Brightness to better see the corners
 
