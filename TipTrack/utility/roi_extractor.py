@@ -5,7 +5,7 @@ import numpy as np
 
 MAX_NUMBER_OF_ROIS_PER_FRAME = 10  # Set a limit on how many ROIs to accept at the maximum for each frame
 
-MIN_BRIGHTNESS_FOR_PREDICTION = 50  # A spot in the camera image needs to have at least X brightness to be considered.
+MIN_BRIGHTNESS = 50  # A spot in the camera image needs to have at least X brightness to be considered.
 
 
 class ROIExtractor:
@@ -13,14 +13,18 @@ class ROIExtractor:
     def __init__(self, crop_image_size):
         self.crop_image_size = crop_image_size
         self.margin = int(self.crop_image_size / 2)
+        # Create a black rectangle to fill the ROIs after their extraction
+        self.cutout = np.zeros((self.crop_image_size, self.crop_image_size), 'uint8')
 
     # @timeit('get_all_rois')
     def get_all_rois(self, image):
         """ Get all ROIs
 
+            Extract all ROIs from the current frame
 
         """
 
+        # TODO: Check why we crash here sometimes
         # TODO: If you get too many ROIs, the exposure of the camera should be reduced
         # TODO: Maybe some sort of auto calibration could fix this
 
@@ -28,49 +32,50 @@ class ROIExtractor:
         roi_coords_new = []
         max_brightness_values = []
 
+        try:
+            # TODO: Try to only copy the ROI and not the entire image. Does not work because I can't set the image flag to writeable.
+            image_copy = image.copy()
 
+            for i in range(MAX_NUMBER_OF_ROIS_PER_FRAME):
 
-        # Create a black rectangle to fill the ROIs after their extraction
-        cutout = np.zeros((self.crop_image_size, self.crop_image_size), 'uint8')
+                # Get max brightness value of frame and its location
+                _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image_copy)
 
-        # TODO: Try to only copy the ROI and not the entire image. Does not work because I can't set the image flag to writeable.
-        image_copy = image.copy()
+                # Stop if point is not bright enough to be considered
+                if brightest < MIN_BRIGHTNESS:
+                    # if i > 0:
+                    #    print('Stopped after {} iterations. Brightness values {}'.format(i, max_brightness_values))
+                    return rois_new, roi_coords_new, max_brightness_values
 
-        for i in range(MAX_NUMBER_OF_ROIS_PER_FRAME):
+                # Cut out region of interest around brightest point in image
+                img_cropped = image[max_y - self.margin: max_y + self.margin, max_x - self.margin: max_x + self.margin]
 
-            # Get max brightness value of frame and its location
-            _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image_copy)
+                # If the point is close to the image border, the output image will be too small
+                # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
+                # Problems only appear on the image border.
 
-            # Stop if point is not bright enough to be considered
-            if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
-                # if i > 0:
-                #    print('Stopped after {} iterations. Brightness values {}'.format(i, max_brightness_values))
-                return rois_new, roi_coords_new, max_brightness_values
+                if img_cropped.shape[0] == self.crop_image_size and img_cropped.shape[1] == self.crop_image_size:
 
-            # Cut out region of interest around brightest point in image
-            img_cropped = image[max_y - self.margin: max_y + self.margin, max_x - self.margin: max_x + self.margin]
+                    # image.setflags(write=1)
+                    # Set all pixels in ROI to black
+                    image_copy[max_y - self.margin: max_y + self.margin, max_x - self.margin: max_x + self.margin] = self.cutout
+                    # image.setflags(write=0)
 
-            # If the point is close to the image border, the output image will be too small
-            # TODO: Improve this later. Currently no need, as long as the camera FOV is larger than the projection area.
-            # Problems only appear on the image border.
+                    rois_new.append(img_cropped)
+                    # TODO: Forward the top-left corner of the ROI here and not the brightest spot
+                    roi_coords_new.append((max_x, max_y))
+                    max_brightness_values.append(brightest)
 
-            if img_cropped.shape[0] == self.crop_image_size and img_cropped.shape[1] == self.crop_image_size:
+                else:
+                    # print('ROI shape too small')
 
-                # image.setflags(write=1)
-                # Set all pixels in ROI to black
-                image_copy[max_y - self.margin: max_y + self.margin, max_x - self.margin: max_x + self.margin] = cutout
-                # image.setflags(write=0)
+                    # Set just this pixel to black
+                    # TODO: Needs improvement, set also the surrounding area to black
+                    image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
 
-                rois_new.append(img_cropped)
-                roi_coords_new.append((max_x, max_y))
-                max_brightness_values.append(brightest)
-
-            else:
-                # print('ROI shape too small')
-
-                # Set just this pixel to black
-                # TODO: Needs improvement, set also the surrounding area to black
-                image_copy[max_y, max_x] = np.zeros((1, 1, 1), 'uint8')
+        except Exception as e:
+            print('[IRPen]: ERROR in/after "self.get_all_rois(frame):"', e)
+            rois_new, roi_coords_new, max_brightness_values = [], [], []
 
         return rois_new, roi_coords_new, max_brightness_values
 
@@ -90,7 +95,7 @@ class ROIExtractor:
     #             # TODO: Find solution for dead pixel
     #             continue
     #
-    #         if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
+    #         if brightest < MIN_BRIGHTNESS:
     #             break
     #
     #         img_cropped = img[max_y - margin: max_y + margin, max_x - margin: max_x + margin].copy()
@@ -117,7 +122,7 @@ class ROIExtractor:
         _, brightest, _, (max_x, max_y) = cv2.minMaxLoc(image)
 
         # Stop if point is not bright enough to be considered
-        if brightest < MIN_BRIGHTNESS_FOR_PREDICTION:
+        if brightest < MIN_BRIGHTNESS:
             return None, brightest, (max_x, max_y)
 
         # Cut out region of interest around brightest point in image
