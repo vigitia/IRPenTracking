@@ -1,7 +1,6 @@
 import os
 import os.path
 import glob
-import argparse
 import cv2
 import numpy as np
 import json
@@ -13,7 +12,7 @@ GRAYCODE_STEP = 1
 BLACK_THRESHOLD = 40
 WHITE_THRESHOLD = 5
 
-IMAGES_PATH = 'projector_camera_calibration/captures'
+IMAGES_PATH = 'wip/projector_camera_calibration/captures'
 
 
 def main():
@@ -128,7 +127,7 @@ def calibrate(image_parent_folders, file_paths_camera_n, camP=None, camD=None):
                         src_points.append((x, y))
                         dst_points.append(GRAYCODE_STEP * np.array(proj_pix))
             if len(src_points) < patch_size_half ** 2:
-                print('    Warning : corner', c_x, c_y, 'was skiped because decoded pixels were too few (check your images and threasholds)')
+                print('    Warning : corner', c_x, c_y, 'was skiped because decoded pixels were too few (check your images and thresholds)')
                 continue
             h_mat, inliers = cv2.findHomography(np.array(src_points), np.array(dst_points))
             point = h_mat @ np.array([corner[0][0], corner[0][1], 1]).transpose()

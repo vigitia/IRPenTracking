@@ -15,7 +15,6 @@ CATEGORY = TRAINING_CATEGORIES[2]
 
 TRAINING_ROUND = 2  # Increment after each training round
 
-
 NUM_WAIT_FRAMES = 10
 
 
