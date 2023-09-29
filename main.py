@@ -15,7 +15,7 @@ from pen_color_detection.pen_color_detector import PenColorDetector
 
 UNIX_SOCK_NAME = 'uds_test'
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
-DEBUG_MODE = False  # Enable for Debug print statements and preview windows
+DEBUG_MODE = True  # Enable for Debug print statements and preview windows
 
 # Select Frontend and other target applications here:
 
@@ -190,22 +190,33 @@ class Main:
         g = 0
         b = 0
 
-        if active_pen_event.id in self.color_id_assignments.keys():
-            if active_pen_event.id in self.color_id_assignments:
-                col = self.color_id_assignments[active_pen_event.id]
-                r = 255 if col == "r" else 0
-                g = 255 if col == "g" else 0
-                b = 255 if col == "b" else 0
-        else:
-            r = g = b = 255
+        if JUERGEN_MODE:
+            if active_pen_event.id in self.color_id_assignments.keys():
+                if active_pen_event.id in self.color_id_assignments:
+                    col = self.color_id_assignments[active_pen_event.id]
+                    r = 255 if col == "r" else 0
+                    g = 255 if col == "g" else 0
+                    b = 255 if col == "b" else 0
+            else:
+                r = g = b = 255
 
-
-        # if active_pen_event.id % 3 == 0:
-        #     r = 0
-        # if active_pen_event.id % 3 == 1:
-        #     g = 0
-        # if active_pen_event.id % 3 == 2:
-        #     b = 0
+        # Create test colors
+        if DEBUG_MODE:
+            if active_pen_event.id % 6 == 0:
+                r = 255
+            if active_pen_event.id % 6 == 1:
+                g = 255
+            if active_pen_event.id % 6 == 2:
+                b = 255
+            if active_pen_event.id % 6 == 3:
+                r = 255
+                g = 255
+            if active_pen_event.id % 6 == 4:
+                r = 255
+                b = 255
+            if active_pen_event.id % 6 == 5:
+                g = 255
+                b = 255
 
         message = 'l {} {} {} {} {} {} {}'.format(active_pen_event.id, r, g, b,
                                                   int(active_pen_event.x),
