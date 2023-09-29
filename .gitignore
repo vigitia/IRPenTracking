@@ -153,3 +153,4 @@ sdl_frontend/highscore/
 sdl_frontend/path_game_log/
 
 sdl_frontend/highscore.csv
+TipTrack/config/config.ini

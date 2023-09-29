@@ -74,18 +74,25 @@ class SurfaceSelector:
 
         return calibration_finished
 
+    def __display_previous_calibration(self, frame, camera_parameter_name):
+
+        if camera_parameter_name in self.calibration_data.keys():
+            # Display previous points
+            cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_top_left'],
+                       CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+            cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_top_right'],
+                       CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+            cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_bottom_left'],
+                       CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+            cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_bottom_right'],
+                       CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+
+        return frame
+
     def display_mode_calibration(self, frame, camera_parameter_name):
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
-        # Display previous points
-        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_top_left'],
-                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
-        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_top_right'],
-                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
-        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_bottom_left'],
-                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
-        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_bottom_right'],
-                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+        frame = self.__display_previous_calibration(frame, camera_parameter_name)
 
         if not camera_parameter_name in self.last_mouse_click_coordinates.keys():
             self.last_mouse_click_coordinates[camera_parameter_name] = []
