@@ -9,6 +9,8 @@ CONFIG_FILE_NAME = 'config.ini'
 
 FLIP_IMAGE = False  # Flip the output image 180° -> Needed if cameras see the projection area upside down
 
+OFFSET_PX = 10  # If the line is not properly aligned with the pen tip, you can set an offset here to correct for this
+
 
 class SurfaceExtractor:
     """ SurfaceExtractor
@@ -75,10 +77,10 @@ class SurfaceExtractor:
         return homography
 
     def __get_points(self, camera_parameter_name, x, y):
-        pts1 = np.float32([self.config[camera_parameter_name]['cornertopleft'],
-                           self.config[camera_parameter_name]['cornertopright'],
-                           self.config[camera_parameter_name]['cornerbottomleft'],
-                           self.config[camera_parameter_name]['cornerbottomright']])
+        pts1 = np.float32([self.__apply_offset(self.config[camera_parameter_name]['cornertopleft'], False, False),
+                           self.__apply_offset(self.config[camera_parameter_name]['cornertopright'], True, False),
+                           self.__apply_offset(self.config[camera_parameter_name]['cornerbottomleft'], False, True),
+                           self.__apply_offset(self.config[camera_parameter_name]['cornerbottomright'], True, True)])
 
         x0 = 0
         y0 = 0
@@ -91,4 +93,20 @@ class SurfaceExtractor:
             pts2 = np.float32([[x1, y1], [x0, y1], [x1, y0], [y0, y0]])
 
         return pts1, pts2
+
+    # Apply the offset to the four corner points.
+    def __apply_offset(self, point, add_to_x, add_to_y):
+
+        # If true, add if false, substract
+        if add_to_x:
+            point = (point[0] + OFFSET_PX, point[1])
+        else:
+            point = (point[0] - OFFSET_PX, point[1])
+
+        if add_to_y:
+            point = (point[0], point[1] + OFFSET_PX)
+        else:
+            point = (point[0], point[1] - OFFSET_PX)
+
+        return point
 
