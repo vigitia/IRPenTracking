@@ -10,7 +10,8 @@ import configparser
 from ast import literal_eval as make_tuple  # Needed to convert strings stored in config file back to tuples
 
 CIRCLE_DIAMETER = 2
-CIRCLE_COLOR = (255, 255, 255)
+CIRCLE_COLOR = (0, 0, 255)
+CIRCLE_COLOR_OLD = (0, 255, 0)
 FONT_COLOR = (0, 0, 0)
 
 CONFIG_FILE_PATH = os.path.join(os.getcwd(), 'TipTrack', 'config')
@@ -26,11 +27,6 @@ class SurfaceSelector:
     """
 
     last_mouse_click_coordinates = {}
-
-    table_corner_top_left = (0, 0)
-    table_corner_top_right = (0, 0)
-    table_corner_bottom_left = (0, 0)
-    table_corner_bottom_right = (0, 0)
 
     calibration_data = {}
 
@@ -79,7 +75,17 @@ class SurfaceSelector:
         return calibration_finished
 
     def display_mode_calibration(self, frame, camera_parameter_name):
-        # frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+        # Display previous points
+        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_top_left'],
+                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_top_right'],
+                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_bottom_left'],
+                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
+        cv2.circle(frame, self.calibration_data[camera_parameter_name]['corner_bottom_right'],
+                   CIRCLE_DIAMETER, CIRCLE_COLOR_OLD, 1)
 
         if not camera_parameter_name in self.last_mouse_click_coordinates.keys():
             self.last_mouse_click_coordinates[camera_parameter_name] = []

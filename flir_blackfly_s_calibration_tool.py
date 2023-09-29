@@ -3,6 +3,7 @@
 import time
 import threading
 import cv2
+import numpy as np
 
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_selector import SurfaceSelector
@@ -11,6 +12,8 @@ EXTRACT_PROJECTION_AREA = False
 PREVIEW_MODE = False  # Em
 
 CAM_EXPOSURE_FOR_CALIBRATION = 100000  # Increase Brightness to better see the corners
+
+OUTPUT_RESOLUTION = (2160, 3840)
 
 
 class FlirBlackFlySCalibrationTool:
@@ -28,8 +31,15 @@ class FlirBlackFlySCalibrationTool:
     finished_camera_calibrations = []
 
     def __init__(self):
-        #self.main_thread = threading.Thread(target=self.main_thread)
-        #self.main_thread.start()
+
+        cv2.namedWindow('screen', cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty('screen', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+        # Create white frame
+        self.calibration_target = np.zeros(OUTPUT_RESOLUTION, np.uint8)
+        self.calibration_target.fill(255)
+
+        print(self.calibration_target.shape)
 
         if PREVIEW_MODE:
             self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
@@ -39,10 +49,6 @@ class FlirBlackFlySCalibrationTool:
 
         self.main_loop()
 
-        # Hacky workarount to keep main thread alive
-        # TODO: Improve this
-        # time.sleep(86400)  # Wait really long (24h)
-
     def main_loop(self):
         while True:
 
@@ -51,6 +57,8 @@ class FlirBlackFlySCalibrationTool:
             if PREVIEW_MODE:
                 if not self.windows_initialized and len(self.camera_serial_numbers) > 0:
                     self.__init_preview_windows(self.frames, self.camera_serial_numbers)
+
+            cv2.imshow('screen', self.calibration_target)
 
             if len(self.frames) > 0:
                 for i, frame in enumerate(self.frames):
