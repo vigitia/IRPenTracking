@@ -132,25 +132,26 @@ dmypy.json
 *.swp
 *.swo
 
+### Own additions:
+
 .idea/
 
 sdl_frontend/screenshots/
 sdl_frontend/sdl_frontend
 
-*.yml
-
-assets/berlin_out.pdf
+TipTrack/config/config.ini
+TipTrack/config/*.yml
 
 cnn/training_images/
 cnn/calibration_images/
 cnn/logs/
-wip/projector_camera_calibration/
 
+wip/projector_camera_calibration/
 wip/rois_draw/
 
 sdl_frontend/highscore/
-
 sdl_frontend/path_game_log/
-
 sdl_frontend/highscore.csv
-TipTrack/config/config.ini
+
+
+assets/berlin_out.pdf

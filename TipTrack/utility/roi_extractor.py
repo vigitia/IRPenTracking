@@ -33,7 +33,8 @@ class ROIExtractor:
         max_brightness_values = []
 
         try:
-            # TODO: Try to only copy the ROI and not the entire image. Does not work because I can't set the image flag to writeable.
+            # TODO: Try to only copy the ROI and not the entire image.
+            #  Does not work because I can't set the image flag to writeable.
             image_copy = image.copy()
 
             for i in range(MAX_NUMBER_OF_ROIS_PER_FRAME):

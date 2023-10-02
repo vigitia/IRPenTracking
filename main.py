@@ -301,6 +301,7 @@ class Main:
     #             print('Broken Pipe in append_line')
     #             self.init_unix_socket()
 
+
     # @timeit('assign_color_to_pen()')
     def assign_color_to_pen(self, active_pen_events):
         relevant_pen_events = []

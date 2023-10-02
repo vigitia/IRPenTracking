@@ -97,7 +97,7 @@ class SurfaceExtractor:
     # Apply the offset to the four corner points.
     def __apply_offset(self, point, add_to_x, add_to_y):
 
-        # If true, add if false, substract
+        # If true, add; if false, substract
         if add_to_x:
             point = (point[0] + OFFSET_PX, point[1])
         else:

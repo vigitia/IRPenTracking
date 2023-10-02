@@ -1,15 +1,15 @@
-# UInput is used to create a virtual input device
-from evdev import UInput, ecodes as e, AbsInfo, InputDevice
+# The UInput package is used to create a virtual input device
+from evdev import UInput, ecodes as e, AbsInfo
 import time
 
 
-class InputSimulator:
+class MouseInputGenerator:
 
     left_pressed = False
     right_pressed = False
 
     def __init__(self, w, h):
-        # specify capabilities for our virtual input device
+        # Specify capabilities for our virtual input device
         self.capabilities = {
             e.EV_KEY: [e.KEY_POWER, e.BTN_LEFT, e.BTN_MOUSE, e.BTN_RIGHT, e.BTN_MIDDLE],
             e.EV_REL: [e.REL_WHEEL],
@@ -24,7 +24,7 @@ class InputSimulator:
 
     def sync_event(self):
         self.device.syn()
-        #time.sleep(0.001)
+        # time.sleep(0.001)
 
     def input_event(self, x, y, state):
         self.device.write(e.EV_ABS, e.ABS_X, x)
@@ -34,7 +34,7 @@ class InputSimulator:
             self.device.write(e.EV_KEY, e.BTN_LEFT, 1)
             self.was_pressed = True
         else:
-            if self.was_pressed == True:
+            if self.was_pressed:
                 self.device.write(e.EV_KEY, e.BTN_LEFT, 0)
                 self.was_pressed = False
 
@@ -72,7 +72,7 @@ class InputSimulator:
             elif btn == 'right':
                 self.right_pressed = True
         else:
-            if self.was_pressed == True:
+            if self.was_pressed:
                 print(btn + ' release')
                 self.device.write(e.EV_KEY, button, 0)
                 self.was_pressed = False
@@ -80,9 +80,3 @@ class InputSimulator:
     def close(self):
         time.sleep(0.1)
         self.device.close()
-
-
-if __name__ == '__main__':
-    input_device = InputSimulator(1920, 1080)
-    input_device.input_event(1, 0, 'draw')
-    input_device.close()

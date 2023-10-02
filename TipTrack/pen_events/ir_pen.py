@@ -237,11 +237,11 @@ class IRPen:
 
                 roi_preview = entry['roi'].copy()
                 roi_preview = cv2.resize(roi_preview, (960, 960), interpolation=cv2.INTER_AREA)
-                roi_preview = self.add_label(roi_preview, entry['prediction'], 80)
-                roi_preview = self.add_label(roi_preview, 'CAM ID: {}'.format(i), 130)
-                roi_preview = self.add_label(roi_preview, 'MAX: {}'.format(int(entry['max_brightness'])), 180)
-                roi_preview = self.add_label(roi_preview, 'POS: {}, {}'.format(int(entry['subpixel_coords'][0]),
-                                                                               int(entry['subpixel_coords'][1])), 230)
+                roi_preview = self.__add_label(roi_preview, entry['prediction'], 80)
+                roi_preview = self.__add_label(roi_preview, 'CAM ID: {}'.format(i), 130)
+                roi_preview = self.__add_label(roi_preview, 'MAX: {}'.format(int(entry['max_brightness'])), 180)
+                roi_preview = self.__add_label(roi_preview, 'POS: {}, {}'.format(int(entry['subpixel_coords'][0]),
+                                                                                 int(entry['subpixel_coords'][1])), 230)
 
                 if preview_image_all_rois is None:
                     preview_image_all_rois = roi_preview
@@ -253,7 +253,8 @@ class IRPen:
         if preview_image_all_rois is not None:
             cv2.imshow('All ROIs', preview_image_all_rois)
 
-    def add_label(self, frame, label, y_pos):
+    @staticmethod
+    def __add_label(frame, label, y_pos):
         return cv2.putText(
             img=frame,
             text=str(label),
