@@ -149,5 +149,6 @@ class HIDDevice:
             return True
         return False
 
+
 if __name__ == '__main__':
     hid_device = HIDDevice()

@@ -1,5 +1,5 @@
 # The UInput package is used to create a virtual input device
-from evdev import UInput, ecodes as e, AbsInfo
+from evdev import UInput, ecodes as e, AbsInfo, UInputError
 import time
 
 
@@ -19,7 +19,14 @@ class MouseInputGenerator:
                     (e.ABS_PRESSURE, AbsInfo(0, 0, 4000, 0, 0, 31))],
         }
 
-        self.device = UInput(self.capabilities, name='mouse', version=0x3)
+        try:
+            self.device = UInput(self.capabilities, name='mouse', version=0x3)
+        except UInputError as error:
+            print('\n[MouseInputGenerator]: Error: '
+                  'Missing permission to open "/dev/uinput" for writing. Run the following command in your terminal:')
+            print('\nsudo chmod +0666 /dev/uinput\n')
+
+
         self.was_pressed = False
 
     def sync_event(self):
