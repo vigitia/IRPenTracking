@@ -6,16 +6,14 @@ import cv2
 import PySpin
 
 from TipTrack.utility.surface_extractor import SurfaceExtractor
+from TipTrack.utility.camera_undistortion_utility import CameraUndistortionUtility
 
 
 # CONSTANTS and Camera Settings
 
 DEBUG_MODE = False
 
-LOAD_INTRINSIC_CAMERA_CALIBRATION = False
-
-# TODO: FIX PATH
-CALIBRATION_DATA_PATH = 'config'  # Specify location where the calibration file should be saved
+INTRINSIC_CAMERA_CALIBRATION = False
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
@@ -44,13 +42,13 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
     """
 
     start_time = datetime.datetime.now()
-    # frame_counter = 0
 
-    def __init__(self, cam_id, cam, subscriber):
+    def __init__(self, cam_id, cam, subscriber, rectify_maps=None):
         super(DeviceEventHandler, self).__init__()
         self.cam_id = cam_id
         self.cam = cam
         self.subscriber = subscriber
+        self.rectify_maps = rectify_maps
 
     def OnDeviceEvent(self, event_name):
         """ OnDeviceEvent
@@ -64,15 +62,13 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         # Check if all cameras are already initialized
         global all_cameras_ready
         if not all_cameras_ready:
-            # print('OnDeviceEvent: Not all cameras initialized')
+            # Not all cameras initialized yet, therefore skip this event
             return
 
-        # self.count += 1
         # Print information on specified device event
-        # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.cam_id,
+        # print('\tDevice Event "{}" ({}) from camera {}; {}'.format(event_name, self.GetDeviceEventId(), self.camera_serial_number,
         #                                                            self.count))
 
-        # start_time = datetime.datetime.now()
         # TODO: How long to wait here? -> Define grabTimeout
         image_result = self.cam.GetNextImage(100)
 
@@ -84,19 +80,19 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             if self.cam_id == SERIAL_NUMBER_MASTER:
                 global cam_image_master
                 cam_image_master = image_result.GetNDArray()
-                # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
+                if INTRINSIC_CAMERA_CALIBRATION:
+                    cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[0], self.rectify_maps[1],
+                                                 interpolation=cv2.INTER_LINEAR)
             elif self.cam_id == SERIAL_NUMBER_SLAVE:
                 global cam_image_slave
                 cam_image_slave = image_result.GetNDArray()
                 self.check_both_frames_available()
-                # cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[i][0], self.rectify_maps[i][1], interpolation=cv2.INTER_LINEAR)
+                if INTRINSIC_CAMERA_CALIBRATION:
+                    cam_image_slave = cv2.remap(cam_image_slave, self.rectify_maps[0], self.rectify_maps[1],
+                                                interpolation=cv2.INTER_LINEAR)
 
         #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
         image_result.Release()
-
-        # end_time = datetime.datetime.now()
-        # run_time = (end_time - start_time).microseconds / 1000.0
-        # print('Time for self.cam.GetNextImage(1000)', run_time, self.cam_id)
 
     def check_both_frames_available(self):
         global cam_image_master
@@ -115,30 +111,27 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
             cam_image_master = None
             cam_image_slave = None
 
-            end_time = datetime.datetime.now()
-            run_time = (end_time - self.start_time).microseconds / 1000.0
-            expected_time_between_frames_ms = round(1000 / FRAMERATE, 2)
-            if run_time > expected_time_between_frames_ms * 1.5:
-                print('[Flir BlackFly S]: WARNING: Time to get both frames was {}ms, but should be {}ms'.format(run_time, expected_time_between_frames_ms))
-            self.start_time = datetime.datetime.now()
+            if DEBUG_MODE:
+                end_time = datetime.datetime.now()
+                run_time = (end_time - self.start_time).microseconds / 1000.0
+                expected_time_between_frames_ms = round(1000 / FRAMERATE, 2)
+                if run_time > expected_time_between_frames_ms * 1.5:
+                    print('[Flir BlackFly S]: WARNING: Time to get both frames was {}ms, but should be {}ms'.format(run_time, expected_time_between_frames_ms))
+                self.start_time = datetime.datetime.now()
         else:
             print('[Flir BlackFly S]: Warning! Not both frames available! Master available: {}, Slave available: {}'.format(cam_image_master is not None, cam_image_slave is not None))
 
 
 class FlirBlackflyS:
 
-    camera_matrices = []
-    dist_matrices = []
-    rectify_maps = []
+    # Data for optional intrinsic camera calibration
+    rectify_maps = {}
 
-    pyspin_system = None
-    cam_list = []
+    pyspin_system = None  # PySpin System object needed to access the cameras
+    cam_list = []  # List containing reference to all cameras
 
     device_event_handlers = []
     device_serial_numbers = []
-
-    start_time = time.time()
-    frame_counter = 0
 
     def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, subscriber=None, calibration_mode=False):
 
@@ -148,6 +141,7 @@ class FlirBlackflyS:
 
         self.calibration_mode = calibration_mode
         self.surface_extractor = SurfaceExtractor()
+        self.camera_undistortion_utility = CameraUndistortionUtility(FRAME_WIDTH, FRAME_HEIGHT)
 
         self.init_cameras(subscriber)
 
@@ -187,8 +181,11 @@ class FlirBlackflyS:
             for i, cam in enumerate(self.cam_list):
                 self.__initialize_camera(cam, i, subscriber)
 
-            if LOAD_INTRINSIC_CAMERA_CALIBRATION:
-                self.load_camera_calibration_data(self.device_serial_numbers)
+            if INTRINSIC_CAMERA_CALIBRATION:
+                for i, camera_serial_number in enumerate(self.device_serial_numbers):
+                    maps = self.camera_undistortion_utility.get_camera_undistort_rectify_maps(
+                        'Flir Blackfly S {}.yml'.format(camera_serial_number))
+                    self.rectify_maps[camera_serial_number] = maps
 
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
@@ -240,7 +237,7 @@ class FlirBlackflyS:
     def init_hardware_trigger(self, cam, device_serial_number):
         """ init_hardware_trigger
 
-            This will setup the cameras in a way so that the master camera will control when all other cameras
+            This will set up the cameras in a way so that the master camera will control when all other cameras
             take a picture. This should sync the images as good as possible.
         """
         if device_serial_number == SERIAL_NUMBER_MASTER:  # Set Master
@@ -259,36 +256,6 @@ class FlirBlackflyS:
             cam.TriggerMode.SetValue(PySpin.TriggerMode_On)
         else:
             print('[Flir BlackFly S]: WRONG CAMERA ID FOR MASTER AND SLAVE!:', type(device_serial_number))
-
-    def load_camera_calibration_data(self, camera_serial_numbers):
-        """
-
-            Work in progress to undistort each camera frame
-
-
-        """
-        print('[Flir BlackFly S]: load calibration data')
-
-        for i, camera_serial_number in enumerate(camera_serial_numbers):
-            self.camera_matrices.append([None])
-            self.dist_matrices.append([None])
-            try:
-                # TODO: Change path
-                cv_file = cv2.FileStorage(os.path.join(CALIBRATION_DATA_PATH, 'Flir Blackfly S {}.yml'.format(camera_serial_number)),
-                                          cv2.FILE_STORAGE_READ)
-                self.camera_matrices[i] = cv_file.getNode('K').mat()
-                self.dist_matrices[i] = cv_file.getNode('D').mat()
-
-                map1, map2 = cv2.initUndistortRectifyMap(self.camera_matrices[i], self.dist_matrices[i], None, None,
-                                                         (FRAME_WIDTH, FRAME_HEIGHT), cv2.CV_32FC1)
-
-                self.rectify_maps.append([])
-                self.rectify_maps[i] = [map1, map2]
-
-                cv_file.release()
-            except Exception as e:
-                print('[Flir BlackFly S]: Error in load_camera_calibration_data():', e)
-                print('[Flir BlackFly S]: Cant load calibration data for Flir Blackfly S {}.yml'.format(i))
 
     def apply_camera_settings(self, cam, serial_number):
 
@@ -406,16 +373,16 @@ class FlirBlackflyS:
 
         # TODO: Also set WIDTH AND HEIGHT, X_OFFSET, Y_OFFSET
 
-        # if cam.Width.GetAccessMode() == PySpin.RW:
-        #     cam.Width.SetValue(1920)
-        #     print("PySpin:Camera:Width:{}".format(cam.Width.GetValue()))
+        # if camera.Width.GetAccessMode() == PySpin.RW:
+        #     camera.Width.SetValue(1920)
+        #     print("PySpin:Camera:Width:{}".format(camera.Width.GetValue()))
         # else:
         #     print("PySpin:Camera:Failed to set Width to:{}".format(1920))
         #     return False
         #
-        # if cam.Height.GetAccessMode() == PySpin.RW:
-        #     cam.Height.SetValue(1200)
-        #     print("PySpin:Camera:Height:{}".format(cam.Height.GetValue()))
+        # if camera.Height.GetAccessMode() == PySpin.RW:
+        #     camera.Height.SetValue(1200)
+        #     print("PySpin:Camera:Height:{}".format(camera.Height.GetValue()))
         # else:
         #     print("PySpin:Camera:Failed to set Height to:{}".format(1200))
         #     return False
@@ -477,7 +444,7 @@ class FlirBlackflyS:
 
         return result
 
-    def configure_device_events(self, cam, cam_id, subscriber):
+    def configure_device_events(self, camera, camera_serial_number, subscriber):
         """ configure_device_events
 
             This function configures the example to execute device events by enabling all types of device events,
@@ -489,7 +456,7 @@ class FlirBlackflyS:
             success = True
 
             # Retrieve GenICam nodemap
-            nodemap = cam.GetNodeMap()
+            nodemap = camera.GetNodeMap()
 
             #  Retrieve device event selector
             #
@@ -556,7 +523,11 @@ class FlirBlackflyS:
             # events are registered generically, all event types will trigger a
             # device event; on the other hand, if an event handler is registered
             # specifically, only that event will trigger an event.
-            device_event_handler = DeviceEventHandler(cam_id, cam, subscriber)
+            if INTRINSIC_CAMERA_CALIBRATION:
+                device_event_handler = DeviceEventHandler(camera_serial_number, camera, subscriber,
+                                                          self.rectify_maps[camera_serial_number])
+            else:
+                device_event_handler = DeviceEventHandler(camera_serial_number, camera, subscriber)
 
             # Register device event handler
             #
@@ -571,7 +542,7 @@ class FlirBlackflyS:
             # to releasing the pyspin_system and while the device event handlers are still in
             # scope.
 
-            cam.RegisterEventHandler(device_event_handler, 'EventExposureEnd')
+            camera.RegisterEventHandler(device_event_handler, 'EventExposureEnd')
             # print('Device event handler registered specifically to EventExposureEnd events')
             # print('')
 
@@ -602,7 +573,8 @@ class FlirBlackflyS:
         self.cam_list.Clear()
 
         # Release pyspin_system instance
-        # TODO: This causes error "_PySpin.SpinnakerException: Spinnaker: Can't clear a camera because something still holds a reference to the camera [-1004]"
+        # TODO: This causes error "_PySpin.SpinnakerException: Spinnaker: Can't clear a camera because something still
+        #  holds a reference to the camera [-1004]"
         # self.pyspin_system.ReleaseInstance()
 
 
