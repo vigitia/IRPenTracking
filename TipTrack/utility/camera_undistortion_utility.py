@@ -2,7 +2,7 @@
 import os
 import cv2
 
-CALIBRATION_DATA_PATH = 'config'  # Specify location where the calibration file is saved
+CALIBRATION_DATA_PATH = os.path.join(os.getcwd(), 'TipTrack', 'config')  # Specify location where the calibration file is saved
 
 
 class CameraUndistortionUtility:
@@ -20,6 +20,7 @@ class CameraUndistortionUtility:
 
     def get_camera_undistort_rectify_maps(self, camera_name):
         camera_matrix, dist_matrix = self.__load_intrinsic_camera_calibration_data(camera_name)
+
         maps = self.__generate_maps(camera_matrix, dist_matrix)
 
         return maps

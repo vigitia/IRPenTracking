@@ -13,7 +13,7 @@ from TipTrack.utility.camera_undistortion_utility import CameraUndistortionUtili
 
 DEBUG_MODE = False
 
-INTRINSIC_CAMERA_CALIBRATION = False
+INTRINSIC_CAMERA_CALIBRATION = True
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
@@ -75,7 +75,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         # print(image_result.GetTimeStamp() / 1e9)
 
         if image_result.IsIncomplete():  # Ensure roi completion
-            print('[Flir BlackFly S]: Warning: Image incomplete with roi status %d' % image_result.GetImageStatus())
+            print('[Flir BlackFly S]: Warning: Image incomplete with Image Status %d' % image_result.GetImageStatus())
         else:
             if self.cam_id == SERIAL_NUMBER_MASTER:
                 global cam_image_master
@@ -118,7 +118,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
                 if run_time > expected_time_between_frames_ms * 1.5:
                     print('[Flir BlackFly S]: WARNING: Time to get both frames was {}ms, but should be {}ms'.format(run_time, expected_time_between_frames_ms))
                 self.start_time = datetime.datetime.now()
-        else:
+        elif DEBUG_MODE:
             print('[Flir BlackFly S]: Warning! Not both frames available! Master available: {}, Slave available: {}'.format(cam_image_master is not None, cam_image_slave is not None))
 
 
@@ -133,13 +133,12 @@ class FlirBlackflyS:
     device_event_handlers = []
     device_serial_numbers = []
 
-    def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, subscriber=None, calibration_mode=False):
+    def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, subscriber=None):
 
         # Overwrite the default exposure time if needed
         global EXPOSURE_TIME_MICROSECONDS
         EXPOSURE_TIME_MICROSECONDS = cam_exposure
 
-        self.calibration_mode = calibration_mode
         self.surface_extractor = SurfaceExtractor()
         self.camera_undistortion_utility = CameraUndistortionUtility(FRAME_WIDTH, FRAME_HEIGHT)
 
@@ -181,12 +180,6 @@ class FlirBlackflyS:
             for i, cam in enumerate(self.cam_list):
                 self.__initialize_camera(cam, i, subscriber)
 
-            if INTRINSIC_CAMERA_CALIBRATION:
-                for i, camera_serial_number in enumerate(self.device_serial_numbers):
-                    maps = self.camera_undistortion_utility.get_camera_undistort_rectify_maps(
-                        'Flir Blackfly S {}.yml'.format(camera_serial_number))
-                    self.rectify_maps[camera_serial_number] = maps
-
             cam_slave = self.cam_list.GetBySerial(SERIAL_NUMBER_SLAVE)
             cam_master = self.cam_list.GetBySerial(SERIAL_NUMBER_MASTER)
 
@@ -207,20 +200,23 @@ class FlirBlackflyS:
         if PySpin.IsAvailable(node_device_serial_number) and PySpin.IsReadable(node_device_serial_number):
             device_serial_number = node_device_serial_number.GetValue()
             print('[Flir BlackFly S]: Camera %d Serial Number: %s' % (i, device_serial_number))
+
+            if INTRINSIC_CAMERA_CALIBRATION:
+                maps = self.camera_undistortion_utility.get_camera_undistort_rectify_maps(
+                    'Flir Blackfly S {}.yml'.format(device_serial_number))
+                self.rectify_maps[device_serial_number] = maps
+
         self.device_serial_numbers.append(device_serial_number)
 
-        # Do not get matrices in calibration mode. The required config file does not exist yet
-        if not self.calibration_mode:
-            global matrices
-
-            if device_serial_number == SERIAL_NUMBER_MASTER:
-                # Make sure that the master camera will always be the first in the list
-                matrices[0] = self.surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT,
-                                                                    'Flir Blackfly S {}'.format(device_serial_number))
-            else:
-                matrices.append(self.surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT,
-                                                                      'Flir Blackfly S {}'.format(
-                                                                          device_serial_number)))
+        global matrices
+        if device_serial_number == SERIAL_NUMBER_MASTER:
+            # Make sure that the master camera will always be the first in the list
+            matrices[0] = self.surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT,
+                                                                'Flir Blackfly S {}'.format(device_serial_number))
+        else:
+            matrices.append(self.surface_extractor.get_homography(FRAME_WIDTH, FRAME_HEIGHT,
+                                                                  'Flir Blackfly S {}'.format(
+                                                                      device_serial_number)))
 
         cam.Init()  # Initialize camera
 
