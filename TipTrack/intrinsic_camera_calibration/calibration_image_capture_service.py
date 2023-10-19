@@ -9,6 +9,8 @@ CHESSBOARD_SQUARES = (9, 6)
 
 MIN_TIME_BETWEEN_FRAMES_SEC = 5
 
+CALIBRATION_IMAGE_PATH = 'calibration_images'
+
 
 class CalibrationImageCaptureService:
 
@@ -48,14 +50,14 @@ class CalibrationImageCaptureService:
         return self.picture_index_for_camera[camera_serial_number]
 
     def save_image(self, image, camera_serial_number):
-        if not os.path.exists('../cnn/calibration_images'):
-            os.makedirs('../cnn/calibration_images')
-        if not os.path.exists('calibration_images/Flir Blackfly S {}'.format(camera_serial_number)):
-            os.makedirs('calibration_images/Flir Blackfly S {}'.format(camera_serial_number))
+        if not os.path.exists(CALIBRATION_IMAGE_PATH):
+            os.makedirs(CALIBRATION_IMAGE_PATH)
+        if not os.path.exists(os.path.join(CALIBRATION_IMAGE_PATH,'Flir Blackfly S {}'.format(camera_serial_number))):
+            os.makedirs(os.path.join(CALIBRATION_IMAGE_PATH, 'Flir Blackfly S {}'.format(camera_serial_number)))
 
-        cv2.imwrite('calibration_images/Flir Blackfly S {}/{}.png'.format(camera_serial_number,
+        cv2.imwrite(os.path.join(CALIBRATION_IMAGE_PATH, 'Flir Blackfly S {}/{}.png'.format(camera_serial_number,
                                                                           self.picture_index_for_camera[
-                                                                              camera_serial_number]), image)
+                                                                              camera_serial_number])), image)
         print('Saved calibration image "{}.png" for camera "Flir Blackfly S {}"'.format(
             self.picture_index_for_camera[camera_serial_number], camera_serial_number))
 

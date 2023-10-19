@@ -13,7 +13,7 @@ from TipTrack.utility.camera_undistortion_utility import CameraUndistortionUtili
 
 DEBUG_MODE = False
 
-INTRINSIC_CAMERA_CALIBRATION = True
+INTRINSIC_CAMERA_CALIBRATION = False
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200

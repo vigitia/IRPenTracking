@@ -7,15 +7,17 @@ import cv2
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 # from realsense_d435 import RealsenseD435Camera
 
-from calibration_image_capture_service import CalibrationImageCaptureService
-from camera_calibration_service import CameraCalibrationService
+from TipTrack.intrinsic_camera_calibration.calibration_image_capture_service import CalibrationImageCaptureService
+from TipTrack.intrinsic_camera_calibration.camera_calibration_service import CameraCalibrationService
 
 NUM_IMAGES_TARGET = 10
+
+CAM_EXPOSURE_TIME_MICROSECONDS = 100000
 
 MANUAL_MODE = True
 
 
-class CalibrateCamera:
+class IntrinsicCameraCalibration:
 
     # num_collected_calibration_frames = {}
     num_collected_calibration_frames = None
@@ -26,24 +28,15 @@ class CalibrateCamera:
     camera_serial_numbers = []
 
     def __init__(self):
-        # camera_names = ['FlirBlackflyS 0', 'FlirBlackflyS 1']
-        #
-        # for camera_serial_number in camera_names:
-        #     self.num_collected_calibration_frames[camera_serial_number] = 0
 
-        # self.calibration_image_capture_service = CalibrationImageCaptureService(camera_names)
         self.camera_calibration_service = CameraCalibrationService()
 
-        # self.realsense_d435_camera = RealsenseD435Camera(extract_projection_area=False)
-        # self.realsense_d435_camera.init_video_capture()
-        # self.realsense_d435_camera.start()
+        self.flir_blackfly_s = FlirBlackflyS(cam_exposure=CAM_EXPOSURE_TIME_MICROSECONDS, subscriber=self)
 
-        self.flir_blackfly_s = FlirBlackflyS(cam_exposure=300000, subscriber=self)
-
-        thread = threading.Thread(target=self.debug_mode_thread)
+        thread = threading.Thread(target=self.main_thread)
         thread.start()
 
-    def debug_mode_thread(self):
+    def main_thread(self):
         while True:
             # time.sleep(1)
 
@@ -67,7 +60,9 @@ class CalibrateCamera:
         if len(frames) > 0 and not self.collection_finished:
 
             self.frames = frames
-            self.camera_serial_numbers = camera_serial_numbers
+
+            if len(self.camera_serial_numbers) == 0:
+                self.camera_serial_numbers = camera_serial_numbers
 
             if self.num_collected_calibration_frames is None:
                 self.num_collected_calibration_frames = {}
@@ -106,8 +101,6 @@ class CalibrateCamera:
         if self.check_all_frames_collected():
             self.calibrate_cameras()
 
-
-
     def calibrate_cameras(self):
         self.camera_calibration_service.calibrate_cameras(self.num_collected_calibration_frames.keys())
         print('Calibration Finished')
@@ -128,4 +121,4 @@ class CalibrateCamera:
 
 
 if __name__ == '__main__':
-    run = CalibrateCamera()
+    intrinsic_camera_calibration = IntrinsicCameraCalibration()
