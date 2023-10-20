@@ -79,17 +79,22 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
         else:
             if self.cam_id == SERIAL_NUMBER_MASTER:
                 global cam_image_master
-                cam_image_master = image_result.GetNDArray()
+
                 if INTRINSIC_CAMERA_CALIBRATION:
-                    cam_image_master = cv2.remap(cam_image_master, self.rectify_maps[0], self.rectify_maps[1],
+                    cam_image_master = cv2.remap(image_result.GetNDArray(), self.rectify_maps[0], self.rectify_maps[1],
                                                  interpolation=cv2.INTER_LINEAR)
+                else:
+                    cam_image_master = image_result.GetNDArray()
             elif self.cam_id == SERIAL_NUMBER_SLAVE:
                 global cam_image_slave
-                cam_image_slave = image_result.GetNDArray()
-                self.check_both_frames_available()
+
                 if INTRINSIC_CAMERA_CALIBRATION:
-                    cam_image_slave = cv2.remap(cam_image_slave, self.rectify_maps[0], self.rectify_maps[1],
+                    cam_image_slave = cv2.remap(image_result.GetNDArray(), self.rectify_maps[0], self.rectify_maps[1],
                                                 interpolation=cv2.INTER_LINEAR)
+                else:
+                    cam_image_slave = image_result.GetNDArray()
+
+                self.check_both_frames_available()
 
         #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.
         image_result.Release()

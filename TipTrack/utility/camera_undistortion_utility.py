@@ -27,7 +27,7 @@ class CameraUndistortionUtility:
 
     def __generate_maps(self, camera_matrix, dist_matrix):
         map1, map2 = cv2.initUndistortRectifyMap(camera_matrix, dist_matrix, None, None,
-                                                 (self.target_frame_width, self.target_frame_width), cv2.CV_32FC1)
+                                                 (self.target_frame_width, self.target_frame_height), cv2.CV_32FC1)
 
         return [map1, map2]
 

@@ -14,6 +14,7 @@ WHITE_THRESHOLD = 5
 
 IMAGES_PATH = 'wip/projector_camera_calibration/captures'
 
+# TODO: Source
 
 def main():
     image_parent_folders = sorted(glob.glob(os.path.join(IMAGES_PATH, 'capture_*')))
