@@ -2,7 +2,7 @@
 # coding: utf-8
 import sys
 
-# Code parts for asynchronous video capture taken from
+# Code parts for asynchronous video capture based on:
 # http://blog.blitzblit.com/2017/12/24/asynchronous-video-capture-in-python-with-opencv/
 
 import cv2
@@ -12,14 +12,12 @@ import time
 from TipTrack.utility.surface_selector import SurfaceSelector
 from TipTrack.utility.surface_extractor import SurfaceExtractor
 
-from pen_color_detection.pen_color_detector import PenColorDetector
-
-# TODO: exposure time und parameter setzen auf 33 und brightness hoch
+# TODO: Automatically set exposure time and other parameter (currently we do this manually in GUVCVIEW)
 
 CAMERA_ID = 0
 RES_X = 1280  # 1920  #3840  # 1280#3840#4096#
 RES_Y = 720  # 1080  # 2160  # 720#2160#2160#
-FPS = 60 # 60  # 30  # 15
+FPS = 60  # 60  # 30  # 15
 
 CALIBRATION_MODE = False
 CAMERA_PARAMETER_NAME = 'Logitech Brio'
@@ -36,8 +34,6 @@ class LogitechBrio:
 
     def __init__(self, subscriber):
         self.started = False
-        # self.read_lock = threading.Lock()
-
         surface_extractor = SurfaceExtractor()
         self.homography_matrix = surface_extractor.get_homography(RES_X, RES_Y, CAMERA_PARAMETER_NAME)
 
@@ -107,23 +103,23 @@ class LogitechBrioDebugger:
         camera.init_video_capture()
         camera.start()
         self.pen_detector = PenColorDetector()
-        
-    def on_new_brio_frame(self, frame, homography_matrix):
+
+        self.main_loop()
+
+    def main_loop(self):
+        while True:
+            time.sleep(1)
+
+    def on_new_color_frame(self, frame, homography_matrix):
         if CALIBRATION_MODE:
             calibration_finished = self.surface_selector.select_surface(frame, CAMERA_PARAMETER_NAME)
 
             if calibration_finished:
                 print('[Surface Selector Node]: Calibration finished for {}'.format(CAMERA_PARAMETER_NAME))
                 sys.exit(0)
-        # print(frame.shape)
-        else:
-
-
-            extracted_frame = self.surface_extractor.extract_table_area(frame, CAMERA_PARAMETER_NAME)
-            pens = self.pen_detector.detect(extracted_frame, [[0, 3058, 1230], [1, 3058 / 2, 1230], [2, 100, 1230]])
-
+            print(frame.shape)
+        elif frame is not None:
             cv2.imshow('Logitech Brio', frame)
-            cv2.imshow('Logitech Projection Area', extracted_frame)
             cv2.waitKey(1)
 
 
