@@ -5,6 +5,7 @@ import numpy as np
 import configparser
 
 CONFIG_FILE_PATH = os.path.join(os.getcwd(), 'TipTrack', 'config')
+# CONFIG_FILE_PATH = os.path.join('../../', 'TipTrack', 'config')
 CONFIG_FILE_NAME = 'config.ini'
 
 FLIP_IMAGE = False  # Flip the output image 180° -> Needed if cameras see the projection area upside down

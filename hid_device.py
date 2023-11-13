@@ -27,7 +27,7 @@ WINDOW_WIDTH = 3840  #
 WINDOW_HEIGHT = 2160
 
 MAX_MOVEMENT_PX = 5
-LONG_CLICK_TIME = 1.75  # 0.35
+LONG_CLICK_TIME_SEC = 0.35
 
 
 class HIDDevice:
@@ -38,8 +38,8 @@ class HIDDevice:
     last_draw_coords = []
 
     current_click_type = 'left'
-
     def __init__(self):
+
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
         self.mouse_input_generator = MouseInputGenerator(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -104,7 +104,7 @@ class HIDDevice:
                 else:
                     now = time.time()
                     # print(now, self.draw_start_timestamp, now - self.draw_start_timestamp)
-                    if now - self.draw_start_timestamp >= LONG_CLICK_TIME:
+                    if now - self.draw_start_timestamp >= LONG_CLICK_TIME_SEC:
                         self.current_click_type = 'right'
                         draw_just_started = True
                         # print('RIGHT CLICK')
@@ -121,7 +121,7 @@ class HIDDevice:
 
         # Check if the event happens within the projection area
         if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
-            print(int(x), int(y))
+            # print(int(x), int(y))
 
             self.mouse_input_generator.move_event(int(x), int(y))
 
@@ -131,7 +131,8 @@ class HIDDevice:
                 self.mouse_input_generator.click_event(self.current_click_type, 'hover')
                 self.current_click_type = 'left'
             else:
-                print(self.current_click_type, state)
+                # print(self.current_click_type, state)
+                pass
 
             self.mouse_input_generator.sync_event()
         else:

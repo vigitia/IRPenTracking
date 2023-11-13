@@ -15,18 +15,20 @@ from pen_color_detection.pen_color_detector import PenColorDetector
 
 UNIX_SOCK_NAME = 'uds_test'
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
-DEBUG_MODE = True  # Enable for Debug print statements and preview windows
+DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
 # Select Frontend and other target applications here:
 
 SEND_DATA_USING_UNIX_SOCKET = True  # Enable if points should be forwarded using a Unix Socket
-if SEND_DATA_USING_UNIX_SOCKET:
+
+USE_SDL_FRONTEND = True
+if USE_SDL_FRONTEND:
     import subprocess
     subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
 
     time.sleep(2)
 
-JUERGEN_MODE = False
+JUERGEN_MODE = True
 if JUERGEN_MODE:
     from TipTrack.cameras.logitech_brio import LogitechBrio
 
@@ -186,9 +188,7 @@ class Main:
     last_timestamp = 0
 
     def add_new_line_point(self, active_pen_event):
-        r = 0
-        g = 0
-        b = 0
+        r = g = b = 255
 
         if JUERGEN_MODE:
             if active_pen_event.id in self.color_id_assignments.keys():
@@ -338,7 +338,6 @@ class Main:
 
         This method will be called automatically every time new frames are available from the primary camera(s) used
         for detecting the pen events on the surface.
-
 
         """
         if len(frames) > 0:

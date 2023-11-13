@@ -11,7 +11,7 @@ from TipTrack.utility.surface_selector import SurfaceSelector
 EXTRACT_PROJECTION_AREA = False
 PREVIEW_MODE = False  # Em
 
-CAM_EXPOSURE_FOR_CALIBRATION = 100000  # Increase Brightness to better see the corners
+CAM_EXPOSURE_FOR_CALIBRATION = 150000  # Increase Brightness to better see the corners
 
 OUTPUT_RESOLUTION = (2160, 3840)
 
@@ -38,8 +38,6 @@ class FlirBlackFlySCalibrationTool:
         # Create white frame
         self.calibration_target = np.zeros(OUTPUT_RESOLUTION, np.uint8)
         self.calibration_target.fill(255)
-
-        print(self.calibration_target.shape)
 
         if PREVIEW_MODE:
             self.flir_blackfly_s = FlirBlackflyS(subscriber=self)

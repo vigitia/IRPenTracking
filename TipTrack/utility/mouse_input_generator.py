@@ -21,11 +21,11 @@ class MouseInputGenerator:
 
         try:
             self.device = UInput(self.capabilities, name='mouse', version=0x3)
-        except UInputError as error:
+
+        except UInputError:
             print('\n[MouseInputGenerator]: Error: '
                   'Missing permission to open "/dev/uinput" for writing. Run the following command in your terminal:')
             print('\nsudo chmod +0666 /dev/uinput\n')
-
 
         self.was_pressed = False
 
@@ -71,7 +71,7 @@ class MouseInputGenerator:
             button = e.BTN_RIGHT
 
         if state == 'draw':
-            # print(btn + ' click')
+            print(btn + ' click')
             self.device.write(e.EV_KEY, button, 1)
             self.was_pressed = True
             if btn == 'left':

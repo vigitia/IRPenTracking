@@ -13,7 +13,7 @@ from TipTrack.utility.camera_undistortion_utility import CameraUndistortionUtili
 
 DEBUG_MODE = False
 
-INTRINSIC_CAMERA_CALIBRATION = False
+INTRINSIC_CAMERA_CALIBRATION = False  # Enable to load stored intrinsic camera calibration data and apply to frames.
 
 FRAME_WIDTH = 1920  # 800  # 1920
 FRAME_HEIGHT = 1200  # 600  # 1200
@@ -94,6 +94,7 @@ class DeviceEventHandler(PySpin.DeviceEventHandler):
                 else:
                     cam_image_slave = image_result.GetNDArray()
 
+                # TODO: This is not working properly. Sometimes not both frames are available when the slave camera is finished. This causes dropped frames right now.
                 self.check_both_frames_available()
 
         #  Images retrieved directly from the camera need to be released in order to keep from filling the buffer.

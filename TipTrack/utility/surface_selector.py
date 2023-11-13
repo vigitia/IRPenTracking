@@ -15,6 +15,7 @@ CIRCLE_COLOR_OLD = (0, 255, 0)
 FONT_COLOR = (0, 0, 0)
 
 CONFIG_FILE_PATH = os.path.join(os.getcwd(), 'TipTrack', 'config')
+# CONFIG_FILE_PATH = os.path.join('../../', 'TipTrack', 'config')
 CONFIG_FILE_NAME = 'config.ini'
 
 
@@ -90,7 +91,8 @@ class SurfaceSelector:
         return frame
 
     def display_mode_calibration(self, frame, camera_parameter_name):
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        if len(frame.shape) == 2:
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
         frame = self.__display_previous_calibration(frame, camera_parameter_name)
 
