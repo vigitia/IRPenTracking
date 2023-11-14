@@ -102,7 +102,6 @@ class LogitechBrioDebugger:
         camera = LogitechBrio(self)
         camera.init_video_capture()
         camera.start()
-        self.pen_detector = PenColorDetector()
 
         self.main_loop()
 

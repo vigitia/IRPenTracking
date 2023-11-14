@@ -7,7 +7,7 @@ from tensorflow import keras, lite
 import numpy as np
 
 
-MODEL_PATH = 'cnn/models/TipTrack_CNN'  # 'model_2023_026'  # 'cnn'  # Put the folder path here for the desired cnn
+MODEL_PATH = 'cnn/models/TipTrack_CNN'  # Put the folder path here for the desired cnn
 
 # Allowed states for CNN prediction
 STATES = ['draw', 'hover', 'hover_far', 'undefined']
@@ -60,15 +60,6 @@ class IRPenCNN:
         state = STATES[np.argmax(prediction)]
         confidence = np.max(prediction)
 
-        # if ACTIVE_LEARNING_COLLECTION_MODE:
-        #     if state != self.active_learning_state:
-        #         cv2.imwrite(f'{TRAIN_PATH}/{TRAIN_STATE}/{TRAIN_STATE}_{self.active_learning_counter}.png', image)
-        #         print(f'saving frame {self.active_learning_counter}')
-        #         self.active_learning_counter += 1
-
-        # print(state)
-        # if state == 'hover_far':
-        #     state = 'hover'
         return state, confidence
 
 
@@ -132,8 +123,6 @@ class LiteModel:
 
         except Exception as e:
             pass
-            # TODO: Andis dangerous bit. Turns out = is not a deep copy.
-            # print('Andis dangerous bit. Turns out = is not a deep copy.', e)
 
         return out
 
