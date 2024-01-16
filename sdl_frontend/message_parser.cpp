@@ -8,7 +8,6 @@ int parseMessage(char* buffer)
     //printf("\n");
     //fflush(stdout);
     //
-
     switch (buffer[0])
     {
         case CODE_LINE:
@@ -260,25 +259,52 @@ int parseMessageRect(char* buffer)
 int parseMessageDelete(char* buffer)
 {
     int id;
-    if(sscanf(buffer, "d %d ", &id) == 1)
+    float x;
+    float y;
+    float radius;
+    //printf("Got %s (in C++)", buffer);
+    if(sscanf(buffer, "d %d %f %f %f", &id, &x, &y, &radius) == 4)
     {
+        //printf("Eraser at %f,%f (in C++)", x,y);
+        //fflush(stdout);
+        //NEW BEHAVIOR: Lines are selected with a circle
+        //Possible Optimization: Compute Bounding boxes of lines and check collision with eraser before looping over every point
         for (vector<Line>::iterator it = lines.begin(); it != lines.end(); )
         {
-
-            if(it->id == id) 
-                it = lines.erase(it);
-            else 
+            if (collideLineWithCircle(it->coords, x, y, radius))
+                it=lines.erase(it);
+            else
                 ++it;
         }
 
         for (vector<Line>::iterator it = documentLines.begin(); it != documentLines.end(); )
         {
-
-            if(it->id == id) 
-                it = documentLines.erase(it);
-            else 
+            if (collideLineWithCircle(it->coords, x, y, radius))
+                it=lines.erase(it);
+            else
                 ++it;
         }
+
+        //OLD BEHAVIOR: Lines are selected by their ID
+    //if(sscanf(buffer, "d %d ", &id) == 1)
+    //{
+        //for (vector<Line>::iterator it = lines.begin(); it != lines.end(); )
+        //{
+
+        //    if(it->id == id) 
+        //        it = lines.erase(it);
+        //    else 
+        //        ++it;
+        //}
+
+        //for (vector<Line>::iterator it = documentLines.begin(); it != documentLines.end(); )
+        //{
+
+        //    if(it->id == id) 
+        //        it = documentLines.erase(it);
+        //    else 
+        //        ++it;
+        //}
 
         //for (auto line : lines)
         //{

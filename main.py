@@ -230,6 +230,12 @@ class Main:
         # self.last_timestamp = now
 
         self.send_message(message)
+    
+    # Sends message to frontend to erase all points in a radius around the current position of the pen.
+    # currently only there to define the syntax for the UNIX Socket message.
+    def erase_at_point(self, active_pen_event):
+        radius = 20 #TODO: make this a constant
+        message = 'd {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius)
 
     def send_message(self, message):
         self.message_queue.put(message)
