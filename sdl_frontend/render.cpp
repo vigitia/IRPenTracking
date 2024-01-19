@@ -3,6 +3,7 @@
 #include "study.h"
 #include "document.h"
 #include "path_game.h"
+#include "imagePanel.h"
 
 #include <vector>
 #include <map>
@@ -25,6 +26,7 @@ void render(SDL_Renderer* renderer)
     if(currentMode == phrase) renderPhrase(renderer);
     if(currentMode == image) renderImage(renderer);
     if(SHOW_LINES) renderLines(renderer);
+    if(SHOW_PALETTE) palette.render(renderer);
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentMode != cross) renderHoverIndicator(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
