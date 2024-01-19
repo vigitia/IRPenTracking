@@ -10,6 +10,9 @@ from TipTrack.pen_events.pen_event import PenEvent
 from TipTrack.pen_events.ir_pen import IRPen
 #from main import *
 from pen_color_detection.pen_color_detector import PenColorDetector
+
+from widget import Widget
+from palette import Palette
 SEND_DATA_USING_UNIX_SOCKET = True
 
 UNIX_SOCK_NAME = '/tmp/uds_test'
@@ -33,30 +36,58 @@ class TestFrontend:
 
         self.__init_unix_socket()
         # Start main loop in its own thread
+
+        self.draw_color = (255,255,255)
+        self.widgets = []
+        colors = [
+            ( -1,  -1,  -1),
+            (  0,   0, 255),
+            (  0, 255,   0),
+            (255,   0,   0),
+            (255, 255, 255)]
+        self.widgets.append(Palette(300353, 0,0,colors, 200, callback=self.choose_color_or_tool))
+
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
-        time.sleep(2)
-        self.draw_grid(5,25,100)
-        self.erase_in_line(50,50, 700, 700, 30)
-        self.draw_grid(5,25,700)
+        time.sleep(1)
+        self.test_palette()
 
-    def draw_grid(self, size, spacing, offset):
+    
+    def test_eraser (self):
+        self.draw_grid(5, 5,25,100, 100)
+        self.erase_in_line(50,50, 700, 700, 30)
+        self.draw_grid(5, 5,25,700, 700)
+
+    def test_palette (self):
+        self.draw_grid(4, 4, 25, 250, 250)
+
+        for i in range(0,4):
+            click_event = PenEvent(300 + i * 200,100, PenState.DRAG)
+            for widget in self.widgets:
+                if widget.is_point_on_widget(*click_event.get_coordinates()):
+                    widget.on_click(click_event)
+                else:
+                    print("ClickEvent missed")
+            self.draw_grid(4,4,25, 250, 350 + 100 * i)
+        
+
+    def draw_grid(self, size_x, size_y, spacing, offset_x, offset_y):
         x = 0
         y = 0
-        for i in range(0, size):
-            for j in range(0, size):
-                x = i * spacing + offset
-                y = j * spacing + offset
+        for i in range(0, size_x):
+            for j in range(0, size_y):
+                x = i * spacing + offset_x
+                y = j * spacing + offset_y
                 sim_pen_event = PenEvent(x,y,PenState.DRAG)
                 self.add_new_line_point(sim_pen_event)
                 time.sleep(0.002)
             end_pen_event = PenEvent(x,y, PenState.HOVER)
             self.finish_line(end_pen_event)
         
-        for i in range(0, size):
-            for j in range(0, size):
-                y = i * spacing + offset
-                x = j * spacing + offset
+        for i in range(0, size_x):
+            for j in range(0, size_y):
+                y = i * spacing + offset_y
+                x = j * spacing + offset_x
                 sim_pen_event = PenEvent(x,y,PenState.DRAG)
                 self.add_new_line_point(sim_pen_event)
                 time.sleep(0.002)
@@ -89,6 +120,13 @@ class TestFrontend:
             time.sleep(0.01)
         self.finish_line(PenEvent(x,y, PenState.DRAG))
 
+    def choose_color_or_tool(self, action, color):
+        if action == "COLOR":
+            print(f"updating color to {color}")
+            self.draw_color = color
+        elif action == "ERASE":
+            print("TODO: IMPLEMENT ERASING THINGS")
+
     def __init_unix_socket(self):
         self.unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -112,14 +150,13 @@ class TestFrontend:
         """
         message = 'f {}'.format(pen_event_to_remove.id)
 
-        print('Finish line', pen_event_to_remove.id)
-
         self.send_message(message)
 
     last_timestamp = 0
 
     def add_new_line_point(self, active_pen_event):
-        r = g = b = 255
+        #r = g = b = 255
+        r,g,b = self.draw_color
 
         message = 'l {} {} {} {} {} {} {}'.format(active_pen_event.id, r, g, b,
                                                   int(active_pen_event.x),
