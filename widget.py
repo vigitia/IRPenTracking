@@ -25,7 +25,6 @@ class Widget():
         self.height = height
     
     def is_point_on_widget(self, x, y):
-        print(f"Testing if Point {x}, {y} is on widget {self.id} at {self.pos_x}, {self.pos_y} and of dimensions {self.width}, {self.height}")
         return x >= self.pos_x and x <= self.pos_x + self.width and y >= self.pos_y and y <= self.pos_y +self.height
     
     def set_visibility(self, is_visible):

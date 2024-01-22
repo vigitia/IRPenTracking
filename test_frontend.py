@@ -4,6 +4,8 @@ import time
 import socket
 import threading
 import queue
+from enum import Enum
+from random import Random
 
 from TipTrack.pen_events.pen_state import PenState
 from TipTrack.pen_events.pen_event import PenEvent
@@ -23,6 +25,13 @@ if USE_SDL_FRONTEND:
     subprocess.Popen("cd sdl_frontend && ./sdl_frontend '/tmp/uds_test' 100", shell=True)
 
     time.sleep(2)
+
+ERASE_RADIUS = 10
+
+class Tool(Enum):
+    TOOL_DRAW = "draw"
+    TOOL_ERASE = "erase"
+
 
 class TestFrontend:
     """ Wrapper for Main class that allows for 
@@ -47,6 +56,8 @@ class TestFrontend:
             (255, 255, 255)]
         self.widgets.append(Palette(300353, 0,0,colors, 200, callback=self.choose_color_or_tool))
 
+        self.tool = Tool.TOOL_DRAW
+
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
         time.sleep(1)
@@ -59,7 +70,7 @@ class TestFrontend:
         self.draw_grid(5, 5,25,700, 700)
 
     def test_palette (self):
-        self.draw_grid(4, 4, 25, 250, 250)
+        self.draw_grid(4, 4, 26, 250, 250)
 
         for i in range(0,4):
             click_event = PenEvent(300 + i * 200,100, PenState.DRAG)
@@ -70,8 +81,28 @@ class TestFrontend:
                     print("ClickEvent missed")
             self.draw_grid(4,4,25, 250, 350 + 100 * i)
         
+        click_on_erase_event = PenEvent(150, 100, PenState.DRAG)
+        for widget in self.widgets:
+            for widget in self.widgets:
+                if widget.is_point_on_widget(*click_on_erase_event.get_coordinates()):
+                    widget.on_click(click_on_erase_event)
+
+        for i in range(0,100):
+            self.draw_random_line(200,200,1000,700,500)
+
+        self.erase_in_line(250,400,1400,1100, 1500)
+        
+        
+
+        
+
+        
+        
 
     def draw_grid(self, size_x, size_y, spacing, offset_x, offset_y):
+        if not self.tool == Tool.TOOL_DRAW:
+            return
+
         x = 0
         y = 0
         for i in range(0, size_x):
@@ -94,7 +125,26 @@ class TestFrontend:
             end_pen_event = PenEvent(x,y, PenState.HOVER)
             self.finish_line(end_pen_event)
 
+    def draw_random_line(self,min_x, min_y, max_x, max_y, steps):
+        start_x = x = Random().randrange(min_x, max_x)
+        end_x = Random().randrange(min_x, max_x)
+        start_y = y = Random().randrange(min_y, max_y)
+        end_y = Random().randrange(min_x, max_x)
+
+        for i in range(0,steps):
+            x += ((end_x - start_x) / steps)
+            y += ((end_y - start_y) / steps)
+
+            sim_pen_event = PenEvent(x, y, PenState.DRAG)
+            self.add_new_line_point(sim_pen_event)
+            time.sleep(0.0001)
+        end_pen_event = PenEvent(end_x, end_y, PenState.DRAG)
+        self.finish_line(end_pen_event)
+        
+
     def erase_in_line(self, start_x, start_y, end_x, end_y, steps):
+        if not self.tool == Tool.TOOL_ERASE:
+            return
         x = start_x
         y = start_y
 
@@ -106,7 +156,7 @@ class TestFrontend:
 
             sim_pen_event = PenEvent(x, y, PenState.DRAG)
             self.erase_at_point(sim_pen_event)
-            time.sleep(1)
+            time.sleep(0.005)
 
         x = start_x
         y = start_y
@@ -117,15 +167,19 @@ class TestFrontend:
 
             sim_pen_event = PenEvent(x, y, PenState.DRAG)
             self.add_new_line_point(sim_pen_event)
-            time.sleep(0.01)
+            time.sleep(0.001)
         self.finish_line(PenEvent(x,y, PenState.DRAG))
 
     def choose_color_or_tool(self, action, color):
         if action == "COLOR":
             print(f"updating color to {color}")
+            self.tool = Tool.TOOL_DRAW
             self.draw_color = color
         elif action == "ERASE":
-            print("TODO: IMPLEMENT ERASING THINGS")
+            self.tool = Tool.TOOL_ERASE
+        
+        print(f"You have now selected the {self.tool} tool")
+
 
     def __init_unix_socket(self):
         self.unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -175,7 +229,7 @@ class TestFrontend:
     # Sends message to frontend to erase all points in a radius around the current position of the pen.
     # currently only there to define the syntax for the UNIX Socket message.
     def erase_at_point(self, active_pen_event):
-        radius = 50 #TODO: make this a constant
+        radius = ERASE_RADIUS
         message = 'd {} {} {} {}'.format(active_pen_event.id, float(active_pen_event.x), float(active_pen_event.y), float(radius))
         self.send_message(message)
 

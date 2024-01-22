@@ -265,6 +265,7 @@ int parseMessageDelete(char* buffer)
     //printf("Got %s (in C++)", buffer);
     if(sscanf(buffer, "d %d %f %f %f", &id, &x, &y, &radius) == 4)
     {
+        mutex_lines.lock();
         //printf("Eraser at %f,%f (in C++)", x,y);
         //fflush(stdout);
         //NEW BEHAVIOR: Lines are selected with a circle
@@ -284,6 +285,17 @@ int parseMessageDelete(char* buffer)
             else
                 ++it;
         }
+        
+        mutex_lines.unlock();
+
+        showEraserIndicator = true;
+        eraserIndicatorRadius = radius;
+        eraserTips.clear(); // this WILL cause problems with more than one pen
+        //TODO: Notify frontend when eraser is ending the touch event
+        Point eraserPoint;
+        eraserPoint.x = x;
+        eraserPoint.y = y;
+        eraserTips.push_back(eraserPoint);
 
         //OLD BEHAVIOR: Lines are selected by their ID
     //if(sscanf(buffer, "d %d ", &id) == 1)

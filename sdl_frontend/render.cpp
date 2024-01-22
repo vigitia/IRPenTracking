@@ -29,6 +29,11 @@ void render(SDL_Renderer* renderer)
     if(SHOW_PALETTE) palette.render(renderer);
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentMode != cross) renderHoverIndicator(renderer);
+
+    if (showEraserIndicator) {
+        renderEraserIndicator(renderer);
+    }
+
     if(SHOW_PARTICLES) renderParticles(renderer);
     if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
@@ -215,6 +220,15 @@ void renderHoverIndicator(SDL_Renderer* renderer)
     for (auto point : points)
     {
         filledCircleColor(renderer, point.x, point.y, 3, HOVER_INDICATOR_COLOR);
+    }
+}
+
+void renderEraserIndicator(SDL_Renderer* renderer)
+{
+    for (auto point : eraserTips)
+    {
+        int circleDrawSuccess = circleColor(renderer, point.x, point.y, eraserIndicatorRadius, ERASE_INDICATOR_COLOR);
+        
     }
 }
 

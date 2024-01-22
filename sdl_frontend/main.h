@@ -39,6 +39,9 @@
 #define HOVER_INDICATOR_COLOR 0xFF00FFFF
 #define SHOW_HOVER_INDICATOR 1
 
+#define ERASE_INDICATOR_COLOR 0xAA0000FF
+#define SHOW_ERASE_INDICATOR 1
+
 #define SHOW_LINES 1
 
 #define STATE_HOVER 0
@@ -121,6 +124,10 @@ inline int currentId = 0;
 inline int participantId = 0;
 inline int currentX, currentY = 0;
 inline int currentState = 0;
+
+inline bool showEraserIndicator;
+inline float eraserIndicatorRadius;
+inline vector <Point> eraserTips; //quick hack. Probably better to use pens for detecting eraser position and rendering eraser marker
 
 inline mutex mutex_pens;
 inline mutex mutex_lines;
