@@ -63,12 +63,12 @@ class TestFrontend:
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
         time.sleep(1)
-        self.test_palette()
+        self.test_eraser()
 
     
     def test_eraser (self):
         self.draw_grid(5, 5,25,100, 100)
-        self.erase_in_line(50,50, 700, 700, 30)
+        self.erase_in_line(50,50, 700, 700, 300)
         self.draw_grid(5, 5,25,700, 700)
 
     def test_palette (self):
@@ -93,6 +93,9 @@ class TestFrontend:
             self.draw_random_line(200,200,1000,700,500)
 
         self.erase_in_line(250,400,1400,1100, 1500)
+
+        for i in range(0,20):
+            self.draw_random_line(1200,200,1400,700,500)
         
         
 
@@ -159,6 +162,9 @@ class TestFrontend:
             sim_pen_event = PenEvent(x, y, PenState.DRAG)
             self.erase_at_point(sim_pen_event)
             time.sleep(0.005)
+        
+        eraser_finish_event = PenEvent(x, y, PenState.HOVER)
+        self.finish_erasing(eraser_finish_event)
 
         x = start_x
         y = start_y
@@ -206,6 +212,12 @@ class TestFrontend:
         """
         message = 'f {}'.format(pen_event_to_remove.id)
 
+        self.send_message(message)
+
+        
+    def finish_erasing(self, pen_event_to_remove):
+
+        message = 'v {}'.format(pen_event_to_remove.id)
         self.send_message(message)
 
     last_timestamp = 0

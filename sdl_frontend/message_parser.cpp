@@ -39,6 +39,9 @@ int parseMessage(char* buffer)
         case CODE_DELETE:
             return parseMessageDelete(buffer);
             break;
+        case CODE_ERASE_FINISH:
+            return parseMessageFinishErase(buffer);
+            break;
     }
 
     return 0;
@@ -56,9 +59,11 @@ int parseMessageLine(char* buffer)
     // only continue if all values could be read correctly
     if(sscanf(buffer, "l %d %u %u %u %d %d %d ", &id, &r, &g, &b, &x, &y, &state) == 7)
     {
-        long long cur_micros = micros();
+        //Latency (?)
+
+        //long long cur_micros = micros();
         //cout << cur_micros - last_micros << endl;
-        last_micros = cur_micros;
+        //last_micros = cur_micros;
 
         mutex_pens.lock();
         if(pens.find(id) == pens.end())
@@ -265,6 +270,21 @@ int parseMessageDelete(char* buffer)
     //printf("Got %s (in C++)", buffer);
     if(sscanf(buffer, "d %d %f %f %f", &id, &x, &y, &radius) == 4)
     {
+        showEraserIndicator = true;
+        mutex_pens.lock();
+        if(pens.find(id) == pens.end())
+        {
+            struct Pen currentPen;
+            currentPen.currentLine.id = id;
+            currentPen.alive = 1;
+            pens[id] = currentPen;
+        }
+
+        pens[id].position.x = x;
+        pens[id].position.y = y;
+        pens[id].state = 1;
+
+        eraserIndicatorRadius = radius;
         mutex_lines.lock();
         //printf("Eraser at %f,%f (in C++)", x,y);
         //fflush(stdout);
@@ -287,15 +307,8 @@ int parseMessageDelete(char* buffer)
         }
         
         mutex_lines.unlock();
-
-        showEraserIndicator = true;
-        eraserIndicatorRadius = radius;
-        eraserTips.clear(); // this WILL cause problems with more than one pen
-        //TODO: Notify frontend when eraser is ending the touch event
-        Point eraserPoint;
-        eraserPoint.x = x;
-        eraserPoint.y = y;
-        eraserTips.push_back(eraserPoint);
+        
+        mutex_pens.unlock();
 
         //OLD BEHAVIOR: Lines are selected by their ID
     //if(sscanf(buffer, "d %d ", &id) == 1)
@@ -330,3 +343,18 @@ int parseMessageDelete(char* buffer)
     return 1;
 }
 
+
+int parseMessageFinishErase(char* buffer)
+{
+    int id;
+    
+    if(sscanf(buffer, "v %d ", &id) == 1)
+    {
+        showEraserIndicator = false;
+        pens[id].alive = 0;
+        pens[id].state = 0;
+
+        pens.erase(id);
+        mutex_pens.unlock();
+    }
+}

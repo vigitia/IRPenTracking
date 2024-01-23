@@ -57,6 +57,7 @@
 #define CODE_CLEAR 'c'
 #define CODE_CLEAR_SCREEN 'x'
 #define CODE_DELETE 'd'
+#define CODE_ERASE_FINISH 'v'
 
 inline char* SCREENSHOT_PATH = "screenshots/";
 inline const char* PHRASES_PATH = "evaluation/phrases.txt";
@@ -158,6 +159,7 @@ int parseMessageState(char* buffer);
 int parseMessageMatrix(char* buffer);
 int parseMessageRect(char* buffer);
 int parseMessageDelete(char* buffer);
+int parseMessageFinishErase(char* buffer);
 
 vector<string> split (string s, string delimiter);
 

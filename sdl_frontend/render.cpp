@@ -225,11 +225,19 @@ void renderHoverIndicator(SDL_Renderer* renderer)
 
 void renderEraserIndicator(SDL_Renderer* renderer)
 {
-    for (auto point : eraserTips)
+    mutex_pens.lock();
+    for (auto const& entry : pens)
     {
-        int circleDrawSuccess = circleColor(renderer, point.x, point.y, eraserIndicatorRadius, ERASE_INDICATOR_COLOR);
+        Pen pen = entry.second;
+        cout << "pen state and aliveness " << pen.state << pen.alive << endl;
+        if(pen.state == 1 && pen.alive == 1)
+        {
+            cout << "rendering hover indicator at " << pen.position.x << "," << pen.position.y << "|" << eraserIndicatorRadius << endl;
+            circleColor(renderer, pen.position.x, pen.position.y, eraserIndicatorRadius, ERASE_INDICATOR_COLOR);
+        }
         
     }
+    mutex_pens.unlock();
 }
 
 void renderLatencyTest(SDL_Renderer* renderer)

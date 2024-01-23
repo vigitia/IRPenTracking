@@ -273,6 +273,12 @@ class Main:
         radius = self.erase_radius
         message = 'd {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius)
         self.send_message(message)
+        
+    def finish_erasing(self, pen_event_to_remove):
+
+        message = 'v {}'.format(pen_event_to_remove.id)
+        self.send_message(message)
+
 
     def send_message(self, message):
         self.message_queue.put(message)
@@ -416,7 +422,7 @@ class Main:
                 if self.tool == self.Tool.TOOL_DRAW:
                     self.finish_line(pen_event)
                 elif self.tool == self.Tool.TOOL_ERASE:
-                    print("TODO: add message for lifting pen in eraser mode")
+                    self.finish_erasing(pen_event)
 
 
         if DOCUMENTS_DEMO:
