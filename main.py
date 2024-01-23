@@ -12,7 +12,7 @@ from TipTrack.pen_events.ir_pen import IRPen
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_extractor import SurfaceExtractor
 
-from pen_color_detection.pen_color_detector import PenColorDetector
+#from pen_color_detection.pen_color_detector import PenColorDetector
 
 from palette import Palette
 
@@ -31,7 +31,7 @@ if USE_SDL_FRONTEND:
 
     time.sleep(2)
 
-JUERGEN_MODE = True
+JUERGEN_MODE = False
 if JUERGEN_MODE:
     from TipTrack.cameras.logitech_brio import LogitechBrio
 
@@ -73,8 +73,10 @@ class Main:
         self.widgets = []
         self.tool = self.Tool.TOOL_DRAW
 
+        self.init_palette()
+
         if JUERGEN_MODE:
-            self.pen_detector = PenColorDetector()
+            #self.pen_detector = PenColorDetector()
             self.logitech_brio_camera = LogitechBrio(self)
             self.logitech_brio_camera.init_video_capture()
             self.logitech_brio_camera.start()
@@ -222,7 +224,7 @@ class Main:
     last_timestamp = 0
 
     def add_new_line_point(self, active_pen_event):
-        r = g = b = self.draw_color
+        r, g, b = self.draw_color
 
         if JUERGEN_MODE:
             if active_pen_event.id in self.color_id_assignments.keys():
@@ -396,20 +398,26 @@ class Main:
             self.assign_color_to_pen(active_pen_events)
 
         if SEND_DATA_USING_UNIX_SOCKET:
-            if self.tool == self.Tool.TOOL_DRAW:
-                for active_pen_event in active_pen_events:
-                    self.add_new_line_point(active_pen_event)
 
-                for pen_event in pen_events_to_remove:
+            for active_pen_event in active_pen_events:
+                is_touch_on_widget = False
+                for widget in self.widgets:
+                    if widget.is_point_on_widget(*active_pen_event.get_coordinates()):
+                        widget.on_click(active_pen_event)
+                        is_touch_on_widget = True
+
+                if not is_touch_on_widget:
+                    if self.tool == self.Tool.TOOL_DRAW:
+                        self.add_new_line_point(active_pen_event)
+                    elif self.tool == self.Tool.TOOL_ERASE:
+                        self.erase_at_point(active_pen_event)
+
+            for pen_event in pen_events_to_remove:
+                if self.tool == self.Tool.TOOL_DRAW:
                     self.finish_line(pen_event)
-            elif self.tool == self.Tool.TOOL_DRAW:
-                for active_pen_event in active_pen_events:
-                    self.erase_at_point(active_pen_event)
+                elif self.tool == self.Tool.TOOL_ERASE:
+                    print("TODO: add message for lifting pen in eraser mode")
 
-                for pen_event in pen_events_to_remove:
-                    print("")
-                    #TODO: implement something to stop displaying erase radius indicator
-                    #self.finish_line(pen_event)
 
         if DOCUMENTS_DEMO:
             self.analogue_digital_document.on_new_finished_lines(stored_lines)
