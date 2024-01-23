@@ -5,6 +5,7 @@ import time
 import socket
 import threading
 import queue
+from enum import Enum
 
 from TipTrack.pen_events.pen_state import PenState
 from TipTrack.pen_events.ir_pen import IRPen
@@ -12,6 +13,8 @@ from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_extractor import SurfaceExtractor
 
 from pen_color_detection.pen_color_detector import PenColorDetector
+
+from palette import Palette
 
 UNIX_SOCK_NAME = 'uds_test'
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
@@ -37,11 +40,17 @@ if DOCUMENTS_DEMO:
     from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 
+
 class Main:
     """ Entry point to the TipTrack Software
 
 
     """
+
+    
+    class Tool(Enum):
+        TOOL_DRAW = "draw"
+        TOOL_ERASE = "erase"
 
     uds_initialized = False
     unix_socket = None
@@ -49,6 +58,8 @@ class Main:
     last_color_frame = None  # Temporary store last color frame here to be used if needed
     color_id_assignments = {}  # This dict will contain mappings between pen event IDs and their assigned color if available
     known_pens = []
+
+    erase_radius = 10
 
     def __init__(self):
 
@@ -58,6 +69,9 @@ class Main:
         self.surface_extractor = SurfaceExtractor()
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
+
+        self.widgets = []
+        self.tool = self.Tool.TOOL_DRAW
 
         if JUERGEN_MODE:
             self.pen_detector = PenColorDetector()
@@ -70,7 +84,6 @@ class Main:
             exposure = self.flir_blackfly_s.get_exposure_time()
             gain = self.flir_blackfly_s.get_gain()
             self.training_images_collector = TrainingImagesCollector(self.ir_pen, exposure, gain)
-
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
@@ -89,6 +102,18 @@ class Main:
             print('Make sure that the frontend is already running before starting this python script')
             sys.exit(1)
         self.uds_initialized = True
+
+    def init_palette(self):
+        
+        self.draw_color = (255,255,255)
+        colors = [
+            ( -1,  -1,  -1),
+            (  0,   0, 255),
+            (  0, 255,   0),
+            (255,   0,   0),
+            (255, 255, 255)]
+        self.widgets.append(Palette(300353, 0,0,colors, 200, callback=self.choose_color_or_tool))
+
 
     def main_loop(self):
         while True:
@@ -175,6 +200,15 @@ class Main:
 
     # ----------------------------------------------------------------------------------------------------------------
 
+    def choose_color_or_tool(self, action, color):
+        if action == "COLOR":
+            self.tool = self.Tool.TOOL_DRAW
+            self.draw_color = color
+        elif action == "ERASE":
+            self.tool = self.Tool.TOOL_ERASE
+        
+        print(f"You have now selected the {self.tool} tool")
+
     def finish_line(self, pen_event_to_remove):
         """
 
@@ -188,7 +222,7 @@ class Main:
     last_timestamp = 0
 
     def add_new_line_point(self, active_pen_event):
-        r = g = b = 255
+        r = g = b = self.draw_color
 
         if JUERGEN_MODE:
             if active_pen_event.id in self.color_id_assignments.keys():
@@ -234,8 +268,9 @@ class Main:
     # Sends message to frontend to erase all points in a radius around the current position of the pen.
     # currently only there to define the syntax for the UNIX Socket message.
     def erase_at_point(self, active_pen_event):
-        radius = 20 #TODO: make this a constant
+        radius = self.erase_radius
         message = 'd {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius)
+        self.send_message(message)
 
     def send_message(self, message):
         self.message_queue.put(message)
@@ -361,11 +396,20 @@ class Main:
             self.assign_color_to_pen(active_pen_events)
 
         if SEND_DATA_USING_UNIX_SOCKET:
-            for active_pen_event in active_pen_events:
-                self.add_new_line_point(active_pen_event)
+            if self.tool == self.Tool.TOOL_DRAW:
+                for active_pen_event in active_pen_events:
+                    self.add_new_line_point(active_pen_event)
 
-            for pen_event in pen_events_to_remove:
-                self.finish_line(pen_event)
+                for pen_event in pen_events_to_remove:
+                    self.finish_line(pen_event)
+            elif self.tool == self.Tool.TOOL_DRAW:
+                for active_pen_event in active_pen_events:
+                    self.erase_at_point(active_pen_event)
+
+                for pen_event in pen_events_to_remove:
+                    print("")
+                    #TODO: implement something to stop displaying erase radius indicator
+                    #self.finish_line(pen_event)
 
         if DOCUMENTS_DEMO:
             self.analogue_digital_document.on_new_finished_lines(stored_lines)

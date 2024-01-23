@@ -28,10 +28,6 @@ if USE_SDL_FRONTEND:
 
 ERASE_RADIUS = 10
 
-class Tool(Enum):
-    TOOL_DRAW = "draw"
-    TOOL_ERASE = "erase"
-
 
 class TestFrontend:
     """ Wrapper for Main class that allows for 
@@ -40,12 +36,19 @@ class TestFrontend:
     print("STARTING...")
     unix_socket = None
     message_queue = queue.Queue()
+    
+
+    class Tool(Enum):
+        TOOL_DRAW = "draw"
+        TOOL_ERASE = "erase"
 
     def __init__(self):
 
         self.__init_unix_socket()
         # Start main loop in its own thread
 
+        self.tool = self.Tool.TOOL_DRAW
+        
         self.draw_color = (255,255,255)
         self.widgets = []
         colors = [
@@ -56,7 +59,6 @@ class TestFrontend:
             (255, 255, 255)]
         self.widgets.append(Palette(300353, 0,0,colors, 200, callback=self.choose_color_or_tool))
 
-        self.tool = Tool.TOOL_DRAW
 
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
@@ -100,7 +102,7 @@ class TestFrontend:
         
 
     def draw_grid(self, size_x, size_y, spacing, offset_x, offset_y):
-        if not self.tool == Tool.TOOL_DRAW:
+        if not self.tool == self.Tool.TOOL_DRAW:
             return
 
         x = 0
@@ -143,7 +145,7 @@ class TestFrontend:
         
 
     def erase_in_line(self, start_x, start_y, end_x, end_y, steps):
-        if not self.tool == Tool.TOOL_ERASE:
+        if not self.tool == self.Tool.TOOL_ERASE:
             return
         x = start_x
         y = start_y
@@ -173,10 +175,10 @@ class TestFrontend:
     def choose_color_or_tool(self, action, color):
         if action == "COLOR":
             print(f"updating color to {color}")
-            self.tool = Tool.TOOL_DRAW
+            self.tool = self.Tool.TOOL_DRAW
             self.draw_color = color
         elif action == "ERASE":
-            self.tool = Tool.TOOL_ERASE
+            self.tool = self.Tool.TOOL_ERASE
         
         print(f"You have now selected the {self.tool} tool")
 
