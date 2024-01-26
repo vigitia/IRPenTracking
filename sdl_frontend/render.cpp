@@ -229,10 +229,10 @@ void renderEraserIndicator(SDL_Renderer* renderer)
     for (auto const& entry : pens)
     {
         Pen pen = entry.second;
-        cout << "pen state and aliveness " << pen.state << pen.alive << endl;
+        //cout << "pen state and aliveness " << pen.state << pen.alive << endl;
         if(pen.state == 1 && pen.alive == 1)
         {
-            cout << "rendering hover indicator at " << pen.position.x << "," << pen.position.y << "|" << eraserIndicatorRadius << endl;
+        //    cout << "rendering hover indicator at " << pen.position.x << "," << pen.position.y << "|" << eraserIndicatorRadius << endl;
             circleColor(renderer, pen.position.x, pen.position.y, eraserIndicatorRadius, ERASE_INDICATOR_COLOR);
         }
         

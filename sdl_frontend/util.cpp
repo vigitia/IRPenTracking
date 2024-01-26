@@ -95,19 +95,21 @@ float getDistance(float x1, float y1, float x2, float y2)
 }
 
 // cx, cy = coords of circle center; r = radius
-float collideLineWithCircle(vector<Point> line_points, float cx, float cy, float r)
+vector<Point> collideLineWithCircle(vector<Point> line_points, float cx, float cy, float r)
 {
+    vector <Point> colliding_points;
     for (vector<Point>::iterator it = line_points.begin(); it != line_points.end(); )
     {
         if (getDistance(it->x, it->y, cx, cy) <= r)
         {
             //printf("Line at Point %f, %f collides with eraser at %f, %f with radius %f \n", it->x, it->y, cx, cy, r);
             //fflush(stdout);
-            return true; //TODO: return vector of colliding points
+            colliding_points.push_back(*it);
+            
         }
         ++it;
-    }
-    return false;
+    }  
+    return colliding_points;
 }
 
 void logData(const string& fileName, const string& data) 
