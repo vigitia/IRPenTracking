@@ -6,9 +6,9 @@
 
 #include "main.h"
 
-#define PALETTE_TEXTURE_PATH "assets/small_palette.png"
-#define PALETTE_WIDTH 1000
-#define PALETTE_HEIGHT 200
+#define PALETTE_TEXTURE_PATH "assets/big_palette.png"
+#define PALETTE_WIDTH 1800
+#define PALETTE_HEIGHT 180
 
 
 class ImagePanel

@@ -53,11 +53,16 @@ class TestFrontend:
         self.widgets = []
         colors = [
             ( -1,  -1,  -1),
-            (  0,   0, 255),
-            (  0, 255,   0),
-            (255,   0,   0),
+            (255,  51, 255),
+            (255,  51,  51),
+            (255, 149,   0),
+            (255, 255,  17),
+            ( 51, 255,  51),
+            ( 51, 238, 238),
+            ( 76,  76, 255),
+            (128, 128, 128),
             (255, 255, 255)]
-        self.widgets.append(Palette(300353, 0,0,colors, 200, callback=self.choose_color_or_tool))
+        self.widgets.append(Palette(300353, 0,0,colors, 180, callback=self.choose_color_or_tool))
 
 
         message_thread = threading.Thread(target=self.main_loop)
@@ -74,8 +79,8 @@ class TestFrontend:
     def test_palette (self):
         self.draw_grid(4, 4, 26, 250, 250)
 
-        for i in range(0,4):
-            click_event = PenEvent(300 + i * 200,100, PenState.DRAG)
+        for i in range(0,9):
+            click_event = PenEvent(300 + i * 180,100, PenState.DRAG)
             for widget in self.widgets:
                 if widget.is_point_on_widget(*click_event.get_coordinates()):
                     widget.on_click(click_event)

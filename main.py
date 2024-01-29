@@ -110,11 +110,16 @@ class Main:
         self.draw_color = (255,255,255)
         colors = [
             ( -1,  -1,  -1),
-            (  0,   0, 255),
-            (  0, 255,   0),
-            (255,   0,   0),
+            (255,  51, 255),
+            (255,  51,  51),
+            (255, 149,   0),
+            (255, 255,  17),
+            ( 51, 255,  51),
+            ( 51, 238, 238),
+            ( 76,  76, 255),
+            (128, 128, 128),
             (255, 255, 255)]
-        self.widgets.append(Palette(300353, 0,0,colors, 200, callback=self.choose_color_or_tool))
+        self.widgets.append(Palette(300353, 0,0,colors, 180, callback=self.choose_color_or_tool))
 
 
     def main_loop(self):
