@@ -268,10 +268,10 @@ int parseMessageDelete(char* buffer)
     float x;
     float y;
     float radius;
+    int state;
     //printf("Got %s (in C++)", buffer);
-    if(sscanf(buffer, "d %d %f %f %f", &id, &x, &y, &radius) == 4)
+    if(sscanf(buffer, "d %d %f %f %f %d", &id, &x, &y, &radius, &state) == 5)
     {
-        showEraserIndicator = true;
         mutex_pens.lock();
         if(pens.find(id) == pens.end())
         {
@@ -291,140 +291,82 @@ int parseMessageDelete(char* buffer)
         //fflush(stdout);
         //NEW BEHAVIOR: Lines are selected with a circle
         //Possible Optimization: Compute Bounding boxes of lines and check collision with eraser before looping over every point
-        
 
-        //re-implementation of dubious code that is hopefully more readable (and actually works)
-        vector<Line> newLines;
-        for (vector<Line>::iterator lineit = lines.begin(); lineit != lines.end();++lineit)
-        { 
-            int idx = 0;
-            int lastNotCollidingIndex = 0;
-
-            //when iterating through the vector of points, we will alternate between sections of points that will remain and sections of points that will be erased.
-            //this bool keeps track of which type of section we are currently in.
-            bool inCollidingSpan = false; //
-
-            vector<Point> points = lineit->coords;
-            for(vector<Point>::iterator pointit = lineit->coords.begin(); pointit != lineit->coords.end();++pointit)
+        if (state == STATE_DRAW)
+        {
+            showEraserIndicator = true;
+            //re-implementation of dubious code that is hopefully more readable (and actually works)
+            vector<Line> newLines;
+            for (vector<Line>::iterator lineit = lines.begin(); lineit != lines.end();)
             {
-                if(getDistance(pointit->x, pointit->y, x, y) <= radius) // is the current point colliding with the eraser?
+                int idx = 0;
+                int lastNotCollidingIndex = 0;
+
+                //when iterating through the vector of points, we will alternate between sections of points that will remain and sections of points that will be erased.
+                //this bool keeps track of which type of section we are currently in.
+                bool inCollidingSpan = false; //
+
+                vector<Point> points = lineit->coords;
+                for(vector<Point>::iterator pointit = lineit->coords.begin(); pointit != lineit->coords.end();++pointit)
                 {
-                    
-                    if(!inCollidingSpan) //and are we changing from a non-erased section to an erased section?
+                    if(getDistance(pointit->x, pointit->y, x, y) <= radius) // is the current point colliding with the eraser?
                     {
-                        inCollidingSpan = true;
-                        if (pointit != lineit->coords.begin())
+
+                        if(!inCollidingSpan) //and are we changing from a non-erased section to an erased section?
                         {
-                            Line newLineSegment; //put all points that came before into a new line
-                            newLineSegment.color = lineit->color;
-                            newLineSegment.alive = lineit->alive;
-                            newLineSegment.id = lineit->id; //Breaks any future additions that rely on the ids of lines being unique
-                            copy(lineit->coords.begin(), pointit, back_inserter(newLineSegment.coords));
-                            //pointit = remove_if(points.begin(), pointit, [](Point val){return true;}); //inline function definition is a hacky way of telling remove() to remove every element in this range. There may be a better way.
-                            pointit = lineit->coords.erase(lineit->coords.begin(), pointit);
-                            newLines.push_back(newLineSegment);
-                            
+                            inCollidingSpan = true;
+                            if (pointit != lineit->coords.begin())
+                            {
+                                Line newLineSegment; //put all points that came before into a new line
+                                newLineSegment.color = lineit->color;
+                                newLineSegment.alive = lineit->alive;
+                                newLineSegment.id = lineit->id; //Breaks any future additions that rely on the ids of lines being unique
+                                copy(lineit->coords.begin(), pointit, back_inserter(newLineSegment.coords));
+                                pointit = lineit->coords.erase(lineit->coords.begin(), pointit);
+                                if (newLineSegment.coords.size() >= MIN_NON_ERASE_LINE_POINTS)
+                                {
+                                    newLines.push_back(newLineSegment);
+                                }
+                            }
+
                         }
-                        
                     }
+                    else
+                    {
+                        if(inCollidingSpan)//are we changing from an erased section to an unerased section?
+                        {
+                            inCollidingSpan = false;
+                            pointit = lineit->coords.erase(lineit->coords.begin(), pointit);
+                        }
+                    }
+                }
+
+                if (lineit->coords.size() < MIN_NON_ERASE_LINE_POINTS)
+                {
+                    lineit = lines.erase(lineit);
                 }
                 else
                 {
-                    if(inCollidingSpan)//are we changing from an erased section to an unerased section?
-                    {
-                        inCollidingSpan = false;
-                        //pointit = remove_if(points.begin(), pointit, [](Point val){return true;});
-                        pointit = lineit->coords.erase(lineit->coords.begin(), pointit);
-                    }
+                    ++lineit;
                 }
             }
-        }
 
-
-        //dubious code.
-        //vector<Line> newLines;
-        //
-        //for (vector<Line>::iterator lineit = lines.begin(); lineit != lines.end(); )
-        //{
-        //    vector<Point> points = lineit->coords;
-        //    vector<Point> collidingPoints = collideLineWithCircle(points, x, y, radius);
-        //    cout << "len collidingPoints l 300 " << collidingPoints.size() << endl;
-        //    if (collidingPoints.size() > 0)
-        //    {
-        //        
-        //        vector<vector<Point>> remainingLineSegments {{}};
-        //        int numLineSegments = 0;
-        //        bool currentlyNonColliding = true;
-        //        for (vector<Point>::iterator pointit = points.begin(); pointit != points.end(); ++pointit)
-        //        {
-        //            bool is_colliding = false;
-        //            for(vector<Point>::iterator pointjt = points.begin(); pointjt != points.end(); ++pointjt)
-        //            {
-        //                if(pointjt->x == pointit->x && pointjt->y == pointjt->y)
-        //                {
-        //                    is_colliding == true;
-        //                    break;
-        //                }
-        //            }
-        //            
-        //            if (is_colliding)
-        //            {
-        //                if (currentlyNonColliding)
-        //                {
-        //                    currentlyNonColliding = false;
-        //                }
-        //            }
-        //            else
-        //            {
-        //                if (!currentlyNonColliding)
-        //                {
-        //                    currentlyNonColliding = true;
-        //                    ++numLineSegments;
-        //                    vector<Point> newLineSegment{};
-        //                    remainingLineSegments.push_back(newLineSegment);
-
-        //                }
-        //                remainingLineSegments[numLineSegments].push_back(*pointit);
-        //            }
-        //        }
-        //        
-        //        cout << "remainingLineSegments.size() l 339 "<< remainingLineSegments.size() << endl;
-        //        int idx = 0;
-        //        for(vector<vector<Point>>::iterator segit = remainingLineSegments.begin(); segit != remainingLineSegments.end(); ++segit)
-        //        {
-        //            vector<Point> points = *segit;
-        //            cout << "points.size l344 "<< points.size() << endl;
-        //            if (points.size() > 1)
-        //            {
-        //                Line newLine;
-        //                newLine.coords = points;
-        //                newLine.id = lineit->id * -1000 + idx;
-        //                newLine.color = lineit->color;
-        //                newLines.push_back(newLine);
-        //            }
-
-        //            ++idx;
-        //        }
-        //        lineit=lines.erase(lineit);
-        //    }
-        //    else
-        //        ++lineit;
-        //}
-        for(vector<Line>::iterator lineit = newLines.begin(); lineit != newLines.end(); ++lineit)
-        {
-            lines.push_back(*lineit);
-        }
-
-
-        for (vector<Line>::iterator lineit = documentLines.begin(); lineit != documentLines.end(); )
-        {
-            vector<Point> colliding_points = collideLineWithCircle(lineit->coords, x, y, radius);
-            if (colliding_points.size() > 0)
+            for(vector<Line>::iterator lineit = newLines.begin(); lineit != newLines.end(); ++lineit)
             {
-                lineit=lines.erase(lineit);
+                lines.push_back(*lineit);
             }
-            else
-                ++lineit;
+
+
+            for (vector<Line>::iterator lineit = documentLines.begin(); lineit != documentLines.end(); )
+            {
+                vector<Point> colliding_points = collideLineWithCircle(lineit->coords, x, y, radius);
+                if (colliding_points.size() > 0)
+                {
+                    lineit=lines.erase(lineit);
+                }
+                else
+                    ++lineit;
+            }
         }
 
         
@@ -470,7 +412,6 @@ int parseMessageDelete(char* buffer)
 int parseMessageFinishErase(char* buffer)
 {
     int id;
-    
     if(sscanf(buffer, "v %d ", &id) == 1)
     {
         showEraserIndicator = false;

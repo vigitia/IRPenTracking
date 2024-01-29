@@ -271,11 +271,10 @@ class Main:
     # currently only there to define the syntax for the UNIX Socket message.
     def erase_at_point(self, active_pen_event):
         radius = self.erase_radius
-        message = 'd {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius)
+        message = 'd {} {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius, 0 if active_pen_event.state == PenState.HOVER else 1)
         self.send_message(message)
         
     def finish_erasing(self, pen_event_to_remove):
-
         message = 'v {}'.format(pen_event_to_remove.id)
         self.send_message(message)
 

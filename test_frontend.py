@@ -63,7 +63,7 @@ class TestFrontend:
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
         time.sleep(1)
-        self.test_eraser()
+        self.test_palette()
 
     
     def test_eraser (self):
