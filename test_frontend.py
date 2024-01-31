@@ -47,10 +47,21 @@ class TestFrontend:
         self.__init_unix_socket()
         # Start main loop in its own thread
 
+        time.sleep(2) #give backend time to load a renderer
         self.tool = self.Tool.TOOL_DRAW
+        self.widgets = []
+        self.init_palette()
+
+
+        message_thread = threading.Thread(target=self.main_loop)
+        message_thread.start()
+        time.sleep(1)
+        self.test_palette()
+
+
+    def init_palette(self):
         
         self.draw_color = (255,255,255)
-        self.widgets = []
         colors = [
             ( -1,  -1,  -1),
             (255,  51, 255),
@@ -62,14 +73,17 @@ class TestFrontend:
             ( 76,  76, 255),
             (128, 128, 128),
             (255, 255, 255)]
-        self.widgets.append(Palette(300353, 0,0,colors, 180, callback=self.choose_color_or_tool))
+        palette_id = 25101881
 
-
-        message_thread = threading.Thread(target=self.main_loop)
-        message_thread.start()
-        time.sleep(1)
-        self.test_palette()
-
+        palette_file_path = "assets/big_palette.png"
+        palette_pos_x = 100
+        palette_pos_y = 100
+        palette_width = 1800
+        palette_height = 180
+        
+        self.widgets.append(Palette(palette_id, palette_pos_x, palette_pos_y, colors, palette_height, callback=self.choose_color_or_tool))
+        message = "u {} {} {} {} {} {} {}".format(palette_id, 1, palette_pos_x, palette_pos_y, palette_width, palette_height, palette_file_path)
+        self.send_message(message)
     
     def test_eraser (self):
         self.draw_grid(5, 5,25,100, 100)
@@ -161,8 +175,6 @@ class TestFrontend:
         for i in range(0,steps):
             x += ((end_x - start_x) / steps)
             y += ((end_y - start_y) / steps)
-
-            print(f"Eraser at {x,y}")
 
             sim_pen_event = PenEvent(x, y, PenState.DRAG)
             self.erase_at_point(sim_pen_event)

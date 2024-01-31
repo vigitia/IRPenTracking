@@ -3,7 +3,6 @@
 #include "study.h"
 #include "document.h"
 #include "path_game.h"
-#include "imagePanel.h"
 
 #include <vector>
 #include <map>
@@ -24,9 +23,8 @@ void render(SDL_Renderer* renderer)
     if(currentMode == path) pathGame.render(renderer);
     if(document.alive) renderHighlights(renderer);
     if(currentMode == phrase) renderPhrase(renderer);
-    if(currentMode == image) renderImage(renderer);
+    if(currentMode == image) renderFullscreenImage(renderer);
     if(SHOW_LINES) renderLines(renderer);
-    if(SHOW_PALETTE) palette.render(renderer);
     if(currentMode == cross && isSaving == false) renderCrosses(renderer);
     if(SHOW_HOVER_INDICATOR && currentMode != cross) renderHoverIndicator(renderer);
 
@@ -34,11 +32,14 @@ void render(SDL_Renderer* renderer)
         renderEraserIndicator(renderer);
     }
 
+    renderAllImages(renderer);
+    if (SHOW_UI) renderAllUIElements(renderer);
     if(SHOW_PARTICLES) renderParticles(renderer);
     if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
     if(pathGame.isSavingProfilePicture) saveProfilePicture();
     if(!isSaving) SDL_RenderPresent(renderer);
+
 }
 
 void renderLine(SDL_Renderer *rend, vector<Point> *line, SDL_Color color)
@@ -92,7 +93,7 @@ void renderCrosses(SDL_Renderer* renderer)
     SDL_RenderCopy(renderer, crossesTexture, NULL, &crossesRect);
 }
 
-void renderImage(SDL_Renderer* renderer)
+void renderFullscreenImage(SDL_Renderer* renderer)
 {
     SDL_Rect imageRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
     SDL_RenderCopy(renderer, imageTexture, NULL, &imageRect);
@@ -264,3 +265,28 @@ void renderBrokenPipeIndicator(SDL_Renderer* renderer)
 
     SDL_RenderFillRect(renderer, &brokenPipeIndicator);
 }
+
+void renderAllImages(SDL_Renderer* renderer)
+{
+    for(vector<ImagePanel>::iterator imgit = images.begin(); imgit != images.end(); ++imgit)
+    {
+
+        if (imgit->getVisibility())
+        {
+            imgit->render(renderer);
+        }
+    }
+}
+
+
+void renderAllUIElements(SDL_Renderer* renderer)
+{
+    for(vector<ImagePanel>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
+    {
+        if (imgit->getVisibility())
+        {
+            imgit->render(renderer);
+        }
+    }
+}
+

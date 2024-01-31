@@ -43,6 +43,12 @@ int parseMessage(char* buffer)
         case CODE_ERASE_FINISH:
             return parseMessageFinishErase(buffer);
             break;
+        case CODE_IMAGE:
+            return parseMessageImage(buffer);
+            break;
+        case CODE_UI_ELEMENT:
+            return parseMessageUIElement(buffer);
+            break;
     }
 
     return 0;
@@ -404,8 +410,10 @@ int parseMessageDelete(char* buffer)
         //    }
         //}
         //remove_if(lines.begin(), lines.end(), removeLine);
+        
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 
@@ -421,4 +429,136 @@ int parseMessageFinishErase(char* buffer)
         pens.erase(id);
         mutex_pens.unlock();
     }
+}
+
+
+int parseMessageImage(char* buffer)
+{
+    int id;
+    int visibility;
+    float x = -1.0;
+    float y = -1.0;
+    int width = -1;
+    int height = -1;
+    char filepath [200];
+    int num_args = sscanf(buffer, "i %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
+    cout << buffer << "|" << num_args << endl;
+    if (num_args >= 4) 
+    {
+
+        bool is_known = false;
+        ImagePanel img;
+        for (vector<ImagePanel>::iterator imgit = images.begin(); imgit != images.end(); ++imgit)
+        {
+            if (imgit->getID() == id)
+            {
+                is_known = true;
+                img = *imgit;
+                break;
+            }
+        }
+
+        cout << is_known << endl;
+
+        if (!is_known && num_args < 7)
+        {
+            cout << "WARNING: You are trying to create a new image, but you only passed " << num_args << "arguments." << endl;
+            return 0;
+        }
+
+        img.setVisibility((visibility > 0));
+        if (x != -1.0 && y != -1.0)
+        {
+            Point newPosition;
+            newPosition.x = x;
+            newPosition.y = y;
+            img.setPosition(newPosition);
+        }
+        if (width != -1 && height != -1)
+        {
+            img.setDimensions(width, height);
+        }
+        
+        if (num_args == 7)
+        {
+            img.setTexture(filepath);
+        }
+        
+        if (!is_known)
+        {
+            images.push_back(img);
+            for (vector<ImagePanel>::iterator imgit = images.begin(); imgit != images.end(); ++imgit)
+            {
+                cout << "Image " << imgit->getID() << endl;
+            }
+        }
+
+        return 1;
+
+    }
+    else return 0;
+}
+
+
+int parseMessageUIElement(char* buffer)
+{
+    int id;
+    int visibility;
+    float x = -1.0;
+    float y = -1.0;
+    int width = -1;
+    int height = -1;
+    char filepath [200];
+    int num_args = sscanf(buffer, "u %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
+
+    if (num_args >= 4) 
+    {
+
+        bool is_known = false;
+        ImagePanel img;
+        for (vector<ImagePanel>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
+        {
+            if (imgit->getID() == id)
+            {
+                is_known = true;
+                img = *imgit;
+                break;
+            }
+        }
+
+
+        if (!is_known && num_args < 7)
+        {
+            cout << "WARNING: You are trying to create a new UI Element, but you only passed " << num_args << "arguments." << endl;
+            return 0;
+        }
+
+        img.setVisibility((visibility > 0));
+        if (x != -1.0 && y != -1.0)
+        {
+            Point newPosition;
+            newPosition.x = x;
+            newPosition.y = y;
+            img.setPosition(newPosition);
+        }
+        if (width != -1 && height != -1)
+        {
+            img.setDimensions(width, height);
+        }
+
+        if (num_args == 7)
+        {
+            img.setTexture(filepath);
+        }
+        
+        if (!is_known)
+        {
+            img.setID(id);
+            uiElements.push_back(img);
+        }
+
+        return 1;
+
+    }
+    else return 0;
 }

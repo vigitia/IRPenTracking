@@ -6,7 +6,6 @@
 #include "particle.h"
 #include "render.h"
 #include "path_game.h"
-#include "imagePanel.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -173,23 +172,13 @@ int main(int argc, char* argv[])
     SDL_Window* window = SDL_CreateWindow(__FILE__, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
     renderer = SDL_CreateRenderer(window, -1, 0);
 
-    cout << "renderer in main: " << renderer << endl;
-    if(SHOW_PALETTE)
-    {
-        Point palette_pos;
-        palette_pos.x = 0;//WINDOW_WIDTH-PALETTE_WIDTH;
-        palette_pos.y = 0;//WINDOW_HEIGHT-PALETTE_HEIGHT;
-        palette.setTexture(PALETTE_TEXTURE_PATH);
-        palette.setPosition(palette_pos);
-        palette.setDimensions(PALETTE_WIDTH, PALETTE_HEIGHT);
-    }
-
     crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
     imageTexture = SDL_CreateTextureFromSurface( renderer, imageSurface );
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
 
     bool quit = false;
     SDL_Event event;

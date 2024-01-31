@@ -59,6 +59,13 @@
 #define CODE_CLEAR_SCREEN 'x'
 #define CODE_DELETE 'd'
 #define CODE_ERASE_FINISH 'v'
+#define CODE_IMAGE 'i'
+#define CODE_UI_ELEMENT 'u'
+
+
+#define PALETTE_TEXTURE_PATH "assets/big_palette.png"
+#define PALETTE_WIDTH 1800
+#define PALETTE_HEIGHT 180
 
 inline char* SCREENSHOT_PATH = "screenshots/";
 inline const char* PHRASES_PATH = "evaluation/phrases.txt";
@@ -107,6 +114,35 @@ struct HighscoreEntry {
     int pid;
     float time;
     float accuracy;
+};
+
+class ImagePanel
+{
+    protected:
+        int id;
+        Point position;
+        int width;
+        int height;
+        bool visible;
+
+        SDL_Surface *paletteSurface;
+        SDL_Texture *paletteTexture;
+
+    public:
+        ImagePanel();
+        void render(SDL_Renderer* renderer);
+        void setPosition(Point Position);
+        void setID(int id);
+        int getID();
+        void setTexture(char* texturePath);
+        void setDimensions(int width, int height);
+        Point getPosition();
+        int getWidth();
+        int getHeight();
+        void setVisibility(bool visible);
+        bool getVisibility();
+        
+        
 };
 
 inline SDL_Renderer* renderer;
@@ -161,7 +197,12 @@ int parseMessageMatrix(char* buffer);
 int parseMessageRect(char* buffer);
 int parseMessageDelete(char* buffer);
 int parseMessageFinishErase(char* buffer);
+int parseMessageImage(char* buffer);
+int parseMessageUIElement(char* buffer);
 
 vector<string> split (string s, string delimiter);
+
+inline vector<ImagePanel> images;
+inline vector<ImagePanel> uiElements;
 
 #endif
