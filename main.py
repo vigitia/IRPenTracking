@@ -7,6 +7,8 @@ import threading
 import queue
 from enum import Enum
 
+import pynput.keyboard as keyboard
+
 from TipTrack.pen_events.pen_state import PenState
 from TipTrack.pen_events.ir_pen import IRPen
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
@@ -38,6 +40,12 @@ if JUERGEN_MODE:
 DOCUMENTS_DEMO = False
 if DOCUMENTS_DEMO:
     from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
+
+PALETTE_FILE_PATH = "assets/big_palette.png"
+PALETTE_POS_X = 100
+PALETTE_POS_Y = 100
+PALETTE_WIDTH = 1800
+PALETTE_HEIGHT = 180
 
 
 
@@ -89,6 +97,10 @@ class Main:
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
 
+        # setup key event listener
+        key_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
+        key_listener.start()
+
         # Start main loop in its own thread
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
@@ -119,7 +131,27 @@ class Main:
             ( 76,  76, 255),
             (128, 128, 128),
             (255, 255, 255)]
-        self.widgets.append(Palette(300353, 0,0,colors, 180, callback=self.choose_color_or_tool))
+        self.palette_id = 25101881
+
+        
+        palette = Palette(self.palette_id, PALETTE_POS_X, PALETTE_POS_Y, colors, PALETTE_HEIGHT, callback=self.choose_color_or_tool)
+        
+        message = "u {} {} {} {} {} {} {}".format(self.palette_id, 1, PALETTE_POS_X, PALETTE_POS_Y, PALETTE_WIDTH, PALETTE_HEIGHT, PALETTE_FILE_PATH)
+        self.send_message(message)
+
+
+        self.indicator_id = 9553487
+        indicator_pos_x = PALETTE_POS_X + 9 * PALETTE_HEIGHT
+        indicator_pos_y = PALETTE_POS_Y
+        indicator_width = indicator_height = PALETTE_HEIGHT
+        indicator_filepath = "assets/palette_indicator.png"
+
+        indicator_message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, indicator_pos_x, indicator_pos_y, indicator_width, indicator_height, indicator_filepath)
+        self.send_message(indicator_message)
+        
+        palette.set_function_shift_indicator(self.move_indicator)
+
+        self.widgets.append(palette)
 
 
     def main_loop(self):
@@ -272,6 +304,13 @@ class Main:
 
         self.send_message(message)
     
+    def move_indicator(self,new_x, new_y):
+        message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
+        #message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, new_x, new_y, 180, 180, "assets/palette_indicator.png")
+        print(f"Moving indicator, {message}")
+        self.send_message(message)
+    
+
     # Sends message to frontend to erase all points in a radius around the current position of the pen.
     # currently only there to define the syntax for the UNIX Socket message.
     def erase_at_point(self, active_pen_event):
@@ -466,6 +505,21 @@ class Main:
 
             if document_changed or document_removed:
                 self.clear_rects()
+
+    def on_key_press(self, key):
+        if key == keyboard.Key.shift:
+            print("Thank you for pressing the shift key!")
+            for widget in self.widgets:
+                widget.set_visibility(not widget.is_visible)
+            self.toggle_hide_ui()
+
+    def on_key_release(self, key):
+        pass
+
+    def toggle_hide_ui(self):
+        message = "h"
+        self.send_message(message)
+    
 
 
 if __name__ == '__main__':

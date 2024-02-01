@@ -49,6 +49,11 @@ int parseMessage(char* buffer)
         case CODE_UI_ELEMENT:
             return parseMessageUIElement(buffer);
             break;
+        case CODE_TOGGLE_HIDE_UI:
+            toggleHideUI();
+            return 1;
+            break;
+        
     }
 
     return 0;
@@ -511,20 +516,37 @@ int parseMessageUIElement(char* buffer)
     char filepath [200];
     int num_args = sscanf(buffer, "u %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
 
+    cout << buffer << "|" << num_args << endl;
     if (num_args >= 4) 
     {
 
         bool is_known = false;
-        ImagePanel img;
+
+        ImagePanel* img;
+        vector<ImagePanel>::const_iterator imgIndex;
         for (vector<ImagePanel>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
         {
             if (imgit->getID() == id)
             {
                 is_known = true;
-                img = *imgit;
+                img = &(*imgit);
+                imgIndex = imgit;
                 break;
             }
         }
+
+        cout << "Is it known? " << is_known << endl;
+
+        if (!is_known)
+        {
+            ImagePanel newimg;
+            img = &newimg;
+        }
+        else{
+            cout << "Retrieved Imagepanel " << img->getID() << " at  "<< img << endl;
+        }
+
+
 
 
         if (!is_known && num_args < 7)
@@ -533,32 +555,42 @@ int parseMessageUIElement(char* buffer)
             return 0;
         }
 
-        img.setVisibility((visibility > 0));
+        img->setVisibility((visibility > 0));
         if (x != -1.0 && y != -1.0)
         {
+            cout << "position" << x << "," << y << "is valid" << endl;
             Point newPosition;
             newPosition.x = x;
             newPosition.y = y;
-            img.setPosition(newPosition);
+            img->setPosition(newPosition);
         }
         if (width != -1 && height != -1)
         {
-            img.setDimensions(width, height);
+            img->setDimensions(width, height);
         }
 
         if (num_args == 7)
         {
-            img.setTexture(filepath);
+            img->setTexture(filepath);
         }
         
         if (!is_known)
         {
-            img.setID(id);
-            uiElements.push_back(img);
+            img->setID(id);
+            uiElements.push_back(*img);
         }
+        else
+        {
+            const ImagePanel immutableImage = *img;
+            uiElements.erase(imgIndex);
+            uiElements.insert(imgIndex, immutableImage);
+        }
+
+        cout <<"UI Element " << img->getID() << " at " << img << endl;
 
         return 1;
 
     }
     else return 0;
 }
+

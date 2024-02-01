@@ -61,6 +61,7 @@
 #define CODE_ERASE_FINISH 'v'
 #define CODE_IMAGE 'i'
 #define CODE_UI_ELEMENT 'u'
+#define CODE_TOGGLE_HIDE_UI 'h'
 
 
 #define PALETTE_TEXTURE_PATH "assets/big_palette.png"
@@ -165,7 +166,9 @@ inline int currentState = 0;
 
 inline bool showEraserIndicator;
 inline float eraserIndicatorRadius;
-inline vector <Point> eraserTips; //quick hack. Probably better to use pens for detecting eraser position and rendering eraser marker
+inline vector <Point> eraserTips; //quick hack. Probably better to use pens for detecting eraser position and rendering eraser marker. also unused (unless I've overlooked something).
+
+inline bool SHOW_UI = true;
 
 inline mutex mutex_pens;
 inline mutex mutex_lines;
@@ -187,6 +190,7 @@ float getDistance(float x1, float y1, float x2, float y2);
 vector <Point> collideLineWithCircle(vector<Point> line_points, float cx, float cy, float r);
 void logData(const string& fileName, const string& data);
 bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b);
+void toggleHideUI();
 
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);

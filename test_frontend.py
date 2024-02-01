@@ -4,6 +4,9 @@ import time
 import socket
 import threading
 import queue
+
+import pynput.keyboard as keyboard
+
 from enum import Enum
 from random import Random
 
@@ -29,6 +32,13 @@ if USE_SDL_FRONTEND:
 ERASE_RADIUS = 10
 
 
+PALETTE_FILE_PATH = "assets/big_palette.png"
+PALETTE_POS_X = 100
+PALETTE_POS_Y = 100
+PALETTE_WIDTH = 1800
+PALETTE_HEIGHT = 180
+
+
 class TestFrontend:
     """ Wrapper for Main class that allows for 
     """
@@ -52,6 +62,9 @@ class TestFrontend:
         self.widgets = []
         self.init_palette()
 
+        
+        key_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
+        key_listener.start()
 
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
@@ -73,18 +86,29 @@ class TestFrontend:
             ( 76,  76, 255),
             (128, 128, 128),
             (255, 255, 255)]
-        palette_id = 25101881
+        self.palette_id = 25101881
 
-        palette_file_path = "assets/big_palette.png"
-        palette_pos_x = 100
-        palette_pos_y = 100
-        palette_width = 1800
-        palette_height = 180
         
-        self.widgets.append(Palette(palette_id, palette_pos_x, palette_pos_y, colors, palette_height, callback=self.choose_color_or_tool))
-        message = "u {} {} {} {} {} {} {}".format(palette_id, 1, palette_pos_x, palette_pos_y, palette_width, palette_height, palette_file_path)
+        palette = Palette(self.palette_id, PALETTE_POS_X, PALETTE_POS_Y, colors, PALETTE_HEIGHT, callback=self.choose_color_or_tool)
+        
+        message = "u {} {} {} {} {} {} {}".format(self.palette_id, 1, PALETTE_POS_X, PALETTE_POS_Y, PALETTE_WIDTH, PALETTE_HEIGHT, PALETTE_FILE_PATH)
         self.send_message(message)
-    
+
+
+        self.indicator_id = 9553487
+        indicator_pos_x = PALETTE_POS_X + 9 * PALETTE_HEIGHT
+        indicator_pos_y = PALETTE_POS_Y
+        indicator_width = indicator_height = PALETTE_HEIGHT
+        indicator_filepath = "assets/palette_indicator.png"
+
+        indicator_message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, indicator_pos_x, indicator_pos_y, indicator_width, indicator_height, indicator_filepath)
+        self.send_message(indicator_message)
+        
+        palette.set_function_shift_indicator(self.move_indicator)
+
+        self.widgets.append(palette)
+
+
     def test_eraser (self):
         self.draw_grid(5, 5,25,100, 100)
         self.erase_in_line(50,50, 700, 700, 300)
@@ -94,12 +118,14 @@ class TestFrontend:
         self.draw_grid(4, 4, 26, 250, 250)
 
         for i in range(0,9):
+            time.sleep(1)
             click_event = PenEvent(300 + i * 180,100, PenState.DRAG)
             for widget in self.widgets:
                 if widget.is_point_on_widget(*click_event.get_coordinates()):
                     widget.on_click(click_event)
                 else:
                     print("ClickEvent missed")
+            time.sleep(1)
             self.draw_grid(4,4,25, 250, 350 + 100 * i)
         
         click_on_erase_event = PenEvent(150, 100, PenState.DRAG)
@@ -118,7 +144,6 @@ class TestFrontend:
         
         
 
-        
 
         
         
@@ -204,6 +229,13 @@ class TestFrontend:
             self.tool = self.Tool.TOOL_ERASE
         
         print(f"You have now selected the {self.tool} tool")
+
+    def move_indicator(self,new_x, new_y):
+        message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
+        #message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, new_x, new_y, 180, 180, "assets/palette_indicator.png")
+        print(f"Moving indicator, {message}")
+        self.send_message(message)
+    
 
 
     def __init_unix_socket(self):
@@ -302,6 +334,21 @@ class TestFrontend:
                     # Restart the Unix unix_socket after a short amount of time
                     time.sleep(5000)
                     self.__init_unix_socket()
+
+    def on_key_press(self, key):
+        if key == keyboard.Key.shift:
+            print("Thank you for pressing the shift key!")
+            for widget in self.widgets:
+                widget.set_visibility(not widget.is_visible)
+            self.toggle_hide_ui()
+
+    def on_key_release(self, key):
+        pass
+
+    def toggle_hide_ui(self):
+        message = "h"
+        self.send_message(message)
+    
 
 if __name__ == '__main__':
     main=TestFrontend()

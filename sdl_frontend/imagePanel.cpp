@@ -37,7 +37,9 @@ void ImagePanel::render(SDL_Renderer* renderer)
 
 void ImagePanel::setPosition(Point position)
 {
+    cout << "Old position " << this->position.x << "," << this->position.y << endl;
     this->position = position;
+    cout << "New position " << this->position.x << "," << this->position.y << endl;
 }
 
 Point ImagePanel::getPosition()

@@ -132,3 +132,7 @@ bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b)
 {
     return a.time < b.time;
 }
+
+void toggleHideUI(){
+    SHOW_UI = !SHOW_UI;
+}

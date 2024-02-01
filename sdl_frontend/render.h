@@ -8,7 +8,6 @@ inline SDL_Surface* imageSurface;
 inline SDL_Texture* imageTexture;
 inline bool SHOW_PARTICLES = false;
 inline bool SHOW_PALETTE = true;
-inline bool SHOW_UI = true;
 inline vector<Particle> particles;
 inline bool showBrokenPipeIndicator = false;
 inline bool isSaving = false;
