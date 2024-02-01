@@ -48,6 +48,10 @@ PALETTE_WIDTH = 1800
 PALETTE_HEIGHT = 180
 
 
+ERASE_RADIUS_SMALL = 10
+ERASE_RADIUS_BIG = 50
+
+
 
 class Main:
     """ Entry point to the TipTrack Software
@@ -59,6 +63,7 @@ class Main:
     class Tool(Enum):
         TOOL_DRAW = "draw"
         TOOL_ERASE = "erase"
+        TOOL_CLEAR = "clear"
 
     uds_initialized = False
     unix_socket = None
@@ -66,8 +71,6 @@ class Main:
     last_color_frame = None  # Temporary store last color frame here to be used if needed
     color_id_assignments = {}  # This dict will contain mappings between pen event IDs and their assigned color if available
     known_pens = []
-
-    erase_radius = 10
 
     def __init__(self):
 
@@ -82,6 +85,8 @@ class Main:
         self.tool = self.Tool.TOOL_DRAW
 
         self.init_palette()
+
+        self.erase_radius = ERASE_RADIUS_SMALL
 
         if JUERGEN_MODE:
             #self.pen_detector = PenColorDetector()
@@ -121,7 +126,9 @@ class Main:
         
         self.draw_color = (255,255,255)
         colors = [
-            ( -1,  -1,  -1),
+            ( -2,  -2,  -2),
+            ( -1,  -1, ERASE_RADIUS_BIG),
+            ( -1,  -1, ERASE_RADIUS_SMALL),
             (255,  51, 255),
             (255,  51,  51),
             (255, 149,   0),
@@ -141,7 +148,7 @@ class Main:
 
 
         self.indicator_id = 9553487
-        indicator_pos_x = PALETTE_POS_X + 9 * PALETTE_HEIGHT
+        indicator_pos_x = PALETTE_POS_X + 11 * PALETTE_HEIGHT
         indicator_pos_y = PALETTE_POS_Y
         indicator_width = indicator_height = PALETTE_HEIGHT
         indicator_filepath = "assets/palette_indicator.png"
@@ -152,6 +159,7 @@ class Main:
         palette.set_function_shift_indicator(self.move_indicator)
 
         self.widgets.append(palette)
+
 
 
     def main_loop(self):
@@ -245,6 +253,9 @@ class Main:
             self.draw_color = color
         elif action == "ERASE":
             self.tool = self.Tool.TOOL_ERASE
+        elif action == "CLEAR":
+            self.tool = self.Tool.TOOL_CLEAR
+            self.clear_all()
         
         print(f"You have now selected the {self.tool} tool")
 
@@ -518,6 +529,10 @@ class Main:
 
     def toggle_hide_ui(self):
         message = "h"
+        self.send_message(message)
+    
+    def clear_all (self):
+        message = "x"
         self.send_message(message)
     
 
