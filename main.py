@@ -41,16 +41,22 @@ DOCUMENTS_DEMO = False
 if DOCUMENTS_DEMO:
     from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
-PALETTE_FILE_PATH = "assets/big_palette.png"
-PALETTE_POS_X = 100
-PALETTE_POS_Y = 100
-PALETTE_WIDTH = 1800
-PALETTE_HEIGHT = 180
+RESOLUTION = "1080P"
+SCALE_RES= 1
 
+if RESOLUTION == "1080P":
+    SCALE_RES = 1
+elif RESOLUTION == "1080P":
+    SCALE_RES = 0.5
 
-ERASE_RADIUS_SMALL = 10
-ERASE_RADIUS_BIG = 50
+ERASE_RADIUS_SMALL = SCALE_RES * 10 
+ERASE_RADIUS_BIG = SCALE_RES * 50
 
+PALETTE_FILE_PATH = "assets/big_palette_expanded.png"
+PALETTE_POS_X = SCALE_RES * 840
+PALETTE_POS_Y = SCALE_RES * 0
+PALETTE_WIDTH = SCALE_RES * 1800
+PALETTE_HEIGHT = SCALE_RES * 150
 
 
 class Main:
@@ -318,7 +324,6 @@ class Main:
     def move_indicator(self,new_x, new_y):
         message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
         #message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, new_x, new_y, 180, 180, "assets/palette_indicator.png")
-        print(f"Moving indicator, {message}")
         self.send_message(message)
     
 
@@ -519,7 +524,6 @@ class Main:
 
     def on_key_press(self, key):
         if key == keyboard.Key.shift:
-            print("Thank you for pressing the shift key!")
             for widget in self.widgets:
                 widget.set_visibility(not widget.is_visible)
             self.toggle_hide_ui()

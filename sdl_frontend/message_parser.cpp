@@ -298,7 +298,6 @@ int parseMessageDelete(char* buffer)
 
         eraserIndicatorRadius = radius;
         mutex_lines.lock();
-        //cout << "Eraser at "<< x << "," << y <<" (in C++)" << endl;
         //fflush(stdout);
         //NEW BEHAVIOR: Lines are selected with a circle
         //Possible Optimization: Compute Bounding boxes of lines and check collision with eraser before looping over every point
@@ -447,7 +446,6 @@ int parseMessageImage(char* buffer)
     int height = -1;
     char filepath [200];
     int num_args = sscanf(buffer, "i %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
-    cout << buffer << "|" << num_args << endl;
     if (num_args >= 4) 
     {
 
@@ -463,7 +461,6 @@ int parseMessageImage(char* buffer)
             }
         }
 
-        cout << is_known << endl;
 
         if (!is_known && num_args < 7)
         {
@@ -492,10 +489,6 @@ int parseMessageImage(char* buffer)
         if (!is_known)
         {
             images.push_back(img);
-            for (vector<ImagePanel>::iterator imgit = images.begin(); imgit != images.end(); ++imgit)
-            {
-                cout << "Image " << imgit->getID() << endl;
-            }
         }
 
         return 1;
@@ -516,7 +509,6 @@ int parseMessageUIElement(char* buffer)
     char filepath [200];
     int num_args = sscanf(buffer, "u %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
 
-    cout << buffer << "|" << num_args << endl;
     if (num_args >= 4) 
     {
 
@@ -535,15 +527,11 @@ int parseMessageUIElement(char* buffer)
             }
         }
 
-        cout << "Is it known? " << is_known << endl;
 
         if (!is_known)
         {
             ImagePanel newimg;
             img = &newimg;
-        }
-        else{
-            cout << "Retrieved Imagepanel " << img->getID() << " at  "<< img << endl;
         }
 
 
@@ -558,7 +546,6 @@ int parseMessageUIElement(char* buffer)
         img->setVisibility((visibility > 0));
         if (x != -1.0 && y != -1.0)
         {
-            cout << "position" << x << "," << y << "is valid" << endl;
             Point newPosition;
             newPosition.x = x;
             newPosition.y = y;
@@ -585,8 +572,6 @@ int parseMessageUIElement(char* buffer)
             uiElements.erase(imgIndex);
             uiElements.insert(imgIndex, immutableImage);
         }
-
-        cout <<"UI Element " << img->getID() << " at " << img << endl;
 
         return 1;
 

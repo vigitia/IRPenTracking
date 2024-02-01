@@ -29,16 +29,22 @@ if USE_SDL_FRONTEND:
 
     time.sleep(2)
 
+RESOLUTION = "1080P"
+SCALE_RES= 1
 
+if RESOLUTION == "1080P":
+    SCALE_RES = 1
+elif RESOLUTION == "1080P":
+    SCALE_RES = 0.5
 
-ERASE_RADIUS_SMALL = 10
-ERASE_RADIUS_BIG = 50
+ERASE_RADIUS_SMALL = SCALE_RES * 10 
+ERASE_RADIUS_BIG = SCALE_RES * 50
 
 PALETTE_FILE_PATH = "assets/big_palette_expanded.png"
-PALETTE_POS_X = 20
-PALETTE_POS_Y = 20
-PALETTE_WIDTH = 2160
-PALETTE_HEIGHT = 180
+PALETTE_POS_X = SCALE_RES * 840
+PALETTE_POS_Y = SCALE_RES * 0
+PALETTE_WIDTH = SCALE_RES * 1800
+PALETTE_HEIGHT = SCALE_RES * 150
 
 
 class TestFrontend:
@@ -158,7 +164,6 @@ class TestFrontend:
         for widget in self.widgets:
             if widget.is_point_on_widget(*select_big_one_event.get_coordinates()):
                 widget.on_click(select_big_one_event)
-        print(f"TOOL: {self.tool}")
         self.erase_in_line(1500, 300, 300, 900, 1000)
         time.sleep(1)
         erase_event = PenEvent(900, 500, PenState.DRAG)
@@ -274,7 +279,6 @@ class TestFrontend:
     def move_indicator(self,new_x, new_y):
         message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
         #message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, new_x, new_y, 180, 180, "assets/palette_indicator.png")
-        print(f"Moving indicator, {message}")
         self.send_message(message)
     
 
@@ -377,7 +381,6 @@ class TestFrontend:
 
     def on_key_press(self, key):
         if key == keyboard.Key.shift:
-            print("Thank you for pressing the shift key!")
             for widget in self.widgets:
                 widget.set_visibility(not widget.is_visible)
             self.toggle_hide_ui()
