@@ -29,13 +29,15 @@ if USE_SDL_FRONTEND:
 
     time.sleep(2)
 
-ERASE_RADIUS = 10
 
 
-PALETTE_FILE_PATH = "assets/big_palette.png"
-PALETTE_POS_X = 100
-PALETTE_POS_Y = 100
-PALETTE_WIDTH = 1800
+ERASE_RADIUS_SMALL = 10
+ERASE_RADIUS_BIG = 50
+
+PALETTE_FILE_PATH = "assets/big_palette_expanded.png"
+PALETTE_POS_X = 20
+PALETTE_POS_Y = 20
+PALETTE_WIDTH = 2160
 PALETTE_HEIGHT = 180
 
 
@@ -51,6 +53,7 @@ class TestFrontend:
     class Tool(Enum):
         TOOL_DRAW = "draw"
         TOOL_ERASE = "erase"
+        TOOL_CLEAR = "clear"
 
     def __init__(self):
 
@@ -62,21 +65,25 @@ class TestFrontend:
         self.widgets = []
         self.init_palette()
 
+        self.erase_radius = ERASE_RADIUS_SMALL
+
         
         key_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
         key_listener.start()
 
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
-        time.sleep(1)
-        self.test_palette()
+        time.sleep(5)
+        self.test_new_erasers()
 
 
     def init_palette(self):
         
         self.draw_color = (255,255,255)
         colors = [
-            ( -1,  -1,  -1),
+            ( -2,  -2,  -2),
+            ( -1,  -1, ERASE_RADIUS_BIG),
+            ( -1,  -1, ERASE_RADIUS_SMALL),
             (255,  51, 255),
             (255,  51,  51),
             (255, 149,   0),
@@ -96,7 +103,7 @@ class TestFrontend:
 
 
         self.indicator_id = 9553487
-        indicator_pos_x = PALETTE_POS_X + 9 * PALETTE_HEIGHT
+        indicator_pos_x = PALETTE_POS_X + 11 * PALETTE_HEIGHT
         indicator_pos_y = PALETTE_POS_Y
         indicator_width = indicator_height = PALETTE_HEIGHT
         indicator_filepath = "assets/palette_indicator.png"
@@ -129,10 +136,10 @@ class TestFrontend:
             self.draw_grid(4,4,25, 250, 350 + 100 * i)
         
         click_on_erase_event = PenEvent(150, 100, PenState.DRAG)
+
         for widget in self.widgets:
-            for widget in self.widgets:
-                if widget.is_point_on_widget(*click_on_erase_event.get_coordinates()):
-                    widget.on_click(click_on_erase_event)
+            if widget.is_point_on_widget(*click_on_erase_event.get_coordinates()):
+                widget.on_click(click_on_erase_event)
 
         for i in range(0,100):
             self.draw_random_line(200,200,1000,700,500)
@@ -141,9 +148,39 @@ class TestFrontend:
 
         for i in range(0,20):
             self.draw_random_line(1200,200,1400,700,500)
-        
-        
 
+    def test_new_erasers(self):
+        for i in range (0,250):
+            self.draw_random_line(200,200, 1600, 750, 100)
+        
+        select_big_one_event = PenEvent(PALETTE_POS_X + 2 * PALETTE_HEIGHT - PALETTE_HEIGHT / 2, PALETTE_POS_Y + PALETTE_HEIGHT / 2, PenState.DRAG)
+        
+        for widget in self.widgets:
+            if widget.is_point_on_widget(*select_big_one_event.get_coordinates()):
+                widget.on_click(select_big_one_event)
+        print(f"TOOL: {self.tool}")
+        self.erase_in_line(1500, 300, 300, 900, 1000)
+        time.sleep(1)
+        erase_event = PenEvent(900, 500, PenState.DRAG)
+        self.erase_at_point(erase_event)
+        time.sleep(1)
+
+        select_small_one_event = PenEvent(PALETTE_POS_X + 3 * PALETTE_HEIGHT- PALETTE_HEIGHT / 2, PALETTE_POS_Y + PALETTE_HEIGHT / 2, PenState.DRAG)
+        for widget in self.widgets:
+            if widget.is_point_on_widget(*select_small_one_event.get_coordinates()):
+                widget.on_click(select_small_one_event)
+        self.erase_in_line(300, 300, 1500, 900, 1000)
+        
+        time.sleep(1)
+        erase_event = PenEvent(900, 800, PenState.DRAG)
+        self.erase_at_point(erase_event)
+        time.sleep(1)
+
+        select_clear_event = PenEvent(PALETTE_POS_X + PALETTE_HEIGHT / 2, PALETTE_POS_Y + PALETTE_HEIGHT / 2, PenState.DRAG)
+        
+        for widget in self.widgets:
+            if widget.is_point_on_widget(*select_clear_event.get_coordinates()):
+                widget.on_click(select_clear_event)
 
         
         
@@ -203,7 +240,7 @@ class TestFrontend:
 
             sim_pen_event = PenEvent(x, y, PenState.DRAG)
             self.erase_at_point(sim_pen_event)
-            time.sleep(0.005)
+            time.sleep(0.01)
         
         eraser_finish_event = PenEvent(x, y, PenState.HOVER)
         self.finish_erasing(eraser_finish_event)
@@ -227,6 +264,10 @@ class TestFrontend:
             self.draw_color = color
         elif action == "ERASE":
             self.tool = self.Tool.TOOL_ERASE
+            self.erase_radius = color[2]
+        elif action == "CLEAR":
+            self.tool = self.Tool.TOOL_CLEAR
+            self.clear_all()
         
         print(f"You have now selected the {self.tool} tool")
 
@@ -290,10 +331,9 @@ class TestFrontend:
     
 
     # Sends message to frontend to erase all points in a radius around the current position of the pen.
-    # currently only there to define the syntax for the UNIX Socket message.
     def erase_at_point(self, active_pen_event):
-        radius = ERASE_RADIUS
-        message = 'd {} {} {} {}'.format(active_pen_event.id, float(active_pen_event.x), float(active_pen_event.y), float(radius))
+        radius = self.erase_radius
+        message = 'd {} {} {} {} {}'.format(active_pen_event.id, float(active_pen_event.x), float(active_pen_event.y), float(radius),  0 if active_pen_event.state == PenState.HOVER else 1)
         self.send_message(message)
 
     def send_message(self, message):
@@ -347,6 +387,10 @@ class TestFrontend:
 
     def toggle_hide_ui(self):
         message = "h"
+        self.send_message(message)
+
+    def clear_all (self):
+        message = "x"
         self.send_message(message)
     
 

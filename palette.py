@@ -4,8 +4,9 @@ class Palette (Widget):
 
     #@params: fields: an array of tuples of length 3. Tuples contain RGB color values. Negative values are reserved for special codes: For example, a value of (-1, -1, -1) doesn't select a color, but the ERASE-tool instead.
     #   ( r,  g,  b) = red, green and blue values
-    #   (-1, -1, -1) = switch to erase tool
-    #   (-2, -2, -2), (-3, -3, -3) etc... reserved for other actions (when we need them implemented)s
+    #   (-1, -1,  r) = switch to erase tool (r is the radius of the eraser)
+    #   (-2, -2, -2) = clear everything
+    #   (-2, -2, -2), (-3, -3, -3) etc... reserved for other actions (when we need them implemented)
     def __init__(self,id,x, y,fields, field_size, callback):
         super().__init__(id, x, y, len(fields) * field_size, field_size)
 
@@ -29,7 +30,9 @@ class Palette (Widget):
             if color_code[0] >= 0 and color_code[1] >= 0 and color_code[2] >= 0: #no negative values => it's actually a color
                 self.callback("COLOR", color_code)
             elif color_code[0] == -1:
-                self.callback("ERASE", None)
+                self.callback("ERASE", color_code)
+            elif color_code[0] == -2:
+                self.callback("CLEAR", color_code)
 
             self.shift_indicator(idx_x * self.field_size + self.pos_x, self.pos_y)
             
