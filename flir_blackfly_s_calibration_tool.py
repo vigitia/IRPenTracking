@@ -12,6 +12,7 @@ EXTRACT_PROJECTION_AREA = False
 PREVIEW_MODE = False  # Em
 
 CAM_EXPOSURE_FOR_CALIBRATION = 150000  # Increase Brightness to better see the corners
+CAM_GAIN_FOR_CALIBRATION = 150  # Increase Brightness to better see the corners
 
 OUTPUT_RESOLUTION = (2160, 3840)
 
@@ -43,7 +44,7 @@ class FlirBlackFlySCalibrationTool:
             self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
         else:
             self.surface_selector = SurfaceSelector()
-            self.flir_blackfly_s = FlirBlackflyS(cam_exposure=CAM_EXPOSURE_FOR_CALIBRATION, subscriber=self)
+            self.flir_blackfly_s = FlirBlackflyS(cam_exposure=CAM_EXPOSURE_FOR_CALIBRATION, subscriber=self, gain=CAM_GAIN_FOR_CALIBRATION)
 
         self.main_loop()
 
