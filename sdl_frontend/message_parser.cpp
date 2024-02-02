@@ -540,6 +540,7 @@ int parseMessageUIElement(char* buffer)
         if (!is_known && num_args < 7)
         {
             cout << "WARNING: You are trying to create a new UI Element, but you only passed " << num_args << "arguments." << endl;
+            cout << buffer << "|" << num_args << endl;
             return 0;
         }
 
