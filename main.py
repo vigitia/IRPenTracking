@@ -11,7 +11,7 @@ from TipTrack.pen_events.ir_pen import IRPen
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_extractor import SurfaceExtractor
 
-from pen_color_detection.pen_color_detector import PenColorDetector
+# from pen_color_detection.pen_color_detector import PenColorDetector
 
 UNIX_SOCK_NAME = 'uds_test'
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
@@ -28,7 +28,7 @@ if USE_SDL_FRONTEND:
 
     time.sleep(2)
 
-JUERGEN_MODE = True
+JUERGEN_MODE = False
 if JUERGEN_MODE:
     from TipTrack.cameras.logitech_brio import LogitechBrio
 

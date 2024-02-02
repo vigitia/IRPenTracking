@@ -23,8 +23,8 @@ MAX_DISTANCE_DRAW = 500  # Maximum allowed pixel distance between two points to 
 
 # Width and height of the output window/screen -> Target resolution
 # ToDo: Store this data somewhere else
-OUTPUT_WINDOW_WIDTH = 3840
-OUTPUT_WINDOW_HEIGHT = 2160
+OUTPUT_WINDOW_WIDTH = 1920 # 3840
+OUTPUT_WINDOW_HEIGHT = 1080 # 2160
 
 # Width and height of the received frames
 INPUT_FRAME_WIDTH = 1920  # 848
