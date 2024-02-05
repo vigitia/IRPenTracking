@@ -44,7 +44,7 @@ if DOCUMENTS_DEMO:
 RESOLUTION = "1080P"
 SCALE_RES= 1
 
-if RESOLUTION == "1080P":
+if RESOLUTION == "4K":
     SCALE_RES = 1
 elif RESOLUTION == "1080P":
     SCALE_RES = 0.5
@@ -151,7 +151,7 @@ class Main:
         
         message = "u {} {} {} {} {} {} {}".format(self.palette_id, 1, PALETTE_POS_X, PALETTE_POS_Y, PALETTE_WIDTH, PALETTE_HEIGHT, PALETTE_FILE_PATH)
         self.send_message(message)
-
+        time.sleep(1)
 
         self.indicator_id = 9553487
         indicator_pos_x = PALETTE_POS_X + 11 * PALETTE_HEIGHT

@@ -24,13 +24,14 @@ void ImagePanel::setTexture(char* texture_path)
 {
     this->paletteSurface = loadSurface(texture_path);
     this->paletteTexture = SDL_CreateTextureFromSurface( renderer, this->paletteSurface);
+    cout << "After loading texture: Error " << SDL_GetError() << endl;
 }
 
 void ImagePanel::render(SDL_Renderer* renderer)
 {
     if (this->visible)
     {
-        SDL_Rect paletteRect = { this->position.x, this->position.y, this->width, this->height };
+        SDL_Rect paletteRect = { this->position.x, this->position.y, static_cast<int>(this->width), static_cast<int>(this->height) };
         int error = SDL_RenderCopy(renderer, this->paletteTexture, NULL, &paletteRect);
     }
 }
