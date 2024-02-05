@@ -6,6 +6,7 @@ import numpy as np
 import skimage
 import cv2
 
+import Constants
 from TipTrack.pen_events.pen_state import PenState
 from TipTrack.pen_events.pen_event import PenEvent
 from TipTrack.pen_events.pen_events_controller import PenEventsController
@@ -22,13 +23,12 @@ MAX_DISTANCE_DRAW = 500  # Maximum allowed pixel distance between two points to 
 # LATENCY_MEASURING_MODE = False
 
 # Width and height of the output window/screen -> Target resolution
-# ToDo: Store this data somewhere else
-OUTPUT_WINDOW_WIDTH = 3840
-OUTPUT_WINDOW_HEIGHT = 2160
+OUTPUT_WINDOW_WIDTH = Constants.OUTPUT_WINDOW_WIDTH
+OUTPUT_WINDOW_HEIGHT = Constants.OUTPUT_WINDOW_HEIGHT
 
 # Width and height of the received frames
-INPUT_FRAME_WIDTH = 1920  # 848
-INPUT_FRAME_HEIGHT = 1200  # 480
+INPUT_FRAME_WIDTH = Constants.INPUT_FRAME_WIDTH
+INPUT_FRAME_HEIGHT = Constants.INPUT_FRAME_HEIGHT
 
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
