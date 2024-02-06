@@ -14,6 +14,7 @@ class Palette (Widget):
         self.field_size = field_size
         self.callback = callback
     
+    # set a function to call for setting the position of the indicator
     def set_function_shift_indicator(self, callback):
         self.shift_indicator = callback
 
@@ -30,7 +31,7 @@ class Palette (Widget):
             if color_code[0] >= 0 and color_code[1] >= 0 and color_code[2] >= 0: #no negative values => it's actually a color
                 self.callback("COLOR", color_code)
             elif color_code[0] == -1:
-                self.callback("ERASE", color_code)
+                self.callback("ERASE", color_code) #handle special codes.
             elif color_code[0] == -2:
                 self.callback("CLEAR", color_code)
 

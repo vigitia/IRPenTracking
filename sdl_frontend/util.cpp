@@ -94,6 +94,7 @@ float getDistance(float x1, float y1, float x2, float y2)
     return sqrt(a * a + b * b);
 }
 
+// still used, but marked for deletion
 // cx, cy = coords of circle center; r = radius
 vector<Point> collideLineWithCircle(vector<Point> line_points, float cx, float cy, float r)
 {

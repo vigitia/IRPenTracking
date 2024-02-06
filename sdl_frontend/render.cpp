@@ -33,7 +33,7 @@ void render(SDL_Renderer* renderer)
     }
 
     renderAllImages(renderer);
-    if (SHOW_UI) renderAllUIElements(renderer);
+    if (SHOW_UI) renderAllUIElements(renderer); //renders UI Elements only if SHOW_UI flag is set. Currently the only difference between UI Elements and images.
     if(SHOW_PARTICLES) renderParticles(renderer);
     if(showBrokenPipeIndicator) renderBrokenPipeIndicator(renderer);
 
@@ -224,6 +224,7 @@ void renderHoverIndicator(SDL_Renderer* renderer)
     }
 }
 
+//renders a circle around the tip to indicate where points will be removed during erasing process.
 void renderEraserIndicator(SDL_Renderer* renderer)
 {
     mutex_pens.lock();

@@ -306,17 +306,22 @@ int parseMessageDelete(char* buffer)
         {
             showEraserIndicator = true;
             //re-implementation of dubious code that is hopefully more readable (and actually works)
+
+            // keeps track of new line segment that are created when an existing line is split
             vector<Line> newLines;
+            //loop over every line saved.
             for (vector<Line>::iterator lineit = lines.begin(); lineit != lines.end();)
             {
-                int idx = 0;
-                int lastNotCollidingIndex = 0;
 
                 //when iterating through the vector of points, we will alternate between sections of points that will remain and sections of points that will be erased.
                 //this bool keeps track of which type of section we are currently in.
-                bool inCollidingSpan = false; //
+                bool inCollidingSpan = false;
 
                 vector<Point> points = lineit->coords;
+
+                //during the iteration, we take action at the points where we change from an erased section to an unerased section.
+                //if we change from an unerased section to an erased section, we chop everything before off and save it as a new line.
+                //if we change from an erased section to an unerased section, we chop everything before off and discard it.
                 for(vector<Point>::iterator pointit = lineit->coords.begin(); pointit != lineit->coords.end();++pointit)
                 {
                     if(getDistance(pointit->x, pointit->y, x, y) <= radius) // is the current point colliding with the eraser?
@@ -330,9 +335,10 @@ int parseMessageDelete(char* buffer)
                                 Line newLineSegment; //put all points that came before into a new line
                                 newLineSegment.color = lineit->color;
                                 newLineSegment.alive = lineit->alive;
-                                newLineSegment.id = lineit->id; //Breaks any future additions that rely on the ids of lines being unique
-                                copy(lineit->coords.begin(), pointit, back_inserter(newLineSegment.coords));
-                                pointit = lineit->coords.erase(lineit->coords.begin(), pointit);
+                                newLineSegment.id = lineit->id; //NOTE: THIS WILL BREAK any future additions that rely on the ids of lines being unique
+                                //TODO: find a better way of assigning new line ids
+                                copy(lineit->coords.begin(), pointit, back_inserter(newLineSegment.coords)); //copy points from existing line to new line
+                                pointit = lineit->coords.erase(lineit->coords.begin(), pointit); //and then erase these points from the original line
                                 if (newLineSegment.coords.size() >= MIN_NON_ERASE_LINE_POINTS)
                                 {
                                     newLines.push_back(newLineSegment);
@@ -346,27 +352,29 @@ int parseMessageDelete(char* buffer)
                         if(inCollidingSpan)//are we changing from an erased section to an unerased section?
                         {
                             inCollidingSpan = false;
-                            pointit = lineit->coords.erase(lineit->coords.begin(), pointit);
+                            pointit = lineit->coords.erase(lineit->coords.begin(), pointit); //erase all points in the erased section from the line
                         }
                     }
                 }
-
+                
+                //if this algorithm is finished and there are no points remaining in the line, we can discard it
                 if (lineit->coords.size() < MIN_NON_ERASE_LINE_POINTS)
                 {
                     lineit = lines.erase(lineit);
                 }
                 else
                 {
-                    ++lineit;
+                    ++lineit; //increment iterator
                 }
             }
 
+            // save all new line segments
             for(vector<Line>::iterator lineit = newLines.begin(); lineit != newLines.end(); ++lineit)
             {
                 lines.push_back(*lineit);
             }
 
-
+            //TODO: implement the same for document lines
             for (vector<Line>::iterator lineit = documentLines.begin(); lineit != documentLines.end(); )
             {
                 vector<Point> colliding_points = collideLineWithCircle(lineit->coords, x, y, radius);
@@ -384,43 +392,13 @@ int parseMessageDelete(char* buffer)
         mutex_lines.unlock();
         
         mutex_pens.unlock();
-
-        //OLD BEHAVIOR: Lines are selected by their ID
-    //if(sscanf(buffer, "d %d ", &id) == 1)
-    //{
-        //for (vector<Line>::iterator it = lines.begin(); it != lines.end(); )
-        //{
-
-        //    if(it->id == id) 
-        //        it = lines.erase(it);
-        //    else 
-        //        ++it;
-        //}
-
-        //for (vector<Line>::iterator it = documentLines.begin(); it != documentLines.end(); )
-        //{
-
-        //    if(it->id == id) 
-        //        it = documentLines.erase(it);
-        //    else 
-        //        ++it;
-        //}
-
-        //for (auto line : lines)
-        //{
-        //    if (line.id == id)
-        //    {
-        //        line.alive = false;
-        //    }
-        //}
-        //remove_if(lines.begin(), lines.end(), removeLine);
         
         return 1;
     }
     return 0;
 }
 
-
+//signals that the eraser has been lifted from the surface. The erasing process has been paused.
 int parseMessageFinishErase(char* buffer)
 {
     int id;
@@ -435,7 +413,8 @@ int parseMessageFinishErase(char* buffer)
     }
 }
 
-
+//display or change an image (that is not part of the UI). For comments, look at parseMessageUIElement() below. Both function very similarly.
+//currently unused by the backend.
 int parseMessageImage(char* buffer)
 {
     int id;
@@ -500,13 +479,13 @@ int parseMessageImage(char* buffer)
 
 int parseMessageUIElement(char* buffer)
 {
-    int id;
-    int visibility;
-    float x = -1.0;
-    float y = -1.0;
-    int width = -1;
-    int height = -1;
-    char filepath [200];
+    int id; //required
+    int visibility; //required | if 0 or lower, ImagePanel is set to invisible
+    float x = -1.0; //only required if width and height are not given | temporary value to signal that variable has not been properly assigned
+    float y = -1.0; //only required if width and height are not given 
+    int width = -1; //only required if x and y are not given
+    int height = -1; //only required if x and y are not given 
+    char filepath [200]; //only required when creating a new UI Element
     int num_args = sscanf(buffer, "u %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
 
     if (num_args >= 4) 
@@ -514,14 +493,15 @@ int parseMessageUIElement(char* buffer)
 
         bool is_known = false;
 
-        ImagePanel* img;
+        ImagePanel* img; //Pointer to the ImagePanel we wish to manipulate
+
         vector<ImagePanel>::const_iterator imgIndex;
         for (vector<ImagePanel>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
         {
-            if (imgit->getID() == id)
+            if (imgit->getID() == id) //check if an image of this ID is already on the list
             {
                 is_known = true;
-                img = &(*imgit);
+                img = &(*imgit); //if so, assign pointer of the image to img. Clumsy syntax because we the iterator != ImagePanel
                 imgIndex = imgit;
                 break;
             }
@@ -530,7 +510,7 @@ int parseMessageUIElement(char* buffer)
 
         if (!is_known)
         {
-            ImagePanel newimg;
+            ImagePanel newimg; //if not, just create a new ImagePanel
             img = &newimg;
         }
 
@@ -545,7 +525,8 @@ int parseMessageUIElement(char* buffer)
         }
 
         img->setVisibility((visibility > 0));
-        if (x != -1.0 && y != -1.0)
+
+        if (x != -1.0 && y != -1.0) //check if values have been assigned
         {
             Point newPosition;
             newPosition.x = x;
@@ -560,6 +541,7 @@ int parseMessageUIElement(char* buffer)
         if (num_args == 7)
         {
             //short-term workaround: use preloaded textures
+            //TODO: make some sort of hashmap of preloaded textures. This is ugly and a hassle to update.
             //if (filepath == "assets/big_palette_expanded.png")
             if (strcmp(filepath, "assets/big_palette_expanded.png") == 0)
             {
@@ -577,13 +559,13 @@ int parseMessageUIElement(char* buffer)
         if (!is_known)
         {
             img->setID(id);
-            uiElements.push_back(*img);
+            uiElements.push_back(*img); //add new ImageFrame to the list
         }
         else
         {
             const ImagePanel immutableImage = *img;
             uiElements.erase(imgIndex);
-            uiElements.insert(imgIndex, immutableImage);
+            uiElements.insert(imgIndex, immutableImage); //replace original ImageFrame with its updated version
         }
 
         return 1;

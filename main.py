@@ -132,10 +132,10 @@ class Main:
         
         self.draw_color = (255,255,255)
         colors = [
-            ( -2,  -2,  -2),
-            ( -1,  -1, ERASE_RADIUS_BIG),
-            ( -1,  -1, ERASE_RADIUS_SMALL),
-            (255,  51, 255),
+            ( -2,  -2,  -2), # == Clear everything
+            ( -1,  -1, ERASE_RADIUS_BIG),# == Eraser, bigger Radius
+            ( -1,  -1, ERASE_RADIUS_SMALL), # == Eraser, smaller Radius
+            (255,  51, 255), # == an RGB color value (as everything below)
             (255,  51,  51),
             (255, 149,   0),
             (255, 255,  17),
@@ -144,6 +144,7 @@ class Main:
             ( 76,  76, 255),
             (128, 128, 128),
             (255, 255, 255)]
+        
         self.palette_id = 25101881
 
         
@@ -250,6 +251,7 @@ class Main:
 
     # ----------------------------------------------------------------------------------------------------------------
 
+    # callback function that reacts to the option chosen on the palette.
     def choose_color_or_tool(self, action, color):
         if action == "COLOR":
             self.tool = self.Tool.TOOL_DRAW
@@ -318,6 +320,7 @@ class Main:
 
         self.send_message(message)
     
+    # callback function. Used by the palette to set the position of the indicator
     def move_indicator(self,new_x, new_y):
         message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
         #message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, new_x, new_y, 180, 180, "assets/palette_indicator.png")
@@ -325,12 +328,12 @@ class Main:
     
 
     # Sends message to frontend to erase all points in a radius around the current position of the pen.
-    # currently only there to define the syntax for the UNIX Socket message.
     def erase_at_point(self, active_pen_event):
         radius = self.erase_radius
         message = 'd {} {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius, 0 if active_pen_event.state == PenState.HOVER else 1)
         self.send_message(message)
         
+    # Sends message to frontend to pause the erase process (a.k.a. stop showing the eraser indicator)
     def finish_erasing(self, pen_event_to_remove):
         message = 'v {}'.format(pen_event_to_remove.id)
         self.send_message(message)
@@ -463,12 +466,12 @@ class Main:
 
             for active_pen_event in active_pen_events:
                 is_touch_on_widget = False
-                for widget in self.widgets:
+                for widget in self.widgets: #check first if the pen collides with a widget
                     if widget.is_point_on_widget(*active_pen_event.get_coordinates()):
-                        widget.on_click(active_pen_event)
+                        widget.on_click(active_pen_event) #if that's the case, let the widget decide what happens on a click
                         is_touch_on_widget = True
 
-                if not is_touch_on_widget:
+                if not is_touch_on_widget: #else, manipulate the canvas with the selected tool
                     if self.tool == self.Tool.TOOL_DRAW:
                         self.add_new_line_point(active_pen_event)
                     elif self.tool == self.Tool.TOOL_ERASE:
@@ -519,6 +522,7 @@ class Main:
             if document_changed or document_removed:
                 self.clear_rects()
 
+    #TODO: remove. Let the frontend handle everything with key inputs.
     def on_key_press(self, key):
         if key == keyboard.Key.shift:
             for widget in self.widgets:
@@ -535,6 +539,8 @@ class Main:
     def clear_all (self):
         message = "x"
         self.send_message(message)
+
+    #TODO (BIG): shift most of the functionality for choosing tools, handling widgets etc. to the frontend.
     
 
 
