@@ -126,8 +126,8 @@ class ImagePanel
         int height;
         bool visible;
 
-        SDL_Surface *paletteSurface;
-        SDL_Texture *paletteTexture;
+        SDL_Surface* paletteSurface;
+        SDL_Texture* paletteTexture;
 
     public:
         ImagePanel();
@@ -136,7 +136,7 @@ class ImagePanel
         void setID(int id);
         int getID();
         void loadTexture(char* texturePath);
-        void setTexture(SDL_Texture texture);
+        void setTexture(SDL_Texture* texture);
         void setDimensions(int width, int height);
         Point getPosition();
         int getWidth();

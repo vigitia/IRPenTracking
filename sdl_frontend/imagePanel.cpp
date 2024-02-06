@@ -27,6 +27,11 @@ void ImagePanel::loadTexture(char* texture_path)
     cout << "After loading texture: Error " << SDL_GetError() << endl;
 }
 
+void ImagePanel::setTexture(SDL_Texture* texture)
+{
+    this->paletteTexture = texture;
+}
+
 void ImagePanel::render(SDL_Renderer* renderer)
 {
     if (this->visible)

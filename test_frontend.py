@@ -80,7 +80,7 @@ class TestFrontend:
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
         time.sleep(5)
-        self.test_new_erasers()
+        self.test_palette()
 
 
     def init_palette(self):
@@ -130,9 +130,9 @@ class TestFrontend:
     def test_palette (self):
         self.draw_grid(4, 4, 26, 250, 250)
 
-        for i in range(0,9):
+        for i in range(3,11):
             time.sleep(1)
-            click_event = PenEvent(300 + i * 180,100, PenState.DRAG)
+            click_event = PenEvent(PALETTE_POS_X + PALETTE_HEIGHT/2 + i * PALETTE_HEIGHT,PALETTE_HEIGHT/2, PenState.DRAG)
             for widget in self.widgets:
                 if widget.is_point_on_widget(*click_event.get_coordinates()):
                     widget.on_click(click_event)
@@ -141,7 +141,7 @@ class TestFrontend:
             time.sleep(1)
             self.draw_grid(4,4,25, 250, 350 + 100 * i)
         
-        click_on_erase_event = PenEvent(150, 100, PenState.DRAG)
+        click_on_erase_event = PenEvent(PALETTE_POS_X + PALETTE_HEIGHT/2 + 1 * PALETTE_HEIGHT, PALETTE_HEIGHT / 2, PenState.DRAG)
 
         for widget in self.widgets:
             if widget.is_point_on_widget(*click_on_erase_event.get_coordinates()):

@@ -122,10 +122,10 @@ void saveProfilePicture()
 void preloadTextures()
 {
     SDL_Surface* preloadedPaletteSurface = loadSurface("assets/big_palette_expanded.png");
-    preloadedPaletteTexture = &SDL_CreateTextureFromSurface( renderer, preloadedPaletteSurface);
+    preloadedPaletteTexture = SDL_CreateTextureFromSurface( renderer, preloadedPaletteSurface);
 
     SDL_Surface* preloadedPaletteIndicatorSurface = loadSurface("assets/palette_indicator.png");
-    preloadedPaletteIndicatorTexture = &SDL_CreateTextureFromSurface( renderer, preloadedPaletteIndicatorSurface);
+    preloadedPaletteIndicatorTexture = SDL_CreateTextureFromSurface( renderer, preloadedPaletteIndicatorSurface);
 }
 
 int main(int argc, char* argv[]) 
@@ -183,6 +183,8 @@ int main(int argc, char* argv[])
 
     crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
     imageTexture = SDL_CreateTextureFromSurface( renderer, imageSurface );
+
+    preloadTextures();
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);

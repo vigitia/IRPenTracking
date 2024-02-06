@@ -562,11 +562,11 @@ int parseMessageUIElement(char* buffer)
             //short-term workaround: use preloaded textures
             if (filepath == "assets/big_palette_expanded.png")
             {
-                img->setTexture(*preloadedPaletteTexture);
+                img->setTexture(preloadedPaletteTexture);
             }
-            else if (filepath = "assets/palette_indicator.png")
+            else if (filepath == "assets/palette_indicator.png")
             {
-                img->setTexture(*preloadedPaletteIndicatorTexture);
+                img->setTexture(preloadedPaletteIndicatorTexture);
             }
             else
                 img->loadTexture(filepath);
