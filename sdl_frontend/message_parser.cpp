@@ -559,17 +559,20 @@ int parseMessageUIElement(char* buffer)
 
         if (num_args == 7)
         {
+            cout << "file path in message parser: " << filepath << endl;
             //short-term workaround: use preloaded textures
-            if (filepath == "assets/big_palette_expanded.png")
+            //if (filepath == "assets/big_palette_expanded.png")
+            if (strcmp(filepath, "assets/big_palette_expanded.png") == 0)
             {
                 img->setTexture(preloadedPaletteTexture);
             }
-            else if (filepath == "assets/palette_indicator.png")
+            //else if (filepath == "assets/palette_indicator.png")
+            else if (strcmp(filepath, "assets/palette_indicator.png") == 0)
             {
                 img->setTexture(preloadedPaletteIndicatorTexture);
             }
-            else
-                img->loadTexture(filepath);
+            //else
+            //    img->loadTexture(filepath);
         }
         
         if (!is_known)

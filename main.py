@@ -29,7 +29,7 @@ SEND_DATA_USING_UNIX_SOCKET = True  # Enable if points should be forwarded using
 USE_SDL_FRONTEND = True
 if USE_SDL_FRONTEND:
     import subprocess
-    subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
+    #subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
 
     time.sleep(2)
 

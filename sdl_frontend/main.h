@@ -197,6 +197,8 @@ void logData(const string& fileName, const string& data);
 bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b);
 void toggleHideUI();
 
+void preloadTextures(SDL_Renderer* renderer);
+
 int parseMessage(char* buffer);
 int parseMessageLine(char* buffer);
 int parseMessageFinishLine(char* buffer);

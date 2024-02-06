@@ -119,13 +119,15 @@ void saveProfilePicture()
     pathGame.isSavingProfilePicture = false;
 }
 
-void preloadTextures()
+void preloadTextures(SDL_Renderer* renderer)
 {
     SDL_Surface* preloadedPaletteSurface = loadSurface("assets/big_palette_expanded.png");
     preloadedPaletteTexture = SDL_CreateTextureFromSurface( renderer, preloadedPaletteSurface);
 
     SDL_Surface* preloadedPaletteIndicatorSurface = loadSurface("assets/palette_indicator.png");
     preloadedPaletteIndicatorTexture = SDL_CreateTextureFromSurface( renderer, preloadedPaletteIndicatorSurface);
+
+    cout << "in preloadTextures" << SDL_GetError() << endl;
 }
 
 int main(int argc, char* argv[]) 
@@ -184,7 +186,7 @@ int main(int argc, char* argv[])
     crossesTexture = SDL_CreateTextureFromSurface( renderer, crossesSurface );
     imageTexture = SDL_CreateTextureFromSurface( renderer, imageSurface );
 
-    preloadTextures();
+    preloadTextures(renderer);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
