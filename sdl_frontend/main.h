@@ -135,7 +135,8 @@ class ImagePanel
         void setPosition(Point Position);
         void setID(int id);
         int getID();
-        void setTexture(char* texturePath);
+        void loadTexture(char* texturePath);
+        void setTexture(SDL_Texture texture);
         void setDimensions(int width, int height);
         Point getPosition();
         int getWidth();
@@ -174,6 +175,10 @@ inline mutex mutex_pens;
 inline mutex mutex_lines;
 
 inline uint32_t highlightColor = 0x9900FFFF;
+
+//(possible) short-term workaround: preloaded UI textures
+inline SDL_Texture* preloadedPaletteTexture;
+inline SDL_Texture* preloadedPaletteIndicatorTexture;
 
 void clearScreen();
 SDL_Surface* loadSurface(string path);

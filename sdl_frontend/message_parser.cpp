@@ -483,7 +483,7 @@ int parseMessageImage(char* buffer)
         
         if (num_args == 7)
         {
-            img.setTexture(filepath);
+            img.loadTexture(filepath);
         }
         
         if (!is_known)
@@ -559,7 +559,17 @@ int parseMessageUIElement(char* buffer)
 
         if (num_args == 7)
         {
-            img->setTexture(filepath);
+            //short-term workaround: use preloaded textures
+            if (filepath == "assets/big_palette_expanded.png")
+            {
+                img->setTexture(*preloadedPaletteTexture);
+            }
+            else if (filepath = "assets/palette_indicator.png")
+            {
+                img->setTexture(*preloadedPaletteIndicatorTexture);
+            }
+            else
+                img->loadTexture(filepath);
         }
         
         if (!is_known)

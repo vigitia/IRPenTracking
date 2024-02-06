@@ -119,6 +119,15 @@ void saveProfilePicture()
     pathGame.isSavingProfilePicture = false;
 }
 
+void preloadTextures()
+{
+    SDL_Surface* preloadedPaletteSurface = loadSurface("assets/big_palette_expanded.png");
+    preloadedPaletteTexture = &SDL_CreateTextureFromSurface( renderer, preloadedPaletteSurface);
+
+    SDL_Surface* preloadedPaletteIndicatorSurface = loadSurface("assets/palette_indicator.png");
+    preloadedPaletteIndicatorTexture = &SDL_CreateTextureFromSurface( renderer, preloadedPaletteIndicatorSurface);
+}
+
 int main(int argc, char* argv[]) 
 {
     signal(SIGINT, onExit);

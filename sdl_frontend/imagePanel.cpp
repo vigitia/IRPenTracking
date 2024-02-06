@@ -20,7 +20,7 @@ int ImagePanel::getID()
     return this->id;
 }
 
-void ImagePanel::setTexture(char* texture_path)
+void ImagePanel::loadTexture(char* texture_path)
 {
     this->paletteSurface = loadSurface(texture_path);
     this->paletteTexture = SDL_CreateTextureFromSurface( renderer, this->paletteSurface);
