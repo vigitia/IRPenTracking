@@ -230,9 +230,6 @@ class Main:
     def delete_line(self, line_id):
         message = f'd {line_id}'
 
-        print('DELETING LINE WITH ID', line_id)
-        print('message:', message)
-
         self.send_message(message)
 
     # Only for documents demo
@@ -263,7 +260,7 @@ class Main:
             self.tool = self.Tool.TOOL_CLEAR
             self.clear_all()
         
-        print(f"You have now selected the {self.tool} tool")
+        #print(f"You have now selected the {self.tool} tool")
 
     def finish_line(self, pen_event_to_remove):
         """
@@ -271,7 +268,7 @@ class Main:
         """
         message = 'f {}'.format(pen_event_to_remove.id)
 
-        print('Finish line', pen_event_to_remove.id)
+        #print('Finish line', pen_event_to_remove.id)
 
         self.send_message(message)
 

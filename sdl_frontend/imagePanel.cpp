@@ -24,7 +24,6 @@ void ImagePanel::loadTexture(char* texture_path)
 {
     this->paletteSurface = loadSurface(texture_path);
     this->paletteTexture = SDL_CreateTextureFromSurface( renderer, this->paletteSurface);
-    cout << "After loading texture: Error " << SDL_GetError() << endl;
 }
 
 void ImagePanel::setTexture(SDL_Texture* texture)
@@ -43,9 +42,7 @@ void ImagePanel::render(SDL_Renderer* renderer)
 
 void ImagePanel::setPosition(Point position)
 {
-    cout << "Old position " << this->position.x << "," << this->position.y << endl;
     this->position = position;
-    cout << "New position " << this->position.x << "," << this->position.y << endl;
 }
 
 Point ImagePanel::getPosition()

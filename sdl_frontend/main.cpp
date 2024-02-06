@@ -127,7 +127,6 @@ void preloadTextures(SDL_Renderer* renderer)
     SDL_Surface* preloadedPaletteIndicatorSurface = loadSurface("assets/palette_indicator.png");
     preloadedPaletteIndicatorTexture = SDL_CreateTextureFromSurface( renderer, preloadedPaletteIndicatorSurface);
 
-    cout << "in preloadTextures" << SDL_GetError() << endl;
 }
 
 int main(int argc, char* argv[]) 

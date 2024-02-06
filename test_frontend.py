@@ -136,8 +136,8 @@ class TestFrontend:
             for widget in self.widgets:
                 if widget.is_point_on_widget(*click_event.get_coordinates()):
                     widget.on_click(click_event)
-                else:
-                    print("ClickEvent missed")
+                #else:
+                #    print("ClickEvent missed")
             time.sleep(1)
             self.draw_grid(4,4,25, 250, 350 + 100 * i)
         
@@ -264,7 +264,7 @@ class TestFrontend:
 
     def choose_color_or_tool(self, action, color):
         if action == "COLOR":
-            print(f"updating color to {color}")
+            #print(f"updating color to {color}")
             self.tool = self.Tool.TOOL_DRAW
             self.draw_color = color
         elif action == "ERASE":
@@ -274,7 +274,7 @@ class TestFrontend:
             self.tool = self.Tool.TOOL_CLEAR
             self.clear_all()
         
-        print(f"You have now selected the {self.tool} tool")
+        #print(f"You have now selected the {self.tool} tool")
 
     def move_indicator(self,new_x, new_y):
         message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
