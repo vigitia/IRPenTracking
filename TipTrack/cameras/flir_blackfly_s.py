@@ -139,11 +139,14 @@ class FlirBlackflyS:
     device_event_handlers = []
     device_serial_numbers = []
 
-    def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, subscriber=None):
+    def __init__(self, cam_exposure=EXPOSURE_TIME_MICROSECONDS, subscriber=None, gain=GAIN):
 
         # Overwrite the default exposure time if needed
         global EXPOSURE_TIME_MICROSECONDS
         EXPOSURE_TIME_MICROSECONDS = cam_exposure
+
+        global GAIN
+        GAIN = gain
 
         self.surface_extractor = SurfaceExtractor()
         self.camera_undistortion_utility = CameraUndistortionUtility(FRAME_WIDTH, FRAME_HEIGHT)
