@@ -29,7 +29,7 @@ SEND_DATA_USING_UNIX_SOCKET = True  # Enable if points should be forwarded using
 USE_SDL_FRONTEND = True
 if USE_SDL_FRONTEND:
     import subprocess
-    #subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
+    subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
 
     time.sleep(2)
 
@@ -50,7 +50,7 @@ elif RESOLUTION == "1080P":
     SCALE_RES = 0.5
 
 ERASE_RADIUS_SMALL = SCALE_RES * 10 
-ERASE_RADIUS_BIG = SCALE_RES * 50
+ERASE_RADIUS_BIG = SCALE_RES * 75
 
 PALETTE_FILE_PATH = "assets/big_palette_expanded.png"
 PALETTE_POS_X = SCALE_RES * 840
@@ -152,7 +152,6 @@ class Main:
         
         message = "u {} {} {} {} {} {} {}".format(self.palette_id, 1, PALETTE_POS_X, PALETTE_POS_Y, PALETTE_WIDTH, PALETTE_HEIGHT, PALETTE_FILE_PATH)
         self.send_message(message)
-        time.sleep(1)
 
         self.indicator_id = 9553487
         indicator_pos_x = PALETTE_POS_X + 11 * PALETTE_HEIGHT
@@ -258,6 +257,7 @@ class Main:
             self.draw_color = color
         elif action == "ERASE":
             self.tool = self.Tool.TOOL_ERASE
+            self.erase_radius = color[2]
         elif action == "CLEAR":
             self.tool = self.Tool.TOOL_CLEAR
             self.clear_all()
