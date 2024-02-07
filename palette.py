@@ -28,6 +28,7 @@ class Palette (Widget):
 
             color_code = self.fields[idx_x]
 
+            self.shift_indicator(idx_x * self.field_size + self.pos_x, self.pos_y)
             if color_code[0] >= 0 and color_code[1] >= 0 and color_code[2] >= 0: #no negative values => it's actually a color
                 self.callback("COLOR", color_code)
             elif color_code[0] == -1:
@@ -35,8 +36,7 @@ class Palette (Widget):
             elif color_code[0] == -2:
                 self.callback("CLEAR", color_code)
 
-            self.shift_indicator(idx_x * self.field_size + self.pos_x, self.pos_y)
-            
+
 
 
 

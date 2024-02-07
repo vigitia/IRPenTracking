@@ -364,12 +364,13 @@ int parseMessageDelete(char* buffer)
                 }
                 else
                 {
-                    const Line restLine = *lineit;
-                    lines.erase(lineit);
-                    lines.insert(lineit, restLine);
+                    //const Line restLine = *lineit;
+                    //lines.erase(lineit);
+                    //lines.insert(lineit, restLine);
                     ++lineit; //increment iterator
                 }
             }
+
 
             // save all new line segments
             for(vector<Line>::iterator lineit = newLines.begin(); lineit != newLines.end(); ++lineit)

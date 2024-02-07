@@ -10,9 +10,12 @@ from enum import Enum
 import pynput.keyboard as keyboard
 
 from TipTrack.pen_events.pen_state import PenState
+from TipTrack.pen_events.pen_event import PenEvent
 from TipTrack.pen_events.ir_pen import IRPen
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_extractor import SurfaceExtractor
+
+from Constants import *
 
 #from pen_color_detection.pen_color_detector import PenColorDetector
 
@@ -29,7 +32,7 @@ SEND_DATA_USING_UNIX_SOCKET = True  # Enable if points should be forwarded using
 USE_SDL_FRONTEND = True
 if USE_SDL_FRONTEND:
     import subprocess
-    subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
+    #subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
 
     time.sleep(2)
 
@@ -41,22 +44,22 @@ DOCUMENTS_DEMO = False
 if DOCUMENTS_DEMO:
     from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
-RESOLUTION = "1080P"
+#RESOLUTION = "4K"
 SCALE_RES= 1
 
-if RESOLUTION == "4K":
+if OUTPUT_WINDOW_WIDTH == 3840 and OUTPUT_WINDOW_HEIGHT == 2160:
     SCALE_RES = 1
-elif RESOLUTION == "1080P":
+elif OUTPUT_WINDOW_WIDTH == 1920 and OUTPUT_WINDOW_HEIGHT == 1080:
     SCALE_RES = 0.5
 
 ERASE_RADIUS_SMALL = SCALE_RES * 10 
 ERASE_RADIUS_BIG = SCALE_RES * 75
 
 PALETTE_FILE_PATH = "assets/big_palette_expanded.png"
-PALETTE_POS_X = SCALE_RES * 840
-PALETTE_POS_Y = SCALE_RES * 0
 PALETTE_WIDTH = int(SCALE_RES * 1800)
 PALETTE_HEIGHT = int(SCALE_RES * 150)
+PALETTE_POS_X = (OUTPUT_WINDOW_WIDTH - PALETTE_WIDTH) / 2
+PALETTE_POS_Y = SCALE_RES * 0
 
 
 class Main:
@@ -261,7 +264,13 @@ class Main:
         elif action == "CLEAR":
             self.tool = self.Tool.TOOL_CLEAR
             self.clear_all()
-        
+            #simulate click on white field
+            sim_pen_event = PenEvent(PALETTE_POS_X + int(11.5 * PALETTE_HEIGHT), PALETTE_POS_Y + int(0.5 * PALETTE_HEIGHT), PenState.DRAG)
+            for widget in self.widgets:
+                widget.on_click(sim_pen_event)
+            self.move_indicator(PALETTE_POS_X + int(11 * PALETTE_HEIGHT),  PALETTE_POS_Y)
+            time.sleep(0.01)
+
         #print(f"You have now selected the {self.tool} tool")
 
     def finish_line(self, pen_event_to_remove):
@@ -467,7 +476,7 @@ class Main:
             for active_pen_event in active_pen_events:
                 is_touch_on_widget = False
                 for widget in self.widgets: #check first if the pen collides with a widget
-                    if widget.is_point_on_widget(*active_pen_event.get_coordinates()):
+                    if widget.is_point_on_widget(*active_pen_event.get_coordinates()) and widget.is_visible:
                         widget.on_click(active_pen_event) #if that's the case, let the widget decide what happens on a click
                         is_touch_on_widget = True
 
@@ -524,7 +533,8 @@ class Main:
 
     #TODO: remove. Let the frontend handle everything with key inputs.
     def on_key_press(self, key):
-        if key == keyboard.Key.shift:
+        #print("Pressed key {}".format(key))
+        if key == keyboard.Key.page_down:
             for widget in self.widgets:
                 widget.set_visibility(not widget.is_visible)
             self.toggle_hide_ui()
