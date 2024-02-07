@@ -21,7 +21,6 @@ from Constants import *
 
 from palette import Palette
 
-UNIX_SOCK_NAME = 'uds_test'
 TRAINING_DATA_COLLECTION_MODE = False  # Enable if ROIs should be saved to disk
 DEBUG_MODE = False  # Enable for Debug print statements and preview windows
 
@@ -52,14 +51,14 @@ if OUTPUT_WINDOW_WIDTH == 3840 and OUTPUT_WINDOW_HEIGHT == 2160:
 elif OUTPUT_WINDOW_WIDTH == 1920 and OUTPUT_WINDOW_HEIGHT == 1080:
     SCALE_RES = 0.5
 
-ERASE_RADIUS_SMALL = SCALE_RES * 10 
-ERASE_RADIUS_BIG = SCALE_RES * 75
 
-PALETTE_FILE_PATH = "assets/big_palette_expanded.png"
-PALETTE_WIDTH = int(SCALE_RES * 1800)
-PALETTE_HEIGHT = int(SCALE_RES * 150)
+ERASE_RADIUS_SMALL = SCALE_RES * ERASER_SIZE_SMALL
+ERASE_RADIUS_BIG = SCALE_RES * ERASER_SIZE_BIG
+
+PALETTE_WIDTH = int(SCALE_RES * UNSCALED_PALETTE_WIDTH)
+PALETTE_HEIGHT = int(SCALE_RES * UNSCALED_PALETTE_HEIGHT)
 PALETTE_POS_X = (OUTPUT_WINDOW_WIDTH - PALETTE_WIDTH) / 2
-PALETTE_POS_Y = SCALE_RES * 0
+PALETTE_POS_Y = SCALE_RES * UNSCALED_PALETTE_Y_POS
 
 
 class Main:
@@ -157,12 +156,11 @@ class Main:
         self.send_message(message)
 
         self.indicator_id = 9553487
-        indicator_pos_x = PALETTE_POS_X + 11 * PALETTE_HEIGHT
+        indicator_pos_x = PALETTE_POS_X + POSITION_WHITE * PALETTE_HEIGHT
         indicator_pos_y = PALETTE_POS_Y
         indicator_width = indicator_height = PALETTE_HEIGHT
-        indicator_filepath = "assets/palette_indicator.png"
 
-        indicator_message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, indicator_pos_x, indicator_pos_y, indicator_width, indicator_height, indicator_filepath)
+        indicator_message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, indicator_pos_x, indicator_pos_y, indicator_width, indicator_height, INDICATOR_FILEPATH)
         self.send_message(indicator_message)
         
         palette.set_function_shift_indicator(self.move_indicator)
@@ -265,10 +263,11 @@ class Main:
             self.tool = self.Tool.TOOL_CLEAR
             self.clear_all()
             #simulate click on white field
-            sim_pen_event = PenEvent(PALETTE_POS_X + int(11.5 * PALETTE_HEIGHT), PALETTE_POS_Y + int(0.5 * PALETTE_HEIGHT), PenState.DRAG)
+            sim_pen_event = PenEvent(PALETTE_POS_X + int((POSITION_WHITE+0.5) * PALETTE_HEIGHT), PALETTE_POS_Y + int(0.5 * PALETTE_HEIGHT), PenState.DRAG)
+
             for widget in self.widgets:
                 widget.on_click(sim_pen_event)
-            self.move_indicator(PALETTE_POS_X + int(11 * PALETTE_HEIGHT),  PALETTE_POS_Y)
+            self.move_indicator(PALETTE_POS_X + int(POSITION_WHITE * PALETTE_HEIGHT),  PALETTE_POS_Y)
             time.sleep(0.01)
 
         #print(f"You have now selected the {self.tool} tool")
