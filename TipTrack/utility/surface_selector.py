@@ -19,6 +19,9 @@ CONFIG_FILE_PATH = os.path.join(os.getcwd(), 'TipTrack', 'config')
 CONFIG_FILE_NAME = 'config.ini'
 
 
+RESCALE = True
+
+
 class SurfaceSelector:
     """ SurfaceSelector
 
@@ -91,6 +94,10 @@ class SurfaceSelector:
         return frame
 
     def display_mode_calibration(self, frame, camera_parameter_name):
+
+        if RESCALE:
+            frame = cv2.resize(frame, (int(frame.shape[1] / 2), int(frame.shape[0] / 2)))
+
         if len(frame.shape) == 2:
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
@@ -117,6 +124,10 @@ class SurfaceSelector:
     def update_table_corner_calibration(self, coordinates, camera_parameter_name):
         # Order coordinates by x value
         coordinates = sorted(coordinates)
+
+        if RESCALE:
+            for i, coordinate in enumerate(coordinates):
+                coordinates[i] = (coordinate[0] * 2, coordinate[1] * 2)
 
         if coordinates[0][1] > coordinates[1][1]:
             self.calibration_data['corner_top_left'] = coordinates[1]

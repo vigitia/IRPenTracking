@@ -356,17 +356,21 @@ int parseMessageDelete(char* buffer)
                         }
                     }
                 }
-                
+
                 //if this algorithm is finished and there are no points remaining in the line, we can discard it
-                if (lineit->coords.size() < MIN_NON_ERASE_LINE_POINTS)
+                if (lineit->coords.size() < MIN_NON_ERASE_LINE_POINTS || inCollidingSpan)
                 {
                     lineit = lines.erase(lineit);
                 }
                 else
                 {
+                    //const Line restLine = *lineit;
+                    //lines.erase(lineit);
+                    //lines.insert(lineit, restLine);
                     ++lineit; //increment iterator
                 }
             }
+
 
             // save all new line segments
             for(vector<Line>::iterator lineit = newLines.begin(); lineit != newLines.end(); ++lineit)

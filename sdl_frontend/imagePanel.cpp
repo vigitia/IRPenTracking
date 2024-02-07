@@ -37,6 +37,10 @@ void ImagePanel::render(SDL_Renderer* renderer)
     {
         SDL_Rect paletteRect = { this->position.x, this->position.y, static_cast<int>(this->width), static_cast<int>(this->height) };
         int error = SDL_RenderCopy(renderer, this->paletteTexture, NULL, &paletteRect);
+        //if (error)
+        //{
+        //    cout << SDL_GetError() << endl;
+        //}
     }
 }
 

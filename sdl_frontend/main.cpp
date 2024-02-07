@@ -136,6 +136,7 @@ int main(int argc, char* argv[])
 
     srand(time(NULL));
 
+
     if(argc > 1)
     {
         if(COMMUNICATION_MODE == MODE_FIFO)
@@ -207,6 +208,7 @@ int main(int argc, char* argv[])
                 switch(event.key.keysym.sym)
                 {
                     case SDLK_q:
+                        break;
                     case SDLK_ESCAPE:
                         saveImage();
                         quit = true;
@@ -238,6 +240,9 @@ int main(int argc, char* argv[])
                         SHOW_PARTICLES = !SHOW_PARTICLES;
                         break;
                     case SDLK_s:
+                        saveImage();
+                        break;
+                    case SDLK_PAGEUP:
                         saveImage();
                         break;
                     case SDLK_a:

@@ -5,15 +5,14 @@ import threading
 import cv2
 import numpy as np
 
+import Constants
 from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.surface_selector import SurfaceSelector
 
 EXTRACT_PROJECTION_AREA = False
 PREVIEW_MODE = False  # Em
 
-CAM_EXPOSURE_FOR_CALIBRATION = 150000  # Increase Brightness to better see the corners
-
-OUTPUT_RESOLUTION = (2160, 3840)
+OUTPUT_RESOLUTION = (Constants.OUTPUT_WINDOW_HEIGHT, Constants.OUTPUT_WINDOW_WIDTH)
 
 
 class FlirBlackFlySCalibrationTool:
@@ -35,7 +34,7 @@ class FlirBlackFlySCalibrationTool:
         cv2.namedWindow('screen', cv2.WND_PROP_FULLSCREEN)
         cv2.setWindowProperty('screen', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-        # Create white frame
+        # Create white frame used to light up the entire projection area
         self.calibration_target = np.zeros(OUTPUT_RESOLUTION, np.uint8)
         self.calibration_target.fill(255)
 
@@ -43,7 +42,7 @@ class FlirBlackFlySCalibrationTool:
             self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
         else:
             self.surface_selector = SurfaceSelector()
-            self.flir_blackfly_s = FlirBlackflyS(cam_exposure=CAM_EXPOSURE_FOR_CALIBRATION, subscriber=self)
+            self.flir_blackfly_s = FlirBlackflyS(cam_exposure=Constants.CAM_EXPOSURE_FOR_CALIBRATION, subscriber=self, gain=Constants.CAM_GAIN_FOR_CALIBRATION)
 
         self.main_loop()
 
