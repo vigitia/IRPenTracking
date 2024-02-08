@@ -48,7 +48,7 @@ To perform intrinsic camera calibration, run the script `TipTrack/intrinsic_came
 
 You will need a checkerboard calibration pattern.
 
-To perform a projector-camera-calibration, run the following script: `flir_blacklfy_s_calibration_tool.py*`
+To perform a projector-camera-calibration, run the following script: `flir_blacklfy_s_calibration_tool.py`
 
 The script will project a fullscreen white rectangle that fills the entire projection area. 
 A preview of each camera's feed will appear. These windows will help you to adjust the cameras. Each camera needs to see the entire projection area.
