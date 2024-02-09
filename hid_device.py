@@ -23,8 +23,8 @@ from TipTrack.cameras.flir_blackfly_s import FlirBlackflyS
 from TipTrack.utility.mouse_input_generator import MouseInputGenerator
 
 
-WINDOW_WIDTH = 3840  #
-WINDOW_HEIGHT = 2160
+WINDOW_WIDTH = Constants.OUTPUT_WINDOW_WIDTH
+WINDOW_HEIGHT = Constants.OUTPUT_WINDOW_HEIGHT
 
 MAX_MOVEMENT_PX = 5
 LONG_CLICK_TIME_SEC = 0.35

@@ -31,13 +31,9 @@ SEND_DATA_USING_UNIX_SOCKET = True  # Enable if points should be forwarded using
 USE_SDL_FRONTEND = True
 if USE_SDL_FRONTEND:
     import subprocess
-    #subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
+    subprocess.Popen("cd sdl_frontend && ./sdl_frontend '../uds_test' 100", shell=True)
 
     time.sleep(2)
-
-JUERGEN_MODE = False
-if JUERGEN_MODE:
-    from TipTrack.cameras.logitech_brio import LogitechBrio
 
 DOCUMENTS_DEMO = False
 if DOCUMENTS_DEMO:
@@ -95,12 +91,6 @@ class Main:
         self.init_palette()
 
         self.erase_radius = ERASE_RADIUS_SMALL
-
-        if JUERGEN_MODE:
-            #self.pen_detector = PenColorDetector()
-            self.logitech_brio_camera = LogitechBrio(self)
-            self.logitech_brio_camera.init_video_capture()
-            self.logitech_brio_camera.start()
 
         if TRAINING_DATA_COLLECTION_MODE:
             from TipTrack.utility.training_images_collector import TrainingImagesCollector
@@ -286,16 +276,6 @@ class Main:
 
     def add_new_line_point(self, active_pen_event):
         r, g, b = self.draw_color
-
-        if JUERGEN_MODE:
-            if active_pen_event.id in self.color_id_assignments.keys():
-                if active_pen_event.id in self.color_id_assignments:
-                    col = self.color_id_assignments[active_pen_event.id]
-                    r = 255 if col == "r" else 0
-                    g = 255 if col == "g" else 0
-                    b = 255 if col == "b" else 0
-            else:
-                r = g = b = 255
 
         # Create test colors
         if DEBUG_MODE:
