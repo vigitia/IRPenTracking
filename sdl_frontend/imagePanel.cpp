@@ -22,21 +22,21 @@ int ImagePanel::getID()
 
 void ImagePanel::loadTexture(char* texture_path)
 {
-    this->paletteSurface = loadSurface(texture_path);
-    this->paletteTexture = SDL_CreateTextureFromSurface( renderer, this->paletteSurface);
+    this->imageSurface = loadSurface(texture_path);
+    this->imageTexture = SDL_CreateTextureFromSurface( renderer, this->imageSurface);
 }
 
 void ImagePanel::setTexture(SDL_Texture* texture)
 {
-    this->paletteTexture = texture;
+    this->imageTexture = texture;
 }
 
 void ImagePanel::render(SDL_Renderer* renderer)
 {
     if (this->visible)
     {
-        SDL_Rect paletteRect = { this->position.x, this->position.y, static_cast<int>(this->width), static_cast<int>(this->height) };
-        int error = SDL_RenderCopy(renderer, this->paletteTexture, NULL, &paletteRect);
+        SDL_Rect imageRect = { this->position.x, this->position.y, static_cast<int>(this->width), static_cast<int>(this->height) };
+        int error = SDL_RenderCopy(renderer, this->imageTexture, NULL, &imageRect);
         //if (error)
         //{
         //    cout << SDL_GetError() << endl;

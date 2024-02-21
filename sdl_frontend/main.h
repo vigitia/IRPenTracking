@@ -126,8 +126,8 @@ class ImagePanel
         int height;
         bool visible;
 
-        SDL_Surface* paletteSurface;
-        SDL_Texture* paletteTexture;
+        SDL_Surface* imageSurface;
+        SDL_Texture* imageTexture;
 
     public:
         ImagePanel();
@@ -147,9 +147,39 @@ class ImagePanel
         
 };
 
+class Widget : public ImagePanel
+{
+    public:
+        Widget();
+        bool isPointOnWidget(Point position);
+        Point getRelativeCoordinates(Point position);
+        virtual void onClick(Point position){}; //please override these functions to implement the desired behavior on certain mouse events!
+        virtual void onHover(Point position){};
+
+};
+
+class Palette : public Widget
+{
+    protected:
+        ImagePanel selectionIndicator;
+        vector<vector<vector<int>>> fields;//think of *fields* as a 2d-array of RGB-Values instead of a 3d-array of ints. rows before columns.
+        int field_len_y;
+        int field_len_x;
+        int fieldSize;
+    public: 
+        Palette(vector<vector<vector<int>>> fields, int field_len_y, int field_len_x, int field_size); 
+        void select(int field_x, int field_y);
+        void loadTexture(char* texture_path, char * indicator_texture_path);
+        void onClick(Point position) override;
+};
+
+enum Tool{ pencil, eraser, clear};
+
 inline SDL_Renderer* renderer;
 
 inline Modes currentMode = draw;
+inline Tool currentTool = pencil;
+inline SDL_Color currentColor = {255, 255, 255};
 
 inline TTF_Font* font;
 inline SDL_Color textColor = { 255, 255, 255 };
@@ -166,6 +196,7 @@ inline int currentX, currentY = 0;
 inline int currentState = 0;
 
 inline bool showEraserIndicator;
+inline float eraserRadius;
 inline float eraserIndicatorRadius;
 inline vector <Point> eraserTips; //quick hack. Probably better to use pens for detecting eraser position and rendering eraser marker. also unused (unless I've overlooked something).
 
