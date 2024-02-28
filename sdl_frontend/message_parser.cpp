@@ -46,9 +46,6 @@ int parseMessage(char* buffer)
         case CODE_IMAGE:
             return parseMessageImage(buffer);
             break;
-        case CODE_UI_ELEMENT:
-            return parseMessageUIElement(buffer);
-            break;
         case CODE_TOGGLE_HIDE_UI:
             toggleHideUI();
             return 1;
@@ -77,55 +74,7 @@ int parseMessageLine(char* buffer)
         //cout << cur_micros - last_micros << endl;
         //last_micros = cur_micros;
 
-        mutex_pens.lock();
-        if(pens.find(id) == pens.end())
-        {
-            struct Pen currentPen;
-            currentPen.currentLine.id = id;
-            currentPen.alive = 1;
-            pens[id] = currentPen;
-        }
-
-        pens[id].position.x = x;
-        pens[id].position.y = y;
-        pens[id].state = (bool) state;
-
-        //cout << "id: " << id << " x: " << x << "; y: " << y << " state: " << state << endl;
-        if (state == STATE_DRAW && id == pens[id].currentLine.id)
-        {
-            pens[id].currentLine.color = {r, g, b};
-        }
-        //pens[id].currentLine.id = currentId;
-
-        bool inDocument = document.isPointInDocument(x, y);
-
-        mutex_lines.lock();
-        if (document.alive && inDocument && !pens[id].wasInDocument)
-        {
-            lines.push_back(pens[id].currentLine);
-            pens[id].currentLine.coords.clear();
-            if(state == STATE_DRAW) pens[id].currentLine.coords.push_back({x, y});
-            pens[id].wasInDocument = true;
-        }
-        else if (document.alive && !inDocument && pens[id].wasInDocument)
-        {
-            documentLines.push_back(pens[id].currentLine);
-            pens[id].currentLine.coords.clear();
-            if(state == STATE_DRAW) pens[id].currentLine.coords.push_back({x, y});
-            pens[id].wasInDocument = false;
-        }
-        else
-        {
-            if(state == STATE_DRAW)
-            {
-                pens[id].currentLine.coords.push_back({x, y});
-            }
-        }
-
-        pathGame.update(x, y, state);
-
-        mutex_lines.unlock();
-        mutex_pens.unlock();
+        processPenDownEvent(id,x,y,state);
         return 1; 
     }
 
@@ -139,25 +88,7 @@ int parseMessageFinishLine(char* buffer)
 
     if(sscanf(buffer, "f %d ", &id) == 1)
     {
-        mutex_pens.lock();
-        mutex_lines.lock();
-        bool inDocument = document.isPointInDocument(pens[id].position.x, pens[id].position.y);
-
-        if (inDocument)
-        {
-            documentLines.push_back(pens[id].currentLine);
-        }
-        else
-        {
-            lines.push_back(pens[id].currentLine);
-        }
-
-        pens[id].currentLine.coords.clear();
-        pens[id].alive = 0;
-
-        pens.erase(id);
-        mutex_lines.unlock();
-        mutex_pens.unlock();
+        processPenUpEvent(id);
         return 1;
     }
 
@@ -214,7 +145,6 @@ int parseMessageMatrix(char* buffer)
                 documentLines.at(j).coords.at(i) = pnt;
             }
         }
-        //}
         return 1;
     }
 
@@ -273,6 +203,8 @@ int parseMessageRect(char* buffer)
     return 0;
 }
 
+//currently unused.
+//Might be useful again if erasing and drawing are done with different tangibles, so I left it in.
 int parseMessageDelete(char* buffer)
 {
     int id;
@@ -283,137 +215,21 @@ int parseMessageDelete(char* buffer)
     //printf("Got %s (in C++)", buffer);
     if(sscanf(buffer, "d %d %f %f %f %d", &id, &x, &y, &radius, &state) == 5)
     {
-        mutex_pens.lock();
-        if(pens.find(id) == pens.end())
-        {
-            struct Pen currentPen;
-            currentPen.currentLine.id = id;
-            currentPen.alive = 1;
-            pens[id] = currentPen;
-        }
-
-        pens[id].position.x = x;
-        pens[id].position.y = y;
-        pens[id].state = 1;
-
-        eraserIndicatorRadius = radius;
-        mutex_lines.lock();
-        //fflush(stdout);
-        //NEW BEHAVIOR: Lines are selected with a circle
-        //Possible Optimization: Compute Bounding boxes of lines and check collision with eraser before looping over every point
-
-        if (state == STATE_DRAW)
-        {
-            showEraserIndicator = true;
-            //re-implementation of dubious code that is hopefully more readable (and actually works)
-
-            // keeps track of new line segment that are created when an existing line is split
-            vector<Line> newLines;
-            //loop over every line saved.
-            for (vector<Line>::iterator lineit = lines.begin(); lineit != lines.end();)
-            {
-
-                //when iterating through the vector of points, we will alternate between sections of points that will remain and sections of points that will be erased.
-                //this bool keeps track of which type of section we are currently in.
-                bool inCollidingSpan = false;
-
-                vector<Point> points = lineit->coords;
-
-                //during the iteration, we take action at the points where we change from an erased section to an unerased section.
-                //if we change from an unerased section to an erased section, we chop everything before off and save it as a new line.
-                //if we change from an erased section to an unerased section, we chop everything before off and discard it.
-                for(vector<Point>::iterator pointit = lineit->coords.begin(); pointit != lineit->coords.end();++pointit)
-                {
-                    if(getDistance(pointit->x, pointit->y, x, y) <= radius) // is the current point colliding with the eraser?
-                    {
-
-                        if(!inCollidingSpan) //and are we changing from a non-erased section to an erased section?
-                        {
-                            inCollidingSpan = true;
-                            if (pointit != lineit->coords.begin())
-                            {
-                                Line newLineSegment; //put all points that came before into a new line
-                                newLineSegment.color = lineit->color;
-                                newLineSegment.alive = lineit->alive;
-                                newLineSegment.id = lineit->id; //NOTE: THIS WILL BREAK any future additions that rely on the ids of lines being unique
-                                //TODO: find a better way of assigning new line ids
-                                copy(lineit->coords.begin(), pointit, back_inserter(newLineSegment.coords)); //copy points from existing line to new line
-                                pointit = lineit->coords.erase(lineit->coords.begin(), pointit); //and then erase these points from the original line
-                                if (newLineSegment.coords.size() >= MIN_NON_ERASE_LINE_POINTS)
-                                {
-                                    newLines.push_back(newLineSegment);
-                                }
-                            }
-
-                        }
-                    }
-                    else
-                    {
-                        if(inCollidingSpan)//are we changing from an erased section to an unerased section?
-                        {
-                            inCollidingSpan = false;
-                            pointit = lineit->coords.erase(lineit->coords.begin(), pointit); //erase all points in the erased section from the line
-                        }
-                    }
-                }
-
-                //if this algorithm is finished and there are no points remaining in the line, we can discard it
-                if (lineit->coords.size() < MIN_NON_ERASE_LINE_POINTS || inCollidingSpan)
-                {
-                    lineit = lines.erase(lineit);
-                }
-                else
-                {
-                    //const Line restLine = *lineit;
-                    //lines.erase(lineit);
-                    //lines.insert(lineit, restLine);
-                    ++lineit; //increment iterator
-                }
-            }
-
-
-            // save all new line segments
-            for(vector<Line>::iterator lineit = newLines.begin(); lineit != newLines.end(); ++lineit)
-            {
-                lines.push_back(*lineit);
-            }
-
-            //TODO: implement the same for document lines
-            for (vector<Line>::iterator lineit = documentLines.begin(); lineit != documentLines.end(); )
-            {
-                vector<Point> colliding_points = collideLineWithCircle(lineit->coords, x, y, radius);
-                if (colliding_points.size() > 0)
-                {
-                    lineit=lines.erase(lineit);
-                }
-                else
-                    ++lineit;
-            }
-        }
-
-        
-        
-        mutex_lines.unlock();
-        
-        mutex_pens.unlock();
-        
+        erase(id, x, y, state, radius);
         return 1;
     }
     return 0;
 }
 
 //signals that the eraser has been lifted from the surface. The erasing process has been paused.
+//currently unused.
+//Might be useful again if erasing and drawing are done with different tangibles, so I left it in.
 int parseMessageFinishErase(char* buffer)
 {
     int id;
     if(sscanf(buffer, "v %d ", &id) == 1)
     {
-        showEraserIndicator = false;
-        pens[id].alive = 0;
-        pens[id].state = 0;
-
-        pens.erase(id);
-        mutex_pens.unlock();
+        finishErase(id);
     }
 }
 
@@ -472,104 +288,6 @@ int parseMessageImage(char* buffer)
         if (!is_known)
         {
             images.push_back(img);
-        }
-
-        return 1;
-
-    }
-    else return 0;
-}
-
-
-int parseMessageUIElement(char* buffer)
-{
-    int id; //required
-    int visibility; //required | if 0 or lower, ImagePanel is set to invisible
-    float x = -1.0; //only required if width and height are not given | temporary value to signal that variable has not been properly assigned
-    float y = -1.0; //only required if width and height are not given 
-    int width = -1; //only required if x and y are not given
-    int height = -1; //only required if x and y are not given 
-    char filepath [200]; //only required when creating a new UI Element
-    int num_args = sscanf(buffer, "u %d %d %f %f %d %d %s", &id, &visibility, &x, &y, &width, &height, &filepath);
-
-    if (num_args >= 4) 
-    {
-
-        bool is_known = false;
-
-        ImagePanel* img; //Pointer to the ImagePanel we wish to manipulate
-
-        vector<ImagePanel>::const_iterator imgIndex;
-        for (vector<ImagePanel>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
-        {
-            if (imgit->getID() == id) //check if an image of this ID is already on the list
-            {
-                is_known = true;
-                img = &(*imgit); //if so, assign pointer of the image to img. Clumsy syntax because we the iterator != ImagePanel
-                imgIndex = imgit;
-                break;
-            }
-        }
-
-
-        if (!is_known)
-        {
-            ImagePanel newimg; //if not, just create a new ImagePanel
-            img = &newimg;
-        }
-
-
-
-
-        if (!is_known && num_args < 7)
-        {
-            cout << "WARNING: You are trying to create a new UI Element, but you only passed " << num_args << "arguments." << endl;
-            cout << buffer << "|" << num_args << endl;
-            return 0;
-        }
-
-        img->setVisibility((visibility > 0));
-
-        if (x != -1.0 && y != -1.0) //check if values have been assigned
-        {
-            Point newPosition;
-            newPosition.x = x;
-            newPosition.y = y;
-            img->setPosition(newPosition);
-        }
-        if (width != -1 && height != -1)
-        {
-            img->setDimensions(width, height);
-        }
-
-        if (num_args == 7)
-        {
-            //short-term workaround: use preloaded textures
-            //TODO: make some sort of hashmap of preloaded textures. This is ugly and a hassle to update.
-            //if (filepath == "assets/big_palette_expanded.png")
-            if (strcmp(filepath, "assets/big_palette_expanded.png") == 0)
-            {
-                img->setTexture(preloadedPaletteTexture);
-            }
-            //else if (filepath == "assets/palette_indicator.png")
-            else if (strcmp(filepath, "assets/palette_indicator.png") == 0)
-            {
-                img->setTexture(preloadedPaletteIndicatorTexture);
-            }
-            //else
-            //    img->loadTexture(filepath);
-        }
-        
-        if (!is_known)
-        {
-            img->setID(id);
-            uiElements.push_back(*img); //add new ImageFrame to the list
-        }
-        else
-        {
-            const ImagePanel immutableImage = *img;
-            uiElements.erase(imgIndex);
-            uiElements.insert(imgIndex, immutableImage); //replace original ImageFrame with its updated version
         }
 
         return 1;

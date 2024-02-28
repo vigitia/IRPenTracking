@@ -11,9 +11,10 @@ Palette::Palette(vector<vector<vector<int>>> fields, int field_len_y, int field_
     this->fields = fields;
     this->field_len_x = field_len_x;
     this->field_len_y = field_len_y;
-    this->fieldSize = fieldSize;
-    this->setDimensions(field_len_x * fieldSize, field_len_y * fieldSize);
-
+    this->fieldSize = field_size;
+    this->setDimensions(field_len_x * field_size, field_len_y * field_size);
+    this->selectionIndicator.setDimensions(field_size, field_size);
+    
 }
 
 //overloading this function to set the texture of the indicator seems like the right call to me.
@@ -23,7 +24,20 @@ void Palette::loadTexture(char* texture_path, char * indicator_texture_path){
     this->ImagePanel::loadTexture(texture_path);
 }
 
+void Palette::loadTexture()
+{
+    this->selectionIndicator.loadTexture();
+    this->ImagePanel::loadTexture();
+}
+
+void Palette::setDefaultImagePath(char* imagePath, char* selectorImagePath)
+{
+    this->defaultImagePath = imagePath;
+    this->selectionIndicator.setDefaultImagePath(selectorImagePath);
+}
+
 void Palette::select(int field_x, int field_y){
+    bool doSetIndicatorPosition = true;
     vector<int> color_code = this->fields[field_y][field_x];
     if (color_code[0] >= 0 && color_code[1] >= 0 && color_code[2] >= 0){//no negative values => it's actually a color
         currentTool = pencil;
@@ -35,21 +49,31 @@ void Palette::select(int field_x, int field_y){
     }
     else if(color_code[0] == -2){
         currentTool = clear;
+        clearScreen();
+        cout << "Cleared Screen" << endl;
+        this->select(field_len_x-1, 0);
+        doSetIndicatorPosition = false;
     }
     else{
-        cout << "Unknown color code: {" << color_code[0] << " " << color_code[1] << " " << color_code[2] << "}"
+        cout << "Unknown color code: {" << color_code[0] << " " << color_code[1] << " " << color_code[2] << "}" << endl;
     }
-
-    Point newIndicatorPosition = {field_x * this->fieldSize + this->position.x, field_y * this->fieldSize + this->position.x}
-    this->selectionIndicator.setPosition(newIndicatorPosition)
+    if (doSetIndicatorPosition){
+        Point newIndicatorPosition = {field_x * this->fieldSize + this->position.x, field_y * this->fieldSize + this->position.y};
+        this->selectionIndicator.setPosition(newIndicatorPosition);
+    }
 }
 
 void Palette::onClick(Point position){
     if (this->getVisibility()){
         Point relPos = this->getRelativeCoordinates(position);
-        float idx_x = relPos.x / this->fieldSize;
-        float idx_y = relPos.y / this->fieldSize;
-        this->select(idx_x, idx_y)
+        int idx_x = floor(relPos.x / this->fieldSize);
+        int idx_y = floor(relPos.y / this->fieldSize);
+        this->select(idx_x, idx_y);
     }
+}
+
+void Palette::render(SDL_Renderer* renderer){
+    this->ImagePanel::render(renderer);
+    this->selectionIndicator.render(renderer);
 }
 

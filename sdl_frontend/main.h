@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <mutex>
+#include <memory>
 
 #define MODE_FIFO 0
 #define MODE_UDS 1
@@ -19,7 +20,7 @@
 #define MODE_1080 0
 #define MODE_4K 1
 
-#define MODE MODE_4K
+#define MODE MODE_1080
 
 #if MODE == MODE_1080
 #define WINDOW_WIDTH 1920
@@ -64,12 +65,24 @@
 #define CODE_TOGGLE_HIDE_UI 'h'
 
 
-#define PALETTE_TEXTURE_PATH "assets/big_palette.png"
-#define PALETTE_WIDTH 1800
-#define PALETTE_HEIGHT 180
+#define PALETTE_TEXTURE_PATH "assets/big_palette_expanded.png"
+#define PALETTE_SELECTION_INDICATOR_PATH "assets/palette_indicator.png"
+
+
+#if MODE == MODE_1080
+#define ERASE_RADIUS_BIG 38
+#define ERASE_RADIUS_SMALL 5
+#define PALETTE_HEIGHT 75
+
+#else
+#define ERASE_RADIUS_BIG 75
+#define ERASE_RADIUS_SMALL 10
+#define PALETTE_HEIGHT 150
+#endif
 
 inline char* SCREENSHOT_PATH = "screenshots/";
 inline const char* PHRASES_PATH = "evaluation/phrases.txt";
+
 
 using namespace std;
 
@@ -125,17 +138,20 @@ class ImagePanel
         int width;
         int height;
         bool visible;
+        char* defaultImagePath;
 
         SDL_Surface* imageSurface;
         SDL_Texture* imageTexture;
 
     public:
         ImagePanel();
-        void render(SDL_Renderer* renderer);
+        virtual void setDefaultImagePath(char * imagePath);
+        virtual void render(SDL_Renderer* renderer);
         void setPosition(Point Position);
         void setID(int id);
         int getID();
-        void loadTexture(char* texturePath);
+        virtual void loadTexture(char* texturePath);
+        virtual void loadTexture();
         void setTexture(SDL_Texture* texture);
         void setDimensions(int width, int height);
         Point getPosition();
@@ -153,7 +169,7 @@ class Widget : public ImagePanel
         Widget();
         bool isPointOnWidget(Point position);
         Point getRelativeCoordinates(Point position);
-        virtual void onClick(Point position){}; //please override these functions to implement the desired behavior on certain mouse events!
+        virtual void onClick(Point position); //please override these functions to implement the desired behavior on certain mouse events!
         virtual void onHover(Point position){};
 
 };
@@ -170,7 +186,10 @@ class Palette : public Widget
         Palette(vector<vector<vector<int>>> fields, int field_len_y, int field_len_x, int field_size); 
         void select(int field_x, int field_y);
         void loadTexture(char* texture_path, char * indicator_texture_path);
-        void onClick(Point position) override;
+        void loadTexture();
+        void setDefaultImagePath(char* imagePath, char* selectorImagePath);
+        void onClick(Point position);
+        void render(SDL_Renderer* renderer);
 };
 
 enum Tool{ pencil, eraser, clear};
@@ -228,6 +247,19 @@ void logData(const string& fileName, const string& data);
 bool compareHighscoreEntries(const HighscoreEntry& a, const HighscoreEntry& b);
 void toggleHideUI();
 
+void initPalette();
+
+void processPenDownEvent(int id, int x, int y, int state);
+void processPenUpEvent(int id);
+
+void drawLine(int id, int x, int y, int state);
+void erase(int id, float x, float y, int state, int radius);
+
+void finishLine(int id);
+void finishErase(int id);
+
+void clearCanvas();
+
 void preloadTextures(SDL_Renderer* renderer);
 
 int parseMessage(char* buffer);
@@ -245,6 +277,6 @@ int parseMessageUIElement(char* buffer);
 vector<string> split (string s, string delimiter);
 
 inline vector<ImagePanel> images;
-inline vector<ImagePanel> uiElements;
+inline vector<std::shared_ptr<Widget>> uiElements;
 
 #endif

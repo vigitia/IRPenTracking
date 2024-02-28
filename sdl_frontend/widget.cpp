@@ -23,8 +23,8 @@ Point Widget::getRelativeCoordinates(Point position){
     return relPos;
 }
 
-void onClick(Point position){
-
+void  Widget::onClick(Point position){
+    cout << "Undefined behavior for event onClick" << endl;
 }
 
 void onHover(Point position){

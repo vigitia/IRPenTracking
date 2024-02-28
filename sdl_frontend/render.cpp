@@ -282,11 +282,11 @@ void renderAllImages(SDL_Renderer* renderer)
 
 void renderAllUIElements(SDL_Renderer* renderer)
 {
-    for(vector<ImagePanel>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
+    for(vector<shared_ptr<Widget>>::iterator imgit = uiElements.begin(); imgit != uiElements.end(); ++imgit)
     {
-        if (imgit->getVisibility())
+        if ((*imgit)->getVisibility())
         {
-            imgit->render(renderer);
+            (*imgit)->render(renderer);
         }
     }
 }

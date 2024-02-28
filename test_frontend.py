@@ -69,18 +69,17 @@ class TestFrontend:
         time.sleep(2) #give backend time to load a renderer
         self.tool = self.Tool.TOOL_DRAW
         self.widgets = []
-        self.init_palette()
 
         self.erase_radius = ERASE_RADIUS_SMALL
+        self.draw_color = (255,255,255)
+
 
         
-        key_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
-        key_listener.start()
 
         message_thread = threading.Thread(target=self.main_loop)
         message_thread.start()
         time.sleep(5)
-        self.test_palette()
+        self.test_new_frontend()
 
 
     def init_palette(self):
@@ -120,6 +119,32 @@ class TestFrontend:
         palette.set_function_shift_indicator(self.move_indicator)
 
         self.widgets.append(palette)
+
+
+    def test_new_frontend(self):
+        for i in range(0,9):
+            x = 750 + 75 * i
+            y = 40
+            self.draw_line(x,y, x+1, y+1, 2)
+            
+            time.sleep(0.25)
+
+            self.draw_line(x, 150, x, 800, 100)
+
+        time.sleep(1)
+        self.draw_line(599, 40, 602, 40, 2)
+
+        self.draw_line(50, 250, 1600, 250, 400)
+
+        
+        time.sleep(1)
+        self.draw_line(675, 40, 666, 40, 2)
+
+        self.draw_line(50, 500, 1600, 500, 400)
+
+        time.sleep(4)
+        self.draw_line(525,40,576,40, 3)
+        
 
 
     def test_eraser (self):
@@ -222,6 +247,20 @@ class TestFrontend:
         start_y = y = Random().randrange(min_y, max_y)
         end_y = Random().randrange(min_x, max_x)
 
+        for i in range(0,steps):
+            x += ((end_x - start_x) / steps)
+            y += ((end_y - start_y) / steps)
+
+            sim_pen_event = PenEvent(x, y, PenState.DRAG)
+            self.add_new_line_point(sim_pen_event)
+            time.sleep(0.0001)
+        end_pen_event = PenEvent(end_x, end_y, PenState.DRAG)
+        self.finish_line(end_pen_event)
+        
+
+    def draw_line(self,start_x, start_y, end_x, end_y, steps):
+        x = start_x
+        y = start_y
         for i in range(0,steps):
             x += ((end_x - start_x) / steps)
             y += ((end_y - start_y) / steps)

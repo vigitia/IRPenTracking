@@ -44,21 +44,21 @@ if DOCUMENTS_DEMO:
     from demo_applications.documents_demo.AnalogueDigitalDocumentsDemo import AnalogueDigitalDocumentsDemo
 
 #RESOLUTION = "4K"
-SCALE_RES= 1
+#SCALE_RES= 1
 
-if OUTPUT_WINDOW_WIDTH == 3840 and OUTPUT_WINDOW_HEIGHT == 2160:
-    SCALE_RES = 1
-elif OUTPUT_WINDOW_WIDTH == 1920 and OUTPUT_WINDOW_HEIGHT == 1080:
-    SCALE_RES = 0.5
+#if OUTPUT_WINDOW_WIDTH == 3840 and OUTPUT_WINDOW_HEIGHT == 2160:
+#    SCALE_RES = 1
+#elif OUTPUT_WINDOW_WIDTH == 1920 and OUTPUT_WINDOW_HEIGHT == 1080:
+#    SCALE_RES = 0.5
 
 
-ERASE_RADIUS_SMALL = SCALE_RES * ERASER_SIZE_SMALL
-ERASE_RADIUS_BIG = SCALE_RES * ERASER_SIZE_BIG
+#ERASE_RADIUS_SMALL = SCALE_RES * ERASER_SIZE_SMALL
+#ERASE_RADIUS_BIG = SCALE_RES * ERASER_SIZE_BIG
 
-PALETTE_WIDTH = int(SCALE_RES * UNSCALED_PALETTE_WIDTH)
-PALETTE_HEIGHT = int(SCALE_RES * UNSCALED_PALETTE_HEIGHT)
-PALETTE_POS_X = (OUTPUT_WINDOW_WIDTH - PALETTE_WIDTH) / 2
-PALETTE_POS_Y = SCALE_RES * UNSCALED_PALETTE_Y_POS
+#PALETTE_WIDTH = int(SCALE_RES * UNSCALED_PALETTE_WIDTH)
+#PALETTE_HEIGHT = int(SCALE_RES * UNSCALED_PALETTE_HEIGHT)
+#PALETTE_POS_X = (OUTPUT_WINDOW_WIDTH - PALETTE_WIDTH) / 2
+#PALETTE_POS_Y = SCALE_RES * UNSCALED_PALETTE_Y_POS
 
 
 class Main:
@@ -67,11 +67,6 @@ class Main:
 
     """
 
-    
-    class Tool(Enum):
-        TOOL_DRAW = "draw"
-        TOOL_ERASE = "erase"
-        TOOL_CLEAR = "clear"
 
     uds_initialized = False
     unix_socket = None
@@ -89,13 +84,6 @@ class Main:
         self.ir_pen = IRPen()
         self.flir_blackfly_s = FlirBlackflyS(subscriber=self)
 
-        self.widgets = []
-        self.tool = self.Tool.TOOL_DRAW
-
-        self.init_palette()
-
-        self.erase_radius = ERASE_RADIUS_SMALL
-
         if JUERGEN_MODE:
             #self.pen_detector = PenColorDetector()
             self.logitech_brio_camera = LogitechBrio(self)
@@ -109,10 +97,6 @@ class Main:
             self.training_images_collector = TrainingImagesCollector(self.ir_pen, exposure, gain)
         if DOCUMENTS_DEMO:
             self.analogue_digital_document = AnalogueDigitalDocumentsDemo()
-
-        # setup key event listener
-        key_listener = keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
-        key_listener.start()
 
         # Start main loop in its own thread
         message_thread = threading.Thread(target=self.main_loop)
@@ -129,44 +113,6 @@ class Main:
             print('Make sure that the frontend is already running before starting this python script')
             sys.exit(1)
         self.uds_initialized = True
-
-    def init_palette(self):
-        
-        self.draw_color = (255,255,255)
-        colors = [
-            ( -2,  -2,  -2), # == Clear everything
-            ( -1,  -1, ERASE_RADIUS_BIG),# == Eraser, bigger Radius
-            ( -1,  -1, ERASE_RADIUS_SMALL), # == Eraser, smaller Radius
-            (255,  51, 255), # == an RGB color value (as everything below)
-            (255,  51,  51),
-            (255, 149,   0),
-            (255, 255,  17),
-            ( 51, 255,  51),
-            ( 51, 238, 238),
-            ( 76,  76, 255),
-            (128, 128, 128),
-            (255, 255, 255)]
-        
-        self.palette_id = 25101881
-
-        
-        palette = Palette(self.palette_id, PALETTE_POS_X, PALETTE_POS_Y, colors, PALETTE_HEIGHT, callback=self.choose_color_or_tool)
-        
-        message = "u {} {} {} {} {} {} {}".format(self.palette_id, 1, PALETTE_POS_X, PALETTE_POS_Y, PALETTE_WIDTH, PALETTE_HEIGHT, PALETTE_FILE_PATH)
-        self.send_message(message)
-
-        self.indicator_id = 9553487
-        indicator_pos_x = PALETTE_POS_X + POSITION_WHITE * PALETTE_HEIGHT
-        indicator_pos_y = PALETTE_POS_Y
-        indicator_width = indicator_height = PALETTE_HEIGHT
-
-        indicator_message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, indicator_pos_x, indicator_pos_y, indicator_width, indicator_height, INDICATOR_FILEPATH)
-        self.send_message(indicator_message)
-        
-        palette.set_function_shift_indicator(self.move_indicator)
-
-        self.widgets.append(palette)
-
 
 
     def main_loop(self):
@@ -251,26 +197,6 @@ class Main:
 
     # ----------------------------------------------------------------------------------------------------------------
 
-    # callback function that reacts to the option chosen on the palette.
-    def choose_color_or_tool(self, action, color):
-        if action == "COLOR":
-            self.tool = self.Tool.TOOL_DRAW
-            self.draw_color = color
-        elif action == "ERASE":
-            self.tool = self.Tool.TOOL_ERASE
-            self.erase_radius = color[2]
-        elif action == "CLEAR":
-            self.tool = self.Tool.TOOL_CLEAR
-            self.clear_all()
-            #simulate click on white field
-            sim_pen_event = PenEvent(PALETTE_POS_X + int((POSITION_WHITE+0.5) * PALETTE_HEIGHT), PALETTE_POS_Y + int(0.5 * PALETTE_HEIGHT), PenState.DRAG)
-
-            for widget in self.widgets:
-                widget.on_click(sim_pen_event)
-            self.move_indicator(PALETTE_POS_X + int(POSITION_WHITE * PALETTE_HEIGHT),  PALETTE_POS_Y)
-            time.sleep(0.01)
-
-        #print(f"You have now selected the {self.tool} tool")
 
     def finish_line(self, pen_event_to_remove):
         """
@@ -285,7 +211,7 @@ class Main:
     last_timestamp = 0
 
     def add_new_line_point(self, active_pen_event):
-        r, g, b = self.draw_color
+        r, g, b = 255, 255, 255
 
         if JUERGEN_MODE:
             if active_pen_event.id in self.color_id_assignments.keys():
@@ -328,20 +254,17 @@ class Main:
 
         self.send_message(message)
     
-    # callback function. Used by the palette to set the position of the indicator
-    def move_indicator(self,new_x, new_y):
-        message = "u {} {} {} {}".format(self.indicator_id, 1, new_x, new_y)
-        #message = "u {} {} {} {} {} {} {}".format(self.indicator_id, 1, new_x, new_y, 180, 180, "assets/palette_indicator.png")
-        self.send_message(message)
     
 
     # Sends message to frontend to erase all points in a radius around the current position of the pen.
+    # currently unused.
     def erase_at_point(self, active_pen_event):
         radius = self.erase_radius
         message = 'd {} {} {} {} {}'.format(active_pen_event.id, int(active_pen_event.x), int(active_pen_event.y), radius, 0 if active_pen_event.state == PenState.HOVER else 1)
         self.send_message(message)
         
     # Sends message to frontend to pause the erase process (a.k.a. stop showing the eraser indicator)
+    # currently unused.
     def finish_erasing(self, pen_event_to_remove):
         message = 'v {}'.format(pen_event_to_remove.id)
         self.send_message(message)
@@ -473,23 +396,10 @@ class Main:
         if SEND_DATA_USING_UNIX_SOCKET:
 
             for active_pen_event in active_pen_events:
-                is_touch_on_widget = False
-                for widget in self.widgets: #check first if the pen collides with a widget
-                    if widget.is_point_on_widget(*active_pen_event.get_coordinates()) and widget.is_visible:
-                        widget.on_click(active_pen_event) #if that's the case, let the widget decide what happens on a click
-                        is_touch_on_widget = True
-
-                if not is_touch_on_widget: #else, manipulate the canvas with the selected tool
-                    if self.tool == self.Tool.TOOL_DRAW:
-                        self.add_new_line_point(active_pen_event)
-                    elif self.tool == self.Tool.TOOL_ERASE:
-                        self.erase_at_point(active_pen_event)
+                self.add_new_line_point(active_pen_event)
 
             for pen_event in pen_events_to_remove:
-                if self.tool == self.Tool.TOOL_DRAW:
-                    self.finish_line(pen_event)
-                elif self.tool == self.Tool.TOOL_ERASE:
-                    self.finish_erasing(pen_event)
+                self.finish_line(pen_event)
 
 
         if DOCUMENTS_DEMO:
@@ -530,24 +440,6 @@ class Main:
             if document_changed or document_removed:
                 self.clear_rects()
 
-    #TODO: remove. Let the frontend handle everything with key inputs.
-    def on_key_press(self, key):
-        #print("Pressed key {}".format(key))
-        if key == keyboard.Key.page_down:
-            for widget in self.widgets:
-                widget.set_visibility(not widget.is_visible)
-            self.toggle_hide_ui()
-
-    def on_key_release(self, key):
-        pass
-
-    def toggle_hide_ui(self):
-        message = "h"
-        self.send_message(message)
-    
-    def clear_all (self):
-        message = "x"
-        self.send_message(message)
 
     #TODO (BIG): shift most of the functionality for choosing tools, handling widgets etc. to the frontend.
     

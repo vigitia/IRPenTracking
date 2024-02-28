@@ -26,9 +26,24 @@ void ImagePanel::loadTexture(char* texture_path)
     this->imageTexture = SDL_CreateTextureFromSurface( renderer, this->imageSurface);
 }
 
+void ImagePanel::loadTexture()
+{
+    if (this->defaultImagePath == nullptr){
+        cout << "Error loading default texture in ImagePanel " << this->getID() << ": No default texture assigned." << endl; 
+    }
+    else{
+        this->loadTexture(this->defaultImagePath);
+    }
+}
+
 void ImagePanel::setTexture(SDL_Texture* texture)
 {
     this->imageTexture = texture;
+}
+
+void ImagePanel::setDefaultImagePath(char * imagePath)
+{
+    this->defaultImagePath = imagePath;
 }
 
 void ImagePanel::render(SDL_Renderer* renderer)
